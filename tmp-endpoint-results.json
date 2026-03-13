@@ -1,0 +1,128 @@
+[
+    {
+        "name":  "auth.logout",
+        "method":  "POST",
+        "path":  "/api/auth/logout",
+        "status":  200,
+        "ok":  true,
+        "body":  {
+                     "message":  "Logged out successfully"
+                 }
+    },
+    {
+        "name":  "auth.signup",
+        "method":  "POST",
+        "path":  "/api/auth/signup",
+        "status":  0,
+        "ok":  false,
+        "body":  "The request was aborted: The operation has timed out."
+    },
+    {
+        "name":  "auth.signin",
+        "method":  "POST",
+        "path":  "/api/auth/signin",
+        "status":  0,
+        "ok":  false,
+        "body":  "The request was aborted: The operation has timed out."
+    },
+    {
+        "name":  "packages.get",
+        "method":  "GET",
+        "path":  "/api/packages",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "packages.get.auth",
+        "method":  "GET",
+        "path":  "/api/packages",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "packages.post",
+        "method":  "POST",
+        "path":  "/api/packages",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "packages.put",
+        "method":  "PUT",
+        "path":  "/api/packages/{id}",
+        "status":  0,
+        "ok":  false,
+        "body":  "Skipped: package not created"
+    },
+    {
+        "name":  "clients.get",
+        "method":  "GET",
+        "path":  "/api/clients",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "clients.get.auth",
+        "method":  "GET",
+        "path":  "/api/clients",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "packages.get.auth.retry",
+        "method":  "GET",
+        "path":  "/api/packages",
+        "status":  401,
+        "ok":  false,
+        "body":  {
+                     "error":  "Unauthorized"
+                 }
+    },
+    {
+        "name":  "clients.post",
+        "method":  "POST",
+        "path":  "/api/clients",
+        "status":  0,
+        "ok":  false,
+        "body":  "Skipped: no package ID available"
+    },
+    {
+        "name":  "clients.put",
+        "method":  "PUT",
+        "path":  "/api/clients/{id}",
+        "status":  0,
+        "ok":  false,
+        "body":  "Skipped: no package ID available"
+    },
+    {
+        "name":  "clients.delete",
+        "method":  "DELETE",
+        "path":  "/api/clients/{id}",
+        "status":  0,
+        "ok":  false,
+        "body":  "Skipped: no package ID available"
+    },
+    {
+        "name":  "packages.delete",
+        "method":  "DELETE",
+        "path":  "/api/packages/{id}",
+        "status":  0,
+        "ok":  false,
+        "body":  "Skipped: package not created"
+    }
+]

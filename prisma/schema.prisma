@@ -1,0 +1,89 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+  engineType    = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now())
+  packages  Package[]
+
+  @@map("admins")
+}
+
+model Package {
+  id                String           @id @default(cuid())
+  name              String           @unique
+  speed             Int
+  price             Float
+  durationDays      Int
+  description       String           @default("")
+  isActive          Boolean          @default(true)
+  createdBy         String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  purchasePrice     Float?
+  serviceProviderId String?
+  clients           Client[]
+  creator           Admin            @relation(fields: [createdBy], references: [id])
+  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+
+  @@map("packages")
+}
+
+model ServiceProvider {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  contactInfo String?
+  address     String?
+  email       String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  packages    Package[]
+
+  @@map("service_providers")
+}
+
+model Client {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String
+  cnic          String
+  city          String
+  area          String
+  country       String
+  packageId     String
+  price         Float
+  startDate     DateTime
+  expiryDate    DateTime
+  paymentStatus PaymentStatus
+  status        ClientStatus
+  notes         String?
+  createdAt     DateTime      @default(now())
+  package       Package       @relation(fields: [packageId], references: [id])
+
+  @@map("clients")
+}
+
+enum PaymentStatus {
+  paid
+  unpaid
+  partial
+}
+
+enum ClientStatus {
+  active
+  expired
+  suspended
+}

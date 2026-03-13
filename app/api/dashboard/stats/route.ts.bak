@@ -1,0 +1,141 @@
+import { NextResponse } from 'next/server'
+import { getAdminFromToken } from '@/lib/jwt'
+import prisma from '@/lib/prisma'
+
+export async function GET(request: Request) {
+  try {
+    const admin = await getAdminFromToken(request as any)
+
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Start of today
+    const endOfDay = new Date(today)
+    endOfDay.setHours(23, 59, 59, 999) // End of today
+
+    const next3Days = new Date(today)
+    next3Days.setDate(today.getDate() + 3)
+    next3Days.setHours(23, 59, 59, 999) // End of next 3 days
+
+    const next7Days = new Date(today)
+    next7Days.setDate(today.getDate() + 7)
+    next7Days.setHours(23, 59, 59, 999) // End of next 7 days
+
+    // Get total clients
+    const totalClients = await prisma.client.count()
+
+    // Get active clients
+    const activeClients = await prisma.client.count({
+      where: { status: 'active' }
+    })
+
+    // Get expired clients
+    const expiredClients = await prisma.client.count({
+      where: { status: 'expired' }
+    })
+
+    // Calculate total revenue (sum of prices for active clients)
+    const clients = await prisma.client.findMany({
+      where: { status: 'active' }
+    })
+
+    const totalRevenue = clients.reduce((sum, client) => sum + client.price, 0)
+
+    // User Overview
+    const totalUsers = await prisma.client.count()
+    const activeUsers = await prisma.client.count({
+      where: { status: 'active' }
+    })
+    const expiredUsers = await prisma.client.count({
+      where: { status: 'expired' }
+    })
+
+    // Expiration Alerts
+    const expireToday = await prisma.client.count({
+      where: {
+        expiryDate: {
+          gte: today,
+          lte: endOfDay
+        }
+      }
+    })
+
+    const expireNext3Days = await prisma.client.count({
+      where: {
+        expiryDate: {
+          gte: today,
+          lte: next3Days
+        },
+        status: 'active'
+      }
+    })
+
+    const expireNext7Days = await prisma.client.count({
+      where: {
+        expiryDate: {
+          gte: today,
+          lte: next7Days
+        },
+        status: 'active'
+      }
+    })
+
+    // Billing
+    const paidToday = await prisma.client.count({
+      where: {
+        paymentStatus: 'paid',
+        createdAt: {
+          gte: today,
+          lte: endOfDay
+        }
+      }
+    })
+
+    const dueToday = await prisma.client.count({
+      where: {
+        paymentStatus: 'unpaid',
+        expiryDate: {
+          gte: today,
+          lte: endOfDay
+        }
+      }
+    })
+
+    const dueNext7Days = await prisma.client.count({
+      where: {
+        paymentStatus: 'unpaid',
+        expiryDate: {
+          gte: today,
+          lte: next7Days
+        }
+      }
+    })
+
+    return NextResponse.json({
+      totalClients,
+      activeClients,
+      expiredClients,
+      totalRevenue,
+
+      totalUsers,
+      activeUsers,
+      expiredUsers,
+
+      expireToday,
+      expireNext3Days,
+      expireNext7Days,
+
+      paidToday,
+      dueToday,
+      dueNext7Days
+    })
+  } catch (error) {
+    console.error('Get dashboard stats error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
