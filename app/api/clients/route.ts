@@ -65,6 +65,33 @@ import { NextResponse } from 'next/server'
         )
       }
 
+      // Parse dates safely
+      let parsedStartDate: Date;
+      let parsedExpiryDate: Date;
+
+      try {
+        parsedStartDate = new Date(startDate);
+        if (isNaN(parsedStartDate.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid start date format' },
+            { status: 400 }
+          );
+        }
+
+        parsedExpiryDate = new Date(expiryDate);
+        if (isNaN(parsedExpiryDate.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid expiry date format' },
+            { status: 400 }
+          );
+        }
+      } catch (dateError) {
+        return NextResponse.json(
+          { error: 'Invalid date format' },
+          { status: 400 }
+        );
+      }
+
       const client = await prisma.client.create({
         data: {
           name,
@@ -75,8 +102,8 @@ import { NextResponse } from 'next/server'
           country,
           packageId,
           price,
-          startDate: new Date(startDate),
-          expiryDate: new Date(expiryDate),
+          startDate: parsedStartDate,
+          expiryDate: parsedExpiryDate,
           paymentStatus,
           status,
           notes: notes || null

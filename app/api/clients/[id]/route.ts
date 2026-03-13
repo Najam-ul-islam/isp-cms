@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 // GET single client with package info
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await getAdminFromToken(request as any)
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params  // ✅ Await params before accessing id
+    const { id } = await params
     const clientId = id
 
     const client = await prisma.client.findUnique({
@@ -47,7 +47,7 @@ export async function GET(
 // UPDATE client
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await getAdminFromToken(request as any)
@@ -56,7 +56,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params  // ✅ Await params
+    const { id } = await params
     const clientId = id
 
     const {
@@ -75,6 +75,38 @@ export async function PUT(
       notes
     } = await request.json()
 
+    // Validate required fields for update
+    if (!name || !phone || !cnic || !city || !area || !country || !packageId || !price || !startDate || !expiryDate) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Parse dates safely
+    let parsedStartDate: Date | undefined;
+    let parsedExpiryDate: Date | undefined;
+
+    if (startDate) {
+      parsedStartDate = new Date(startDate);
+      if (isNaN(parsedStartDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid start date format' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (expiryDate) {
+      parsedExpiryDate = new Date(expiryDate);
+      if (isNaN(parsedExpiryDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid expiry date format' },
+          { status: 400 }
+        );
+      }
+    }
+
     const updatedClient = await prisma.client.update({
       where: { id: clientId },
       data: {
@@ -85,9 +117,9 @@ export async function PUT(
         area,
         country,
         packageId,
-        price,
-        startDate: startDate ? new Date(startDate) : undefined,
-        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+        price: typeof price === 'string' ? parseFloat(price) : price,
+        startDate: parsedStartDate,
+        expiryDate: parsedExpiryDate,
         paymentStatus,
         status,
         notes: notes || null
@@ -107,7 +139,7 @@ export async function PUT(
 // DELETE client
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await getAdminFromToken(request as any)
@@ -116,7 +148,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params  // ✅ Await params
+    const { id } = await params
     const clientId = id
 
     await prisma.client.delete({

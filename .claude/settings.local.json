@@ -16,7 +16,9 @@
       "Bash(node test-buttons.ts)",
       "Bash(npx tsx:*)",
       "Bash(tsx final-test.ts)",
-      "Bash(node tmp-seed-and-check.js)"
+      "Bash(node tmp-seed-and-check.js)",
+      "Bash(bash verify-fix.sh)",
+      "Bash(del verify-fix.sh)"
     ]
   }
 }

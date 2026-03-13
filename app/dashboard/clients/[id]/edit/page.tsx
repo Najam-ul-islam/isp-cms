@@ -18,6 +18,10 @@ export default function EditClientPage() {
   const [packages, setPackages] = useState<(Package & { serviceProvider?: ServiceProvider | null })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   // Form fields
   const [name, setName] = useState('');
@@ -60,19 +64,37 @@ export default function EditClientPage() {
 
         const clientData: ClientWithPackage = await clientRes.json();
 
-        // Set form fields with client data
-        setName(clientData.name);
-        setPhone(clientData.phone);
-        setCnic(clientData.cnic);
-        setCity(clientData.city);
-        setArea(clientData.area);
-        setCountry(clientData.country);
-        setPackageId(clientData.packageId);
-        setPrice(clientData.price);
-        setStartDate(clientData.startDate.toISOString().split('T')[0]);
-        setExpiryDate(clientData.expiryDate.toISOString().split('T')[0]);
-        setPaymentStatus(clientData.paymentStatus);
-        setStatus(clientData.status);
+        // Set form fields with client data, with null checks and proper date handling
+        setName(clientData.name || '');
+        setPhone(clientData.phone || '');
+        setCnic(clientData.cnic || '');
+        setCity(clientData.city || '');
+        setArea(clientData.area || '');
+        setCountry(clientData.country || '');
+        setPackageId(clientData.packageId || '');
+        setPrice(clientData.price || 0);
+
+        // Handle dates - they come as Date objects from Prisma but may need proper formatting
+        let startDateStr = '';
+        if (clientData.startDate) {
+          const startDateObj = new Date(clientData.startDate);
+          if (!isNaN(startDateObj.getTime())) { // Check if it's a valid date
+            startDateStr = startDateObj.toISOString().split('T')[0];
+          }
+        }
+        setStartDate(startDateStr);
+
+        let expiryDateStr = '';
+        if (clientData.expiryDate) {
+          const expiryDateObj = new Date(clientData.expiryDate);
+          if (!isNaN(expiryDateObj.getTime())) { // Check if it's a valid date
+            expiryDateStr = expiryDateObj.toISOString().split('T')[0];
+          }
+        }
+        setExpiryDate(expiryDateStr);
+
+        setPaymentStatus(clientData.paymentStatus || 'unpaid');
+        setStatus(clientData.status || 'active');
         setNotes(clientData.notes || '');
 
         setClient(clientData);
@@ -106,6 +128,17 @@ export default function EditClientPage() {
     fetchData();
   }, [id, router]);
 
+  // Clear notification after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -130,7 +163,7 @@ export default function EditClientPage() {
           area,
           country,
           packageId,
-          price,
+          price: typeof price === 'string' ? parseFloat(price) : price,
           startDate,
           expiryDate,
           paymentStatus,
@@ -140,15 +173,17 @@ export default function EditClientPage() {
       });
 
       if (res.ok) {
-        router.push('/dashboard/clients');
-        router.refresh();
+        setNotification({ type: 'success', message: 'Client updated successfully' });
+        setTimeout(() => {
+          router.push('/dashboard/clients');
+        }, 1500); // Wait a moment to show success message before redirecting
       } else {
         if (res.status === 401) {
           router.push('/login');
           return;
         }
         const errorData = await res.json();
-        setError(errorData.error || 'Failed to update client');
+        setNotification({ type: 'error', message: errorData.error || 'Failed to update client' });
       }
     } catch (err) {
       console.error('Error updating client:', err);
@@ -181,6 +216,29 @@ export default function EditClientPage() {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
             {error}
+          </div>
+        )}
+
+        {notification && (
+          <div className={`
+            mb-4 px-4 py-3 rounded-lg flex items-center gap-3
+            ${notification.type === 'success'
+              ? 'bg-emerald-100 border border-emerald-200 text-emerald-700'
+              : notification.type === 'error'
+              ? 'bg-red-100 border border-red-200 text-red-700'
+              : 'bg-blue-100 border border-blue-200 text-blue-700'}
+          `}>
+            {notification.type === 'success' && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            )}
+            {notification.type === 'error' && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            )}
+            <span>{notification.message}</span>
           </div>
         )}
 
@@ -305,7 +363,7 @@ export default function EditClientPage() {
               type="number"
               step="0.01"
               value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPrice(Number(e.target.value) || 0)}
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               required
             />
