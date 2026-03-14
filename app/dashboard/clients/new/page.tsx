@@ -24,6 +24,8 @@ import {
   Building,
   Factory
 } from 'lucide-react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 
 export default function NewClientPage() {
   const [name, setName] = useState('')
@@ -34,8 +36,22 @@ export default function NewClientPage() {
   const [country, setCountry] = useState('')
   const [packageId, setPackageId] = useState('')
   const [price, setPrice] = useState(0)
-  const [startDate, setStartDate] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [expiryDate, setExpiryDate] = useState<Date | null>(null)
+  const [hasUserManuallySetExpiry, setHasUserManuallySetExpiry] = useState(false)
+
+  // Helper function to calculate default expiry date (30 days from start date)
+  const calculateDefaultExpiry = (start: Date | null, durationDays: number | undefined = undefined) => {
+    if (!start) return null;
+
+    const calculatedExpiry = new Date(start);
+
+    // Use package duration if available, otherwise default to 30 days
+    const daysToAdd = durationDays !== undefined ? durationDays : 30;
+    calculatedExpiry.setDate(calculatedExpiry.getDate() + daysToAdd);
+
+    return calculatedExpiry;
+  };
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid' | 'partial'>('unpaid')
   const [status, setStatus] = useState<'active' | 'expired' | 'suspended'>('active')
   const [notes, setNotes] = useState('')
@@ -99,29 +115,29 @@ export default function NewClientPage() {
       if (pkg) {
         setSelectedPackage(pkg)
         setPrice(pkg.price)
-        // Auto-calculate expiry if start date is set and package has duration
-        if (startDate && pkg.durationDays && !expiryDate) {
-          const start = new Date(startDate)
-          const expiry = new Date(start)
-          expiry.setDate(expiry.getDate() + pkg.durationDays)
-          setExpiryDate(expiry.toISOString().split('T')[0])
+        // Auto-calculate expiry if start date is set and expiry hasn't been manually set
+        if (startDate && !hasUserManuallySetExpiry) {
+          const calculatedExpiry = calculateDefaultExpiry(startDate, pkg.durationDays);
+          if (calculatedExpiry) {
+            setExpiryDate(calculatedExpiry);
+          }
         }
       }
     }
-  }, [packageId, packages, startDate, expiryDate])
+  }, [packageId, packages, startDate, hasUserManuallySetExpiry])
 
   // Auto-calculate expiry when start date or package changes
   useEffect(() => {
-    if (startDate && selectedPackage?.durationDays) {
-      const start = new Date(startDate)
-      const expiry = new Date(start)
-      expiry.setDate(expiry.getDate() + selectedPackage.durationDays)
-      // Only auto-set if expiry is not manually set
-      if (!expiryDate) {
-        setExpiryDate(expiry.toISOString().split('T')[0])
+    if (startDate && !hasUserManuallySetExpiry) {
+      // Calculate default expiry based on package duration or default to 30 days
+      const calculatedExpiry = calculateDefaultExpiry(startDate, selectedPackage?.durationDays);
+
+      // Only auto-set if expiry is not manually set by the user
+      if (calculatedExpiry) {
+        setExpiryDate(calculatedExpiry);
       }
     }
-  }, [startDate, selectedPackage, expiryDate])
+  }, [startDate, selectedPackage, hasUserManuallySetExpiry])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -146,8 +162,8 @@ export default function NewClientPage() {
           country,
           packageId,
           price: parseFloat(price.toString()),
-          startDate: new Date(startDate),
-          expiryDate: new Date(expiryDate),
+          startDate: startDate ? new Date(startDate) : null,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
           paymentStatus,
           status,
           notes
@@ -445,7 +461,7 @@ export default function NewClientPage() {
                     Price (PKR) <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
+                    {/* <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" /> */}
                     <input
                       id="price"
                       type="number"
@@ -459,17 +475,26 @@ export default function NewClientPage() {
 
                 {/* Start Date */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="startDate">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">
                     Start Date <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      id="startDate"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                    <DatePicker
+                      selected={startDate}
+                      onChange={(date: Date | null) => {
+                        setStartDate(date);
+                        // Only auto-set expiry date if it hasn't been manually set by the user
+                        if (date && !hasUserManuallySetExpiry) {
+                          const calculatedExpiry = calculateDefaultExpiry(date, selectedPackage?.durationDays);
+                          if (calculatedExpiry) {
+                            setExpiryDate(calculatedExpiry);
+                          }
+                        }
+                      }}
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
+                      placeholderText="Select start date"
+                      dateFormat="yyyy-MM-dd"
                       required
                     />
                   </div>
@@ -477,19 +502,40 @@ export default function NewClientPage() {
 
                 {/* Expiry Date */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="expiryDate">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">
                     Expiry Date <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      id="expiryDate"
-                      type="date"
-                      value={expiryDate}
-                      onChange={(e) => setExpiryDate(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                    <DatePicker
+                      selected={expiryDate}
+                      onChange={(date: Date | null) => {
+                        setExpiryDate(date);
+                        // Mark that the user has manually set the expiry date
+                        setHasUserManuallySetExpiry(true);
+                      }}
+                      className="w-full pl-10 pr-16 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
+                      placeholderText="Select expiry date"
+                      dateFormat="yyyy-MM-dd"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (startDate) {
+                          const calculatedExpiry = calculateDefaultExpiry(startDate, selectedPackage?.durationDays);
+                          if (calculatedExpiry) {
+                            setExpiryDate(calculatedExpiry);
+                            // Reset the manual flag since we're reverting to calculated date
+                            setHasUserManuallySetExpiry(false);
+                          }
+                        }
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
+                      title="Reset to default expiry date"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -681,334 +727,3 @@ function NewClientSkeleton() {
     </div>
   )
 }
-
-
-
-// 'use client'
-
-//   import { useState, useEffect } from 'react'
-//   import { useRouter } from 'next/navigation'
-//   import { Package } from '@prisma/client'
-
-//   export default function NewClientPage() {
-//     const [name, setName] = useState('')
-//     const [phone, setPhone] = useState('')
-//     const [cnic, setCnic] = useState('')
-//     const [city, setCity] = useState('')
-//     const [country, setCountry] = useState('')
-//     const [packageId, setPackageId] = useState('')
-//     const [price, setPrice] = useState(0)
-//     const [startDate, setStartDate] = useState('')
-//     const [expiryDate, setExpiryDate] = useState('')
-//     const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid' | 'partial'>('unpaid')
-//     const [status, setStatus] = useState<'active' | 'expired' | 'suspended'>('active')
-//     const [notes, setNotes] = useState('')
-//     const [packages, setPackages] = useState<Package[]>([])
-//     const [loading, setLoading] = useState(true)
-//     const [error, setError] = useState('')
-//     const router = useRouter()
-
-//     useEffect(() => {
-//       const token = localStorage.getItem('token')
-//       if (!token) {
-//         router.push('/login')
-//         return
-//       }
-
-//       const fetchPackages = async () => {
-//         try {
-//           const res = await fetch('/api/packages', {
-//             headers: {
-//               'Authorization': `Bearer ${token}`
-//             }
-//           })
-
-//           if (res.ok) {
-//             const data = await res.json()
-//             setPackages(data)
-//           } else {
-//             router.push('/login')
-//           }
-//         } catch (err) {
-//           console.error('Error fetching packages:', err)
-//           router.push('/login')
-//         } finally {
-//           setLoading(false)
-//         }
-//       }
-
-//       fetchPackages()
-//     }, [router])
-
-//     const handleSubmit = async (e: React.FormEvent) => {
-//       e.preventDefault()
-
-//       const token = localStorage.getItem('token')
-//       if (!token) return
-
-//       try {
-//         const res = await fetch('/api/clients', {
-//           method: 'POST',
-//           headers: {
-//             'Content-Type': 'application/json',
-//             'Authorization': `Bearer ${token}`
-//           },
-//           body: JSON.stringify({
-//             name,
-//             phone,
-//             cnic,
-//             city,
-//             country,
-//             packageId,
-//             price: parseFloat(price.toString()),
-//             startDate: new Date(startDate),
-//             expiryDate: new Date(expiryDate),
-//             paymentStatus,
-//             status,
-//             notes
-//           })
-//         })
-
-//         if (res.ok) {
-//           router.push('/dashboard/clients')
-//         } else {
-//           const data = await res.json()
-//           setError(data.error || 'Failed to create client')
-//         }
-//       } catch (err) {
-//         setError('An error occurred')
-//         console.error(err)
-//       }
-//     }
-
-//     if (loading) {
-//       return (
-//         <div className="flex justify-center items-center h-full">
-//           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-//         </div>
-//       )
-//     }
-
-//     return (
-//       <div>
-//         <h1 className="text-2xl font-bold mb-6">Add New Client</h1>
-
-//         {error && (
-//           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-//             {error}
-//           </div>
-//         )}
-
-//         <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-//                 Full Name
-//               </label>
-//               <input
-//                 id="name"
-//                 type="text"
-//                 value={name}
-//                 onChange={(e) => setName(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phone">
-//                 Phone Number
-//               </label>
-//               <input
-//                 id="phone"
-//                 type="text"
-//                 value={phone}
-//                 onChange={(e) => setPhone(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="cnic">
-//                 CNIC
-//               </label>
-//               <input
-//                 id="cnic"
-//                 type="text"
-//                 value={cnic}
-//                 onChange={(e) => setCnic(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="city">
-//                 City
-//               </label>
-//               <input
-//                 id="city"
-//                 type="text"
-//                 value={city}
-//                 onChange={(e) => setCity(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="country">
-//                 Country
-//               </label>
-//               <input
-//                 id="country"
-//                 type="text"
-//                 value={country}
-//                 onChange={(e) => setCountry(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="package">
-//                 Package
-//               </label>
-//               <select
-//                 id="package"
-//                 value={packageId}
-//                 onChange={(e) => setPackageId(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               >
-//                 <option value="">Select a package</option>
-//                 {packages.map(pkg => (
-//                   <option key={pkg.id} value={pkg.id}>
-//                     {pkg.name} ({pkg.speed} Mbps) - ${pkg.price}
-//                   </option>
-//                 ))}
-//               </select>
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="price">
-//                 Price
-//               </label>
-//               <input
-//                 id="price"
-//                 type="number"
-//                 value={price}
-//                 onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="startDate">
-//                 Start Date
-//               </label>
-//               <input
-//                 id="startDate"
-//                 type="date"
-//                 value={startDate}
-//                 onChange={(e) => setStartDate(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="expiryDate">
-//                 Expiry Date
-//               </label>
-//               <input
-//                 id="expiryDate"
-//                 type="date"
-//                 value={expiryDate}
-//                 onChange={(e) => setExpiryDate(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               />
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="paymentStatus">
-//                 Payment Status
-//               </label>
-//               <select
-//                 id="paymentStatus"
-//                 value={paymentStatus}
-//                 onChange={(e) => setPaymentStatus(e.target.value as any)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               >
-//                 <option value="paid">Paid</option>
-//                 <option value="unpaid">Unpaid</option>
-//                 <option value="partial">Partial</option>
-//               </select>
-//             </div>
-
-//             <div>
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="status">
-//                 Client Status
-//               </label>
-//               <select
-//                 id="status"
-//                 value={status}
-//                 onChange={(e) => setStatus(e.target.value as any)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 required
-//               >
-//                 <option value="active">Active</option>
-//                 <option value="expired">Expired</option>
-//                 <option value="suspended">Suspended</option>
-//               </select>
-//             </div>
-
-//             <div className="md:col-span-2">
-//               <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="notes">
-//                 Notes
-//               </label>
-//               <textarea
-//                 id="notes"
-//                 value={notes}
-//                 onChange={(e) => setNotes(e.target.value)}
-//                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none
-//   focus:shadow-outline"
-//                 rows={3}
-//               ></textarea>
-//             </div>
-//           </div>
-
-//           <div className="flex items-center justify-between mt-6">
-//             <button
-//               type="submit"
-//               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-//             >
-//               Create Client
-//             </button>
-//             <button
-//               type="button"
-//               onClick={() => router.back()}
-//               className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-//             >
-//               Cancel
-//             </button>
-//           </div>
-//         </form>
-//       </div>
-//     )
-//   }
