@@ -495,7 +495,7 @@ function PaymentFormModal({
 
           // If editing, set the correct client
           if (payment) {
-            const matchedClient = clientOptions.find(c => c.id === payment.clientId);
+            const matchedClient = clientOptions.find((c: { id: string }) => c.id === payment.clientId);
             if (matchedClient) {
               setFormData(prev => ({
                 ...prev,

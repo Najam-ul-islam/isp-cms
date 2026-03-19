@@ -5,12 +5,28 @@
   export default function Navbar() {
     const router = useRouter()
 
-    const handleLogout = () => {
-      localStorage.removeItem('token')
-      // Also clear the token from cookies
-      document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-      router.push('/login')
-      router.refresh()
+    const handleLogout = async () => {
+      try {
+        // Call the logout API to clear server-side session if needed
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      } catch (error) {
+        console.error('Logout API error:', error);
+        // Even if API fails, still clear local tokens
+      } finally {
+        // Clear the token from both localStorage and cookies
+        localStorage.removeItem('token');
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
+        // Redirect to login
+        router.push('/login');
+        router.refresh();
+      }
     }
 
     return (

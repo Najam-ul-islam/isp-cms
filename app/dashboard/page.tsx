@@ -59,51 +59,59 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const router = useRouter();
 
+  // Function to fetch dashboard data
+  const fetchData = async (signal?: AbortSignal) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const getHeaders = (): HeadersInit => {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        return headers;
+      };
+
+      const [statsRes, expiringRes] = await Promise.all([
+        fetch("/api/dashboard/stats", {
+          headers: getHeaders(),
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }),
+        fetch("/api/dashboard/expiring_clients", {
+          headers: getHeaders(),
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }),
+      ]);
+
+      if (statsRes.status === 401 || expiringRes.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      const statsData = await statsRes.json();
+      const expiringData = await expiringRes.json();
+
+      setStats(statsData);
+      setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
+      setLastUpdated(new Date());
+    } catch (error) {
+      if (error instanceof Error && error.name !== "AbortError") {
+        console.error("Dashboard fetch error:", error);
+      }
+    }
+  };
+
+  // Initial data fetch
   useEffect(() => {
     const abortController = new AbortController();
 
-    const fetchData = async () => {
+    const initialFetch = async () => {
       try {
-        const token = localStorage.getItem("token");
-
-        const getHeaders = (): HeadersInit => {
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-          };
-          if (token) headers["Authorization"] = `Bearer ${token}`;
-          return headers;
-        };
-
-        const [statsRes, expiringRes] = await Promise.all([
-          fetch("/api/dashboard/stats", {
-            headers: getHeaders(),
-            credentials: "include",
-            cache: "no-store",
-            signal: abortController.signal,
-          }),
-          fetch("/api/dashboard/expiring_clients", {
-            headers: getHeaders(),
-            credentials: "include",
-            cache: "no-store",
-            signal: abortController.signal,
-          }),
-        ]);
-
-        if (statsRes.status === 401 || expiringRes.status === 401) {
-          router.push("/login");
-          return;
-        }
-
-        const statsData = await statsRes.json();
-        const expiringData = await expiringRes.json();
-
-        setStats(statsData);
-        setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
-        setLastUpdated(new Date());
-      } catch (error) {
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Dashboard fetch error:", error);
-        }
+        await fetchData(abortController.signal);
       } finally {
         if (!abortController.signal.aborted) {
           setLoading(false);
@@ -111,13 +119,95 @@ export default function DashboardPage() {
       }
     };
 
-    fetchData();
+    initialFetch();
     return () => abortController.abort();
   }, [router]);
 
-  const handleRefresh = () => {
+  // Auto-refresh for "Today's Activities" section every 30 seconds
+  useEffect(() => {
+    const activitiesRefreshInterval = setInterval(() => {
+      // Only refresh the stats data (for Today's Activities), not the expiring clients
+      const fetchStatsOnly = async () => {
+        try {
+          const token = localStorage.getItem("token");
+
+          const getHeaders = (): HeadersInit => {
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            return headers;
+          };
+
+          const statsRes = await fetch("/api/dashboard/stats", {
+            headers: getHeaders(),
+            credentials: "include",
+            cache: "no-store",
+          });
+
+          if (statsRes.status === 401) {
+            router.push("/login");
+            return;
+          }
+
+          const statsData = await statsRes.json();
+
+          // Update only the stats, keeping the expiring clients unchanged
+          setStats(statsData);
+          setLastUpdated(new Date());
+        } catch (error) {
+          console.error("Activities refresh error:", error);
+        }
+      };
+
+      fetchStatsOnly();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(activitiesRefreshInterval);
+  }, [router]);
+
+  const handleRefresh = async () => {
     setLoading(true);
-    window.location.reload();
+    try {
+      const token = localStorage.getItem("token");
+
+      const getHeaders = (): HeadersInit => {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        return headers;
+      };
+
+      const [statsRes, expiringRes] = await Promise.all([
+        fetch("/api/dashboard/stats", {
+          headers: getHeaders(),
+          credentials: "include",
+          cache: "no-store",
+        }),
+        fetch("/api/dashboard/expiring_clients", {
+          headers: getHeaders(),
+          credentials: "include",
+          cache: "no-store",
+        }),
+      ]);
+
+      if (statsRes.status === 401 || expiringRes.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      const statsData = await statsRes.json();
+      const expiringData = await expiringRes.json();
+
+      setStats(statsData);
+      setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error("Manual refresh error:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !stats) {
