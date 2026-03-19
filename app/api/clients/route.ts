@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
   import { getAdminFromToken } from '@/lib/jwt'
-  import prisma from '@/lib/prisma'
+  import { getClientsWithFilters } from '../../../modules/clients/services'
 
-  export async function GET(request: Request) {
+  export async function GET(request: NextRequest) {
     try {
       const admin = await getAdminFromToken(request as any)
 
@@ -10,18 +10,20 @@ import { NextResponse } from 'next/server'
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const clients = await prisma.client.findMany({
-        include: {
-          package: {
-            include: {
-              serviceProvider: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      })
+      const { searchParams } = new URL(request.url);
+      const status = searchParams.get('status');
+      const paymentStatus = searchParams.get('paymentStatus');
+      const expiring = searchParams.get('expiring');
+      const search = searchParams.get('search');
+
+      const filters = {
+        status: status || undefined,
+        paymentStatus: paymentStatus || undefined,
+        expiring: expiring === 'true' ? true : undefined,
+        search: search || undefined
+      };
+
+      const clients = await getClientsWithFilters(filters);
 
       return NextResponse.json(clients)
     } catch (error) {

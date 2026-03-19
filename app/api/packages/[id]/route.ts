@@ -80,7 +80,7 @@ export async function PUT(
 
 // DELETE package
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
@@ -93,16 +93,33 @@ export async function DELETE(
     const { id } = await params  // ✅ Await params
     const packageId = id
 
+    // Get URL search parameters to check if reassignment is requested
+    const url = new URL(request.url);
+    const reassignToPackageId = url.searchParams.get('reassignToPackageId');
+
     // Check if there are clients associated with this package
     const clientsWithPackage = await prisma.client.count({
       where: { packageId }
     })
 
     if (clientsWithPackage > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete package with associated clients' },
-        { status: 400 }
-      )
+      if (reassignToPackageId) {
+        // Reassign all clients to the specified package
+        await prisma.client.updateMany({
+          where: { packageId },
+          data: { packageId: reassignToPackageId }
+        });
+      } else {
+        // Return error with client count if no reassignment is specified
+        return NextResponse.json(
+          {
+            error: 'Cannot delete package with associated clients',
+            clientCount: clientsWithPackage,
+            message: 'Specify reassignToPackageId to reassign clients to another package'
+          },
+          { status: 400 }
+        )
+      }
     }
 
     await prisma.package.delete({

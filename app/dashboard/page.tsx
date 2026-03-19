@@ -34,6 +34,12 @@ interface StatsData {
   paidToday: number;
   dueToday: number;
   dueNext7Days: number;
+  totalExpenses: number;
+  netProfit: number;
+  todayRecovery: number;
+  todayExpenses: number;
+  newUsersToday: number;
+  expiringToday: number;
 }
 
 interface ExpiringClient {
@@ -214,9 +220,9 @@ export default function DashboardPage() {
           </div>
         </Section>
 
-        {/* BILLING METRICS */}
+        {/* REVENUE METRICS */}
         <Section
-          title="Billing Overview"
+          title="Revenue Overview"
           icon={<DollarSign className="w-5 h-5" />}
           variant="success"
         >
@@ -238,6 +244,63 @@ export default function DashboardPage() {
               amount={stats?.dueNext7Days ?? 0}
               type="upcoming"
               icon={<Calendar className="w-5 h-5" />}
+            />
+          </div>
+        </Section>
+
+        {/* FINANCIAL METRICS */}
+        <Section
+          title="Financial Summary"
+          icon={<TrendingUp className="w-5 h-5" />}
+          variant="default"
+        >
+          <div className="grid md:grid-cols-3 gap-5">
+            <FinCard
+              title="Total Revenue"
+              amount={stats?.totalRevenue ?? 0}
+              type="income"
+              icon={<ArrowUpRight className="w-5 h-5" />}
+            />
+            <FinCard
+              title="Total Expenses"
+              amount={stats?.totalExpenses ?? 0}
+              type="due"
+              icon={<Clock className="w-5 h-5" />}
+            />
+            <FinCard
+              title="Net Profit"
+              amount={stats?.netProfit ?? 0}
+              type={stats?.netProfit && stats.netProfit >= 0 ? "income" : "due"}
+              icon={<TrendingUp className="w-5 h-5" />}
+            />
+          </div>
+        </Section>
+
+        {/* TODAY'S ACTIVITIES */}
+        <Section
+          title="Today's Activities"
+          icon={<Calendar className="w-5 h-5" />}
+          variant="warning"
+        >
+          <div className="grid md:grid-cols-3 gap-5">
+            <FinCard
+              title="Today's Recovery"
+              amount={stats?.todayRecovery ?? 0}
+              type="income"
+              icon={<ArrowUpRight className="w-5 h-5" />}
+            />
+            <FinCard
+              title="Today's Expenses"
+              amount={stats?.todayExpenses ?? 0}
+              type="due"
+              icon={<Clock className="w-5 h-5" />}
+            />
+            <StatCard
+              title="New Users Today"
+              value={stats?.newUsersToday ?? 0}
+              icon={<Users className="w-6 h-6" />}
+              color="purple"
+              trend={{ value: 0, positive: true }}
             />
           </div>
         </Section>
@@ -622,7 +685,7 @@ function FinanceCard({
 
       <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
       <p className="text-2xl font-bold text-slate-800">
-        ${amount.toLocaleString()}
+        Rs {amount.toLocaleString("en-PK")}
       </p>
 
       <div className={`mt-3 pt-3 border-t ${t.border}`}>

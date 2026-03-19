@@ -87,13 +87,18 @@ export default function PackagesPage() {
     fetchPackages()
   }, [router])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, reassignToPackageId?: string) => {
     const token = localStorage.getItem('token')
     if (!token) return
 
     setDeletingId(id)
     try {
-      const res = await fetch(`/api/packages/${id}`, {
+      let url = `/api/packages/${id}`
+      if (reassignToPackageId) {
+        url += `?reassignToPackageId=${reassignToPackageId}`
+      }
+
+      const res = await fetch(url, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -107,7 +112,12 @@ export default function PackagesPage() {
         setShowDeleteConfirm(null)
       } else {
         const error = await res.json()
-        showNotification('error', error.message || 'Failed to delete package')
+        if (error.clientCount && error.message) {
+          // Show a specific message about reassignment
+          showNotification('error', `This package has ${error.clientCount} associated client(s). ${error.message}`)
+        } else {
+          showNotification('error', error.message || 'Failed to delete package')
+        }
       }
     } catch (err) {
       console.error('Error deleting package:', err)
@@ -193,34 +203,108 @@ export default function PackagesPage() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone</p>
               </div>
             </div>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Are you sure you want to delete this package? All associated clients will need to be reassigned.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(showDeleteConfirm)}
-                disabled={deletingId !== null}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
-              >
-                {deletingId ? (
+
+            {/* Check if the package to be deleted has clients */}
+            {(() => {
+              const packageToDelete = packages.find(pkg => pkg.id === showDeleteConfirm);
+              const clientCount = packageToDelete?._count?.clients || 0;
+
+              if (clientCount > 0) {
+                return (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Deleting...
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      This package has <span className="font-semibold">{clientCount}</span> associated client(s).
+                      You need to reassign them to another package before deleting.
+                    </p>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select package to reassign clients to:
+                      </label>
+                      <select
+                        id="reassignPackage"
+                        className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer"
+                      >
+                        <option value="">Select a package...</option>
+                        {packages
+                          .filter(pkg => pkg.id !== showDeleteConfirm) // Exclude the package being deleted
+                          .map(pkg => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name} ({pkg.speed} Mbps)
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => setShowDeleteConfirm(null)}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          const reassignPackageId = (document.getElementById('reassignPackage') as HTMLSelectElement)?.value;
+                          if (reassignPackageId) {
+                            handleDelete(showDeleteConfirm, reassignPackageId);
+                          } else {
+                            showNotification('error', 'Please select a package to reassign clients to');
+                          }
+                        }}
+                        disabled={deletingId !== null}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {deletingId ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Reassign & Delete
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </>
-                ) : (
+                );
+              } else {
+                return (
                   <>
-                    <Trash2 className="w-4 h-4" />
-                    Delete
+                    <p className="text-gray-600 dark:text-gray-300 mb-6">
+                      Are you sure you want to delete this package?
+                    </p>
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => setShowDeleteConfirm(null)}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDelete(showDeleteConfirm)}
+                        disabled={deletingId !== null}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {deletingId ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </>
-                )}
-              </button>
-            </div>
+                );
+              }
+            })()}
           </div>
         </div>
       )}

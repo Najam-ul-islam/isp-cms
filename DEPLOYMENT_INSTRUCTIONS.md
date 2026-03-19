@@ -18,8 +18,9 @@ The ISP Admin Panel system has been fully developed with all required components
 ### ✅ Frontend Interface
 - **Authentication**: Login and Signup pages
 - **Dashboard**: Metrics display (total clients, active/expired clients, revenue)
-- **Client Management**: List view and creation form
+- **Client Management**: List view, creation form, and edit functionality
 - **Package Management**: List view and creation form
+- **Communication Features**: WhatsApp and Email buttons for client notifications
 - **Navigation**: Sidebar with protected routes
 
 ### ✅ Infrastructure
@@ -37,6 +38,9 @@ The system has been thoroughly tested and verified:
 4. **Frontend Components**: ✅ All pages and forms functional
 5. **Security**: ✅ Auth middleware protecting routes
 6. **Code Quality**: ✅ TypeScript compilation passes
+7. **Client Management**: ✅ Create, read, update, delete operations working
+8. **Communication Features**: ✅ WhatsApp and Email integration functional
+9. **Currency Display**: ✅ Proper PKR (Rs) formatting implemented
 
 ## Deployment Steps
 
@@ -83,6 +87,7 @@ Create a `.env` file with:
 ```
 DATABASE_URL="postgresql://username:password@localhost:5432/isp_cms"
 JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
+NEXT_PUBLIC_SITE_URL="http://localhost:3000" # Optional: Used for generating links in emails/SMS
 ```
 
 ## API Endpoints Reference
@@ -95,6 +100,7 @@ JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
 ### Clients
 - `GET /api/clients` - Get all clients
 - `POST /api/clients` - Create client
+- `GET /api/clients/[id]` - Get specific client
 - `PUT /api/clients/[id]` - Update client
 - `DELETE /api/clients/[id]` - Delete client
 
@@ -104,6 +110,10 @@ JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
 - `PUT /api/packages/[id]` - Update package
 - `DELETE /api/packages/[id]` - Delete package
 
+### Dashboard
+- `GET /api/dashboard/stats` - Get dashboard statistics
+- `GET /api/dashboard/expiring_clients` - Get clients with expiring packages
+
 ## Frontend Routes
 
 - `/login` - Admin login
@@ -111,6 +121,7 @@ JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
 - `/dashboard` - Main dashboard
 - `/dashboard/clients` - Client management
 - `/dashboard/clients/new` - Create new client
+- `/dashboard/clients/[id]/edit` - Edit existing client
 - `/dashboard/packages` - Package management
 - `/dashboard/packages/new` - Create new package
 
@@ -122,6 +133,22 @@ JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
 4. **Private Routes**: Protected by Next.js middleware
 5. **Database Security**: Prisma with proper type validation
 
+## Recent Changes & Improvements
+
+### Latest Updates (March 2026):
+1. **WhatsApp & Email Integration**: Added communication buttons to the dashboard for contacting clients about expiring packages
+2. **Currency Localization**: Replaced "$" symbol with "Rs" for Pakistani Rupee display
+3. **Enhanced Client Editing**: Fixed date handling and improved form validation in client edit functionality
+4. **Improved UX**: Added proper loading states, error handling, and user notifications
+5. **Prisma Migration**: Updated database schema with proper migration files
+
+### Client Edit Fixes:
+- Safe data population with proper null checks
+- Improved date handling with validation
+- Enhanced error handling in API routes
+- Better user feedback with notification system
+- Proper type conversion for price fields
+
 ## Troubleshooting
 
 ### Common Issues:
@@ -129,6 +156,9 @@ JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
 2. **JWT Secret**: Use a strong, random secret in production
 3. **Environment Variables**: Ensure all required vars are set
 4. **Prisma Schema**: Run `npx prisma generate` after any schema changes
+5. **Currency Display**: The system now displays amounts in PKR (Rs) format
+6. **WhatsApp/Email Integration**: Ensure proper URL encoding for message templates
+7. **Client Edit Issues**: Verify that date fields are properly handled in edit forms
 
 ### Verification Commands:
 ```bash
@@ -137,6 +167,9 @@ npx ts-node test-db.ts
 
 # Verify all components
 npx ts-node verify-codebase.ts
+
+# Run Prisma studio to inspect database
+npx prisma studio
 ```
 
 ## Production Recommendations
@@ -148,6 +181,8 @@ npx ts-node verify-codebase.ts
 5. **Backups**: Regular database backups
 6. **Rate Limiting**: Implement API rate limiting
 7. **Caching**: Consider Redis for frequently accessed data
+8. **Currency Display**: The system now uses PKR (Pakistani Rupees) with "Rs" symbol and PKR locale formatting
+9. **Communication**: Ensure your server can handle WhatsApp and Email integration for client notifications
 
 ## System Architecture
 
@@ -163,6 +198,8 @@ Authentication Layer (JWT, bcrypt)
 Database Layer (Prisma ORM)
     ↓
 PostgreSQL Database
+    ↓
+Communication Layer (WhatsApp/Email Integration)
 ```
 
 This system is production-ready and includes all necessary components for managing ISP client subscriptions, packages, and billing.

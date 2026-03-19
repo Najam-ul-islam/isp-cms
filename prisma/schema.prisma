@@ -59,6 +59,7 @@ model Client {
   id            String        @id @default(cuid())
   name          String
   phone         String
+  email         String?
   cnic          String
   city          String
   area          String
@@ -72,6 +73,7 @@ model Client {
   notes         String?
   createdAt     DateTime      @default(now())
   package       Package       @relation(fields: [packageId], references: [id])
+  payments      Payment[]
 
   @@map("clients")
 }
@@ -86,4 +88,34 @@ enum ClientStatus {
   active
   expired
   suspended
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  clientId    String
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?  // e.g., cash, bank transfer, online
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("payments")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float
+  category    String   // e.g., electricity, rent, equipment
+  date        DateTime @default(now())
+  description String?
+  receipt     String?  // path to receipt image/file
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("expenses")
 }

@@ -9,7 +9,9 @@ import {
   LogOut,
   ChevronRight,
   Wifi,
-  Factory
+  Factory,
+  DollarSign,
+  CreditCard
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -38,6 +40,16 @@ export default function Sidebar() {
       href: '/dashboard/packages',
       label: 'Packages',
       icon: Package
+    },
+    {
+      href: '/dashboard/payments',
+      label: 'Payments',
+      icon: CreditCard
+    },
+    {
+      href: '/dashboard/expenses',
+      label: 'Expenses',
+      icon: DollarSign
     },
     {
       href: '/dashboard/service-providers',

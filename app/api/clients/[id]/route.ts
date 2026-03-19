@@ -151,6 +151,12 @@ export async function DELETE(
     const { id } = await params
     const clientId = id
 
+    // Delete related payments first to avoid foreign key constraint
+    await prisma.payment.deleteMany({
+      where: { clientId }
+    })
+
+    // Then delete the client
     await prisma.client.delete({
       where: { id: clientId }
     })
@@ -158,6 +164,15 @@ export async function DELETE(
     return NextResponse.json({ message: 'Client deleted successfully' })
   } catch (error) {
     console.error('Delete client error:', error)
+
+    // Check if it's a foreign key constraint error
+    if ((error as any).code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Cannot delete client: related payments exist. Please delete related payments first.' },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

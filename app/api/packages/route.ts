@@ -12,7 +12,12 @@ import { NextResponse } from 'next/server'
 
       const packages = await prisma.package.findMany({
         include: {
-          serviceProvider: true  // Include service provider information
+          serviceProvider: true,  // Include service provider information
+          _count: {
+            select: {
+              clients: true  // Include count of associated clients
+            }
+          }
         },
         orderBy: {
           createdAt: 'desc'
