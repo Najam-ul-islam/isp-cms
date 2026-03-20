@@ -260,6 +260,7 @@ export default function DashboardPage() {
               icon={<Users className="w-6 h-6" />}
               color="blue"
               trend={{ value: 12, positive: true }}
+              onClick={() => router.push('/dashboard/clients')}
             />
             <StatCard
               title="Active Users"
@@ -267,6 +268,7 @@ export default function DashboardPage() {
               icon={<UserCheck className="w-6 h-6" />}
               color="emerald"
               trend={{ value: 8, positive: true }}
+              onClick={() => router.push('/dashboard/clients?status=active')}
             />
             <StatCard
               title="Expired Users"
@@ -274,6 +276,7 @@ export default function DashboardPage() {
               icon={<UserX className="w-6 h-6" />}
               color="rose"
               trend={{ value: 3, positive: false }}
+              onClick={() => router.push('/dashboard/clients?status=expired')}
             />
           </div>
         </Section>
@@ -294,18 +297,21 @@ export default function DashboardPage() {
                   ? "Immediate action required"
                   : "All clear! 🎉"
               }
+              onClick={() => router.push('/dashboard/clients?expiring=today')}
             />
             <AlertCard
               title="Next 3 Days"
               value={stats?.expireNext3Days ?? 0}
               urgency="high"
               message="Plan renewals ahead"
+              onClick={() => router.push('/dashboard/clients?expiring=3days')}
             />
             <AlertCard
               title="Next 7 Days"
               value={stats?.expireNext7Days ?? 0}
               urgency="medium"
               message="Prepare follow-ups"
+              onClick={() => router.push('/dashboard/clients?expiring=7days')}
             />
           </div>
         </Section>
@@ -322,18 +328,21 @@ export default function DashboardPage() {
               amount={stats?.paidToday ?? 0}
               type="income"
               icon={<ArrowUpRight className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
             <FinCard
               title="Due Today"
               amount={stats?.dueToday ?? 0}
               type="due"
               icon={<Clock className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
             <FinCard
               title="Due Next 7 Days"
               amount={stats?.dueNext7Days ?? 0}
               type="upcoming"
               icon={<Calendar className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
           </div>
         </Section>
@@ -350,18 +359,21 @@ export default function DashboardPage() {
               amount={stats?.totalRevenue ?? 0}
               type="income"
               icon={<ArrowUpRight className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
             <FinCard
               title="Total Expenses"
               amount={stats?.totalExpenses ?? 0}
               type="due"
               icon={<Clock className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/expenses')}
             />
             <FinCard
               title="Net Profit"
               amount={stats?.netProfit ?? 0}
               type={stats?.netProfit && stats.netProfit >= 0 ? "income" : "due"}
               icon={<TrendingUp className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
           </div>
         </Section>
@@ -378,12 +390,14 @@ export default function DashboardPage() {
               amount={stats?.todayRecovery ?? 0}
               type="income"
               icon={<ArrowUpRight className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
             />
             <FinCard
               title="Today's Expenses"
               amount={stats?.todayExpenses ?? 0}
               type="due"
               icon={<Clock className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/expenses')}
             />
             <StatCard
               title="New Users Today"
@@ -391,6 +405,7 @@ export default function DashboardPage() {
               icon={<Users className="w-6 h-6" />}
               color="purple"
               trend={{ value: 0, positive: true }}
+              onClick={() => router.push('/dashboard/clients')}
             />
           </div>
         </Section>
@@ -578,12 +593,14 @@ function StatCard({
   icon,
   color,
   trend,
+  onClick,
 }: {
   title: string;
   value: number;
   icon: React.ReactNode;
   color: "blue" | "emerald" | "rose" | "amber" | "purple";
   trend?: { value: number; positive: boolean };
+  onClick?: () => void;
 }) {
   const colors = {
     blue: {
@@ -622,7 +639,8 @@ function StatCard({
 
   return (
     <div
-      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden`}
+      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
     >
       {/* Decorative gradient blob */}
       <div
@@ -666,11 +684,13 @@ function AlertCard({
   value,
   urgency,
   message,
+  onClick,
 }: {
   title: string;
   value: number;
   urgency: "critical" | "high" | "medium";
   message: string;
+  onClick?: () => void;
 }) {
   const urgencies = {
     critical: {
@@ -697,7 +717,8 @@ function AlertCard({
 
   return (
     <div
-      className={`relative bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 overflow-hidden group`}
+      className={`relative bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 overflow-hidden group ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
     >
       <div
         className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${u.bg}`}
@@ -738,11 +759,13 @@ function FinanceCard({
   amount,
   type,
   icon,
+  onClick,
 }: {
   title: string;
   amount: number;
   type: "income" | "due" | "upcoming";
   icon: React.ReactNode;
+  onClick?: () => void;
 }) {
   const types = {
     income: {
@@ -752,7 +775,7 @@ function FinanceCard({
     },
     due: {
       color: "text-rose-600",
-      bg: "bg-rose-50",
+      bg: "bg-rose-500",
       border: "border-rose-200",
     },
     upcoming: {
@@ -766,7 +789,8 @@ function FinanceCard({
 
   return (
     <div
-      className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300`}
+      className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2.5 rounded-xl ${t.bg} ${t.color}`}>{icon}</div>

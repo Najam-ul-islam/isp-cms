@@ -5,13 +5,15 @@ interface FinanceCardProps {
   amount: number
   type: "income" | "due" | "upcoming"
   icon: React.ReactNode
+  onClick?: () => void
 }
 
 export default function FinCard({
   title,
   amount,
   type,
-  icon
+  icon,
+  onClick
 }: FinanceCardProps) {
 
   const styles = {
@@ -21,7 +23,10 @@ export default function FinCard({
   }
 
   return (
-    <div className="p-5 bg-white rounded-xl border shadow-sm">
+    <div
+      className={`p-5 bg-white rounded-xl border shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02] transition-transform' : ''}`}
+      onClick={onClick}
+    >
 
       <div className="flex justify-between items-center mb-3">
         <p className="text-sm text-slate-500">{title}</p>

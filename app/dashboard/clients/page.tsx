@@ -48,8 +48,24 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'phone' | 'city' | 'area' | 'price' | 'expiryDate'>('name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired' | 'suspended'>('all')
-  const [filterPayment, setFilterPayment] = useState<'all' | 'paid' | 'unpaid' | 'pending'>('all')
+
+  // Initialize filters based on URL query parameters
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+
+  const initialStatusFilter = urlParams?.get('status') || 'all';
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired' | 'suspended'>(
+    initialStatusFilter as 'all' | 'active' | 'expired' | 'suspended' || 'all'
+  );
+
+  const initialPaymentFilter = urlParams?.get('payment') || 'all';
+  const [filterPayment, setFilterPayment] = useState<'all' | 'paid' | 'unpaid' | 'pending'>(
+    initialPaymentFilter as 'all' | 'paid' | 'unpaid' | 'pending' || 'all'
+  );
+
+  const initialExpiringFilter = urlParams?.get('expiring') || 'none';
+  const [expiringFilter, setExpiringFilter] = useState<'none' | 'today' | '3days' | '7days'>(
+    initialExpiringFilter as 'none' | 'today' | '3days' | '7days' || 'none'
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [notification, setNotification] = useState<{
@@ -101,6 +117,32 @@ export default function ClientsPage() {
     fetchClients()
   }, [router])
 
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    if (filterStatus !== 'all') {
+      params.set('status', filterStatus);
+    }
+
+    if (filterPayment !== 'all') {
+      params.set('payment', filterPayment);
+    }
+
+    if (expiringFilter !== 'none') {
+      params.set('expiring', expiringFilter);
+    }
+
+    // Only update URL if there are parameters to show
+    if (params.toString()) {
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, '', newUrl);
+    } else {
+      // If no filters, remove query parameters
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [filterStatus, filterPayment, expiringFilter]);
+
   const handleDelete = async (id: string) => {
     const token = localStorage.getItem('token')
     if (!token) return
@@ -140,11 +182,37 @@ export default function ClientsPage() {
         client.cnic.includes(searchTerm) ||
         client.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.area.toLowerCase().includes(searchTerm.toLowerCase())
-      
+
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
       const matchesPayment = filterPayment === 'all' || client.paymentStatus === filterPayment
-      
-      return matchesSearch && matchesStatus && matchesPayment
+
+      // Handle expiring filter
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      const next3Days = new Date(now);
+      next3Days.setDate(now.getDate() + 3);
+      const next7Days = new Date(now);
+      next7Days.setDate(now.getDate() + 7);
+
+      let matchesExpiring = true; // Default to true if no expiring filter
+
+      if (expiringFilter === 'today') {
+        const clientExpiry = new Date(client.expiryDate);
+        clientExpiry.setHours(0, 0, 0, 0);
+        matchesExpiring = clientExpiry.getTime() === now.getTime();
+      } else if (expiringFilter === '3days') {
+        const clientExpiry = new Date(client.expiryDate);
+        clientExpiry.setHours(0, 0, 0, 0);
+        matchesExpiring = clientExpiry.getTime() > now.getTime() && clientExpiry.getTime() <= next3Days.getTime();
+      } else if (expiringFilter === '7days') {
+        const clientExpiry = new Date(client.expiryDate);
+        clientExpiry.setHours(0, 0, 0, 0);
+        matchesExpiring = clientExpiry.getTime() > now.getTime() && clientExpiry.getTime() <= next7Days.getTime();
+      }
+
+      return matchesSearch && matchesStatus && matchesPayment && matchesExpiring
     })
     .sort((a, b) => {
       let comparison = 0
