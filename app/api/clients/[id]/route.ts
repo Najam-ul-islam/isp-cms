@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
-import prisma from '@/lib/prisma'
+import {prisma} from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -50,7 +50,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -75,12 +75,35 @@ export async function PUT(
       notes
     } = await request.json()
 
-    // Validate required fields for update
-    if (!name || !phone || !cnic || !city || !area || !country || !packageId || !price || !startDate || !expiryDate) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    // Verify that the package exists if packageId is provided
+    if (packageId) {
+      const packageExists = await prisma.package.findUnique({
+        where: { id: packageId }
+      });
+
+      if (!packageExists) {
+        return NextResponse.json(
+          { error: 'Selected package does not exist' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Check if the area exists, and create it if it doesn't exist (only if area is provided)
+    if (area) {
+      let areaExists = await prisma.area.findUnique({
+        where: { name: area }
+      });
+
+      if (!areaExists) {
+        // Create the new area since it doesn't exist
+        areaExists = await prisma.area.create({
+          data: {
+            name: area,
+            description: `${area} area created automatically`
+          }
+        });
+      }
     }
 
     // Parse dates safely
@@ -88,8 +111,15 @@ export async function PUT(
     let parsedExpiryDate: Date | undefined;
 
     if (startDate) {
-      parsedStartDate = new Date(startDate);
-      if (isNaN(parsedStartDate.getTime())) {
+      try {
+        parsedStartDate = new Date(startDate);
+        if (isNaN(parsedStartDate.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid start date format' },
+            { status: 400 }
+          );
+        }
+      } catch (dateError) {
         return NextResponse.json(
           { error: 'Invalid start date format' },
           { status: 400 }
@@ -98,8 +128,15 @@ export async function PUT(
     }
 
     if (expiryDate) {
-      parsedExpiryDate = new Date(expiryDate);
-      if (isNaN(parsedExpiryDate.getTime())) {
+      try {
+        parsedExpiryDate = new Date(expiryDate);
+        if (isNaN(parsedExpiryDate.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid expiry date format' },
+            { status: 400 }
+          );
+        }
+      } catch (dateError) {
         return NextResponse.json(
           { error: 'Invalid expiry date format' },
           { status: 400 }
@@ -107,23 +144,39 @@ export async function PUT(
       }
     }
 
+    const updateData: any = {
+      name,
+      phone,
+      cnic,
+      city,
+      country,
+      price: typeof price === 'string' ? parseFloat(price) : price,
+      paymentStatus,
+      status,
+      notes: notes || null
+    };
+
+    // Only add dates if they were provided
+    if (parsedStartDate) {
+      updateData.startDate = parsedStartDate;
+    }
+    if (parsedExpiryDate) {
+      updateData.expiryDate = parsedExpiryDate;
+    }
+
+    // Only update packageId if it was provided
+    if (packageId) {
+      updateData.packageId = packageId;
+    }
+
+    // Only update area if it was provided
+    if (area) {
+      updateData.area = area;
+    }
+
     const updatedClient = await prisma.client.update({
       where: { id: clientId },
-      data: {
-        name,
-        phone,
-        cnic,
-        city,
-        area,
-        country,
-        packageId,
-        price: typeof price === 'string' ? parseFloat(price) : price,
-        startDate: parsedStartDate,
-        expiryDate: parsedExpiryDate,
-        paymentStatus,
-        status,
-        notes: notes || null
-      }
+      data: updateData
     })
 
     return NextResponse.json(updatedClient)
@@ -142,7 +195,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -154,7 +207,7 @@ export async function DELETE(
     // Delete related payments first to avoid foreign key constraint
     await prisma.payment.deleteMany({
       where: { clientId }
-    })
+    });
 
     // Then delete the client
     await prisma.client.delete({
@@ -166,7 +219,7 @@ export async function DELETE(
     console.error('Delete client error:', error)
 
     // Check if it's a foreign key constraint error
-    if ((error as any).code === 'P2003') {
+    if (typeof error === 'object' && error !== null && 'code' in error && (error as any).code === 'P2003') {
       return NextResponse.json(
         { error: 'Cannot delete client: related payments exist. Please delete related payments first.' },
         { status: 400 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-  import { hashPassword } from '@/lib/auth'
-  import prisma from '@/lib/prisma'
+  import { hashPassword, generateToken } from '@/lib/auth'
+  import {prisma} from '@/lib/prisma'
+  import { Role } from '@prisma/client'
 
   export async function POST(request: Request) {
     try {
@@ -29,17 +30,18 @@ import { NextResponse } from 'next/server'
       // Hash password
       const hashedPassword = await hashPassword(password)
 
-      // Create admin
+      // Create admin with default EMPLOYEE role
       const admin = await prisma.admin.create({
         data: {
           name,
           email,
-          password: hashedPassword
+          password: hashedPassword,
+          role: Role.EMPLOYEE  // Default role for new users
         }
       })
 
-      // Generate token (implement in auth.ts)
-      const token = `fake-token-${admin.id}` // Placeholder - implement real JWT
+      // Generate token with role information
+      const token = generateToken(admin.id, admin.role)
 
       return NextResponse.json({
         message: 'Admin created successfully',

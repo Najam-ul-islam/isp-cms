@@ -445,11 +445,21 @@ export default function NewClientPage() {
                   </div>
                   {selectedPackage && (
                     <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-                        <Sparkles className="w-4 h-4" />
-                        <span>
-                          <strong>{selectedPackage.name}</strong>: {selectedPackage.speed} Mbps, {selectedPackage.durationDays} days validity
-                        </span>
+                      <div className="flex flex-col gap-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          <span>
+                            <strong>{selectedPackage.name}</strong>: {selectedPackage.speed} Mbps, {selectedPackage.durationDays} days validity
+                          </span>
+                        </div>
+                        {(selectedPackage as any).serviceProvider && (
+                          <div className="flex items-center gap-2 ml-6">
+                            <Factory className="w-4 h-4" />
+                            <span>
+                              Service Provider: <strong>{(selectedPackage as any).serviceProvider.name}</strong>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

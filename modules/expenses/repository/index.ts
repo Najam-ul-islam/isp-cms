@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import {prisma} from '@/lib/prisma';
 import { CreateExpenseInput, UpdateExpenseInput, ExpenseFilters } from '../types';
 
 export const createExpense = async (data: CreateExpenseInput) => {

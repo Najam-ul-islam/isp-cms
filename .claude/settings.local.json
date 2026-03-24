@@ -19,7 +19,22 @@
       "Bash(node tmp-seed-and-check.js)",
       "Bash(bash verify-fix.sh)",
       "Bash(del verify-fix.sh)",
-      "Bash(npx kill-port:*)"
+      "Bash(npx kill-port:*)",
+      "Bash(tsx:*)",
+      "Bash(findstr /n /A \"getDailyReport\")",
+      "Bash(powershell -Command \"Select-String -Path 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\modules\\\\reports\\\\repository\\\\report.repository.ts' -Pattern 'getDailyReport' -CaseSensitive\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\modules\\\\reports\\\\repository\\\\report.repository.ts'\\)[4..114]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\modules\\\\reports\\\\repository\\\\report.repository.ts'\\)[4..122]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[20..40]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[45..70]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[30..100]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[75..110]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[105..140]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[125..135]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[124..127]\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx' | Select-String -Pattern 'X className'\\).LineNumber\")",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[540..550]\")",
+      "Bash(find . -name \"*.ts\" -path \"*/modules/*/services/*\" -exec basename {})"
     ]
   }
 }

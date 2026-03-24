@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt'
-  import jwt from 'jsonwebtoken'
-  import prisma from './prisma'
+import jwt from 'jsonwebtoken'
+import {prisma} from './prisma'
 
   export const hashPassword = async (password: string): Promise<string> => {
     const saltRounds = 10
@@ -14,13 +14,18 @@ import bcrypt from 'bcrypt'
     return await bcrypt.compare(password, hashedPassword)
   }
 
-  export const generateToken = (userId: string): string => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '24h' })
+  export const generateToken = (userId: string, role?: string): string => {
+    return jwt.sign({ userId, role }, process.env.JWT_SECRET!, { expiresIn: '24h' })
   }
 
-  export const verifyToken = (token: string): { userId: string } | null => {
+  export interface TokenPayload {
+  userId: string;
+  role?: string;
+}
+
+export const verifyToken = (token: string): TokenPayload | null => {
     try {
-      return jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
+      return jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
     } catch (error) {
       return null
     }

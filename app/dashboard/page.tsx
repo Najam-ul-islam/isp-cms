@@ -18,7 +18,17 @@ import {
   RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
+  Plus,
+  CreditCard,
+  Receipt
 } from "lucide-react";
+
+// Import new dashboard components
+import QuickActions from "@/components/dashboard/QuickActions";
+import AccountsSummary from "@/components/dashboard/AccountsSummary";
+import AreaInsights from "@/components/dashboard/AreaInsights";
+import ActivityFeed from "@/components/dashboard/ActivityFeed";
+import ChartCard from "@/components/dashboard/ChartCard";
 
 interface StatsData {
   totalClients: number;
@@ -40,6 +50,15 @@ interface StatsData {
   todayExpenses: number;
   newUsersToday: number;
   expiringToday: number;
+  totalReceivable: number;
+  totalPayable: number;
+  netBalance: number;
+  areaInsights: Array<{
+    areaName: string;
+    totalClients: number;
+    activeClients: number;
+    expiredClients: number;
+  }>;
 }
 
 interface ExpiringClient {
@@ -72,8 +91,8 @@ export default function DashboardPage() {
         return headers;
       };
 
-      const [statsRes, expiringRes] = await Promise.all([
-        fetch("/api/dashboard/stats", {
+      const [overviewRes, expiringRes] = await Promise.all([
+        fetch("/api/dashboard/overview", {
           headers: getHeaders(),
           credentials: "include",
           cache: "no-store",
@@ -87,15 +106,15 @@ export default function DashboardPage() {
         }),
       ]);
 
-      if (statsRes.status === 401 || expiringRes.status === 401) {
+      if (overviewRes.status === 401 || expiringRes.status === 401) {
         router.push("/login");
         return;
       }
 
-      const statsData = await statsRes.json();
+      const overviewData = await overviewRes.json();
       const expiringData = await expiringRes.json();
 
-      setStats(statsData);
+      setStats(overviewData);
       setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
       setLastUpdated(new Date());
     } catch (error) {
@@ -123,11 +142,10 @@ export default function DashboardPage() {
     return () => abortController.abort();
   }, [router]);
 
-  // Auto-refresh for "Today's Activities" section every 30 seconds
+  // Auto-refresh for dashboard data every 15 seconds
   useEffect(() => {
-    const activitiesRefreshInterval = setInterval(() => {
-      // Only refresh the stats data (for Today's Activities), not the expiring clients
-      const fetchStatsOnly = async () => {
+    const dashboardRefreshInterval = setInterval(() => {
+      const fetchAllData = async () => {
         try {
           const token = localStorage.getItem("token");
 
@@ -139,31 +157,40 @@ export default function DashboardPage() {
             return headers;
           };
 
-          const statsRes = await fetch("/api/dashboard/stats", {
-            headers: getHeaders(),
-            credentials: "include",
-            cache: "no-store",
-          });
+          // Fetch both stats and expiring clients
+          const [statsRes, expiringRes] = await Promise.all([
+            fetch("/api/dashboard/stats", {
+              headers: getHeaders(),
+              credentials: "include",
+              cache: "no-store",
+            }),
+            fetch("/api/dashboard/expiring_clients", {
+              headers: getHeaders(),
+              credentials: "include",
+              cache: "no-store",
+            }),
+          ]);
 
-          if (statsRes.status === 401) {
+          if (statsRes.status === 401 || expiringRes.status === 401) {
             router.push("/login");
             return;
           }
 
           const statsData = await statsRes.json();
+          const expiringData = await expiringRes.json();
 
-          // Update only the stats, keeping the expiring clients unchanged
           setStats(statsData);
+          setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
           setLastUpdated(new Date());
         } catch (error) {
-          console.error("Activities refresh error:", error);
+          console.error("Dashboard refresh error:", error);
         }
       };
 
-      fetchStatsOnly();
-    }, 30000); // Refresh every 30 seconds
+      fetchAllData();
+    }, 15000); // Refresh every 15 seconds
 
-    return () => clearInterval(activitiesRefreshInterval);
+    return () => clearInterval(dashboardRefreshInterval);
   }, [router]);
 
   const handleRefresh = async () => {
@@ -179,8 +206,8 @@ export default function DashboardPage() {
         return headers;
       };
 
-      const [statsRes, expiringRes] = await Promise.all([
-        fetch("/api/dashboard/stats", {
+      const [overviewRes, expiringRes] = await Promise.all([
+        fetch("/api/dashboard/overview", {
           headers: getHeaders(),
           credentials: "include",
           cache: "no-store",
@@ -192,15 +219,15 @@ export default function DashboardPage() {
         }),
       ]);
 
-      if (statsRes.status === 401 || expiringRes.status === 401) {
+      if (overviewRes.status === 401 || expiringRes.status === 401) {
         router.push("/login");
         return;
       }
 
-      const statsData = await statsRes.json();
+      const overviewData = await overviewRes.json();
       const expiringData = await expiringRes.json();
 
-      setStats(statsData);
+      setStats(overviewData);
       setExpiringClients(Array.isArray(expiringData) ? expiringData : []);
       setLastUpdated(new Date());
     } catch (error) {
@@ -251,7 +278,10 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-8 py-8 space-y-8">
-        {/* USER OVERVIEW */}
+        {/* QUICK ACTIONS */}
+        <QuickActions />
+
+        {/* TOP STATS */}
         <Section title="User Overview" icon={<Users className="w-5 h-5" />}>
           <div className="grid md:grid-cols-3 gap-5">
             <StatCard
@@ -280,6 +310,121 @@ export default function DashboardPage() {
             />
           </div>
         </Section>
+
+        {/* REAL-TIME STATS */}
+        <Section
+          title="Real-Time Stats"
+          icon={<TrendingUp className="w-5 h-5" />}
+          variant="success"
+        >
+          <div className="grid md:grid-cols-4 gap-5">
+            <FinCard
+              title="Today's Recovery"
+              amount={stats?.todayRecovery ?? 0}
+              type="income"
+              icon={<ArrowUpRight className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
+            />
+            <FinCard
+              title="Today's Expenses"
+              amount={stats?.todayExpenses ?? 0}
+              type="due"
+              icon={<Clock className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/expenses')}
+            />
+            <StatCard
+              title="New Users Today"
+              value={stats?.newUsersToday ?? 0}
+              icon={<Users className="w-6 h-6" />}
+              color="purple"
+              trend={{ value: 0, positive: true }}
+              onClick={() => router.push('/dashboard/clients')}
+            />
+            <StatCard
+              title="Expiring Today"
+              value={stats?.expireToday ?? 0}
+              icon={<AlertCircle className="w-6 h-6" />}
+              color="rose"
+              trend={{ value: 0, positive: false }}
+              onClick={() => router.push('/dashboard/clients?expiring=today')}
+            />
+          </div>
+        </Section>
+
+        {/* FINANCIAL METRICS */}
+        <Section
+          title="Financial Summary"
+          icon={<DollarSign className="w-5 h-5" />}
+          variant="default"
+        >
+          <div className="grid md:grid-cols-3 gap-5">
+            <FinCard
+              title="Total Revenue"
+              amount={stats?.totalRevenue ?? 0}
+              type="income"
+              icon={<ArrowUpRight className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
+            />
+            <FinCard
+              title="Total Expenses"
+              amount={stats?.totalExpenses ?? 0}
+              type="due"
+              icon={<Clock className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/expenses')}
+            />
+            <FinCard
+              title="Net Profit"
+              amount={stats?.netProfit ?? 0}
+              type={stats?.netProfit && stats.netProfit >= 0 ? "income" : "due"}
+              icon={<TrendingUp className="w-5 h-5" />}
+              onClick={() => router.push('/dashboard/payments')}
+            />
+          </div>
+        </Section>
+
+        {/* ACCOUNTS SUMMARY */}
+        <AccountsSummary />
+
+        {/* CHARTS SECTION */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard
+            title="Revenue vs Expenses (Monthly)"
+            type="line"
+            labels={['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']}
+            datasets={[
+              {
+                label: 'Revenue',
+                data: [120000, 150000, 180000, 140000, 200000, 220000],
+                backgroundColor: 'rgba(72, 187, 120, 0.2)',
+                borderColor: 'rgba(72, 187, 120, 1)',
+              },
+              {
+                label: 'Expenses',
+                data: [80000, 90000, 100000, 85000, 110000, 120000],
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                borderColor: 'rgba(239, 68, 68, 1)',
+              }
+            ]}
+          />
+          <ChartCard
+            title="New Users Growth"
+            type="bar"
+            labels={['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']}
+            datasets={[
+              {
+                label: 'New Users',
+                data: [45, 52, 48, 60, 65, 72],
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+              }
+            ]}
+          />
+        </div>
+
+        {/* AREA-BASED INSIGHTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AreaInsights />
+          <ActivityFeed />
+        </div>
 
         {/* EXPIRATION ALERTS */}
         <Section
@@ -343,69 +488,6 @@ export default function DashboardPage() {
               type="upcoming"
               icon={<Calendar className="w-5 h-5" />}
               onClick={() => router.push('/dashboard/payments')}
-            />
-          </div>
-        </Section>
-
-        {/* FINANCIAL METRICS */}
-        <Section
-          title="Financial Summary"
-          icon={<TrendingUp className="w-5 h-5" />}
-          variant="default"
-        >
-          <div className="grid md:grid-cols-3 gap-5">
-            <FinCard
-              title="Total Revenue"
-              amount={stats?.totalRevenue ?? 0}
-              type="income"
-              icon={<ArrowUpRight className="w-5 h-5" />}
-              onClick={() => router.push('/dashboard/payments')}
-            />
-            <FinCard
-              title="Total Expenses"
-              amount={stats?.totalExpenses ?? 0}
-              type="due"
-              icon={<Clock className="w-5 h-5" />}
-              onClick={() => router.push('/dashboard/expenses')}
-            />
-            <FinCard
-              title="Net Profit"
-              amount={stats?.netProfit ?? 0}
-              type={stats?.netProfit && stats.netProfit >= 0 ? "income" : "due"}
-              icon={<TrendingUp className="w-5 h-5" />}
-              onClick={() => router.push('/dashboard/payments')}
-            />
-          </div>
-        </Section>
-
-        {/* TODAY'S ACTIVITIES */}
-        <Section
-          title="Today's Activities"
-          icon={<Calendar className="w-5 h-5" />}
-          variant="warning"
-        >
-          <div className="grid md:grid-cols-3 gap-5">
-            <FinCard
-              title="Today's Recovery"
-              amount={stats?.todayRecovery ?? 0}
-              type="income"
-              icon={<ArrowUpRight className="w-5 h-5" />}
-              onClick={() => router.push('/dashboard/payments')}
-            />
-            <FinCard
-              title="Today's Expenses"
-              amount={stats?.todayExpenses ?? 0}
-              type="due"
-              icon={<Clock className="w-5 h-5" />}
-              onClick={() => router.push('/dashboard/expenses')}
-            />
-            <StatCard
-              title="New Users Today"
-              value={stats?.newUsersToday ?? 0}
-              icon={<Users className="w-6 h-6" />}
-              color="purple"
-              trend={{ value: 0, positive: true }}
-              onClick={() => router.push('/dashboard/clients')}
             />
           </div>
         </Section>
@@ -494,9 +576,9 @@ export default function DashboardPage() {
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold 
-      text-white bg-green-500 hover:bg-green-600 
-      rounded-full shadow-sm hover:shadow-md 
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+      text-white bg-green-500 hover:bg-green-600
+      rounded-full shadow-sm hover:shadow-md
       transition-all duration-200"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
@@ -518,9 +600,9 @@ Please renew your package to avoid service interruption.
 
 Thank you.`,
                             )}`}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold 
-      text-white bg-blue-500 hover:bg-blue-600 
-      rounded-full shadow-sm hover:shadow-md 
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+      text-white bg-blue-500 hover:bg-blue-600
+      rounded-full shadow-sm hover:shadow-md
       transition-all duration-200"
                           >
                             <Mail className="w-3.5 h-3.5" />

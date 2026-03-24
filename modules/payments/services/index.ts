@@ -1,3 +1,4 @@
+
 import { CreatePaymentInput, UpdatePaymentInput, PaymentFilters } from '../types';
 import {
   createPayment as createPaymentRepo,
@@ -7,6 +8,8 @@ import {
   deletePayment as deletePaymentRepo,
   getPaymentStats as getPaymentStatsRepo
 } from '../repository';
+import { PaymentWithClient } from '../types';
+
 
 export const createPayment = async (data: CreatePaymentInput) => {
   // Validate inputs
@@ -56,4 +59,23 @@ export const deletePayment = async (id: string) => {
 
 export const getPaymentStats = async (startDate?: Date, endDate?: Date) => {
   return await getPaymentStatsRepo(startDate, endDate);
+};
+
+
+
+// export const getRecentPayments = async (limit: number = 5): Promise<PaymentWithClient[]> => {
+//   return await getPaymentsRepo({ limit, sortBy: 'createdAt', sortOrder: 'desc' });
+// };
+export const getRecentPayments = async (
+  limit: number = 5
+): Promise<PaymentWithClient[]> => {
+  // ✅ Now this works because getPaymentsRepo returns PaymentWithClient[]
+  const payments = await getPaymentsRepo({
+    limit,
+    sortBy: 'paymentDate',
+    sortOrder: 'desc'
+  });
+
+  // Type assertion to satisfy TypeScript compiler
+  return payments as PaymentWithClient[];
 };

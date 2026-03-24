@@ -1,8 +1,9 @@
-import  prisma  from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
 import { getClientsWithFilters } from '../../../modules/clients/services'
 import { ClientStatus, PaymentStatus } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 function parseClientStatus(value: string | null): ClientStatus | undefined {
   if (!value) return undefined;
@@ -24,12 +25,17 @@ function parsePaymentStatus(value: string | null): PaymentStatus | undefined {
   return undefined;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to read clients
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url);
@@ -55,10 +61,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to create clients
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     const {
@@ -130,6 +141,33 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verify that the package exists
+    const packageExists = await prisma.package.findUnique({
+      where: { id: packageId }
+    });
+
+    if (!packageExists) {
+      return NextResponse.json(
+        { error: 'Selected package does not exist' },
+        { status: 400 }
+      );
+    }
+
+    // Check if the area exists, and create it if it doesn't exist
+    let areaExists = await prisma.area.findUnique({
+      where: { name: area }
+    });
+
+    if (!areaExists) {
+      // Create the new area since it doesn't exist
+      areaExists = await prisma.area.create({
+        data: {
+          name: area,
+          description: `${area} area created automatically`
+        }
+      });
+    }
+
     const clientData: any = {
       name,
       phone,
@@ -141,7 +179,8 @@ export async function POST(request: Request) {
       price,
       startDate: parsedStartDate,
       expiryDate: parsedExpiryDate,
-      notes: notes || null
+      notes: notes || null,
+      createdBy: admin.id  // Associate client with the admin creating it
     };
 
     // Only add optional fields if they are defined
@@ -159,6 +198,38 @@ export async function POST(request: Request) {
     return NextResponse.json(client, { status: 201 })
   } catch (error) {
     console.error('Create client error:', error)
+
+    // Handle Prisma unique constraint error (duplicate CNIC or phone)
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        // Find which field caused the conflict
+        const target = (error.meta as any)?.target as string | string[];
+        if (Array.isArray(target)) {
+          if (target.includes('cnic')) {
+            return NextResponse.json(
+              { error: 'A client with this CNIC already exists' },
+              { status: 400 }
+            );
+          } else if (target.includes('phone')) {
+            return NextResponse.json(
+              { error: 'A client with this phone number already exists' },
+              { status: 400 }
+            );
+          } else {
+            return NextResponse.json(
+              { error: `A client with this ${target.join(' or ')} already exists` },
+              { status: 400 }
+            );
+          }
+        } else {
+          return NextResponse.json(
+            { error: `A client with this ${target} already exists` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import {prisma} from '@/lib/prisma';
 import { ClientStatus, PaymentStatus } from '@prisma/client';
 
 export type ClientFilters = {
@@ -73,4 +73,20 @@ export const getClientStats = async (filters?: ClientFilters) => {
   });
 
   return { count };
+};
+
+export const getRecentClients = async (limit: number = 5) => {
+  return await prisma.client.findMany({
+    take: limit,
+    include: {
+      package: {
+        include: {
+          serviceProvider: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
 };

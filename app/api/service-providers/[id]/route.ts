@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
-import prisma from '@/lib/prisma'
+import {prisma} from '@/lib/prisma'
 
 // GET single service provider
 export async function GET(
@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -60,7 +60,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -115,7 +115,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

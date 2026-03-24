@@ -1,5 +1,5 @@
 // lib/prisma-helpers.ts
-import prisma  from './prisma'
+import {prisma}  from './prisma'
 
 // Type-safe way to check if a field exists (runtime check)
 export function hasClientField(field: string): boolean {

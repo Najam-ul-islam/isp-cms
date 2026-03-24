@@ -3,13 +3,18 @@ import { getAdminFromToken } from '@/lib/jwt';
 import { getExpenseById, updateExpense, deleteExpense } from '../../../../modules/expenses/services';
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to read expenses
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;
@@ -27,13 +32,18 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to update expenses
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;
@@ -58,13 +68,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to delete expenses
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;

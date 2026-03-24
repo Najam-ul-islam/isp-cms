@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
-import prisma from '@/lib/prisma'
+import {prisma} from '@/lib/prisma'
 
 // GET single package
 export async function GET(
@@ -8,10 +8,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to read packages
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     const { id } = await params  // ✅ Await params before accessing id
@@ -44,15 +49,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check if user has permission to update packages
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
     const { id } = await params  // ✅ Await params before accessing id
     const packageId = id
-    
+
     const { name, speed, price, purchasePrice, durationDays, serviceProviderId } = await request.json()
 
     const updatedPackage = await prisma.package.update({
@@ -80,14 +90,19 @@ export async function PUT(
 
 // DELETE package
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }  // ✅ params is now a Promise
 ) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to delete packages
+    if (admin.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     const { id } = await params  // ✅ Await params

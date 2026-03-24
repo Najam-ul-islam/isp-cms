@@ -1,3 +1,6 @@
+// prisma/schema.prisma
+// ✅ Validated for Prisma CLI 5.22.0
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native"]
@@ -9,15 +12,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────────────────────
+// ENUMS (Must be defined BEFORE models that reference them)
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PaymentStatus {
+  paid
+  unpaid
+  partial
+}
+
+enum ClientStatus {
+  active
+  expired
+  suspended
+}
+
+enum ComplaintStatus {
+  open
+  in_progress
+  resolved
+}
+
+// Financial/Accounting Module Enums
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum TransactionKind {
+  DEBIT
+  CREDIT
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+  FEE
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────────────────────
+
 model Admin {
   id        String    @id @default(cuid())
   name      String
   email     String    @unique
   password  String
+  role      Role      @default(EMPLOYEE)
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relations
   packages  Package[]
+  clients   Client[]
 
   @@map("admins")
+}
+
+model ServiceProvider {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  contactInfo String?
+  address     String?
+  email       String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  packages    Package[]
+
+  @@map("service_providers")
 }
 
 model Package {
@@ -33,6 +108,8 @@ model Package {
   updatedAt         DateTime         @updatedAt
   purchasePrice     Float?
   serviceProviderId String?
+  
+  // Relations
   clients           Client[]
   creator           Admin            @relation(fields: [createdBy], references: [id])
   serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
@@ -40,29 +117,27 @@ model Package {
   @@map("packages")
 }
 
-model ServiceProvider {
+model Area {
   id          String    @id @default(cuid())
   name        String    @unique
-  contactInfo String?
-  address     String?
-  email       String?
-  phone       String?
-  isActive    Boolean   @default(true)
+  description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  packages    Package[]
+  
+  // Relations
+  clients     Client[]
 
-  @@map("service_providers")
+  @@map("areas")
 }
 
 model Client {
   id            String        @id @default(cuid())
   name          String
-  phone         String
-  email         String?
-  cnic          String
+  phone         String        @unique
+  email         String?       @unique
+  cnic          String        @unique
   city          String
-  area          String
+  area          String?       // Stores the Area.name (not ID)
   country       String
   packageId     String
   price         Float
@@ -72,22 +147,21 @@ model Client {
   status        ClientStatus
   notes         String?
   createdAt     DateTime      @default(now())
+  createdBy     String        // Reference to Admin who created this client
+  
+  // ✅ Fixed relations:
+  // - area references Area.name (which is @unique)
+  // - packageId references Package.id
+  // - createdBy references Admin.id
+  areaModel     Area?         @relation(fields: [area], references: [name])
   package       Package       @relation(fields: [packageId], references: [id])
+  creator       Admin         @relation(fields: [createdBy], references: [id])
+  
+  // Reverse relations
   payments      Payment[]
+  complaints    Complaint[]
 
   @@map("clients")
-}
-
-enum PaymentStatus {
-  paid
-  unpaid
-  partial
-}
-
-enum ClientStatus {
-  active
-  expired
-  suspended
 }
 
 model Payment {
@@ -99,7 +173,7 @@ model Payment {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
+  
   // Relations
   client Client @relation(fields: [clientId], references: [id])
 
@@ -118,4 +192,56 @@ model Expense {
   updatedAt   DateTime @updatedAt
 
   @@map("expenses")
+}
+
+model Complaint {
+  id          String          @id @default(cuid())
+  clientId    String
+  title       String
+  description String
+  status      ComplaintStatus @default(open)
+  priority    String          @default("medium") // low, medium, high
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  // Relations
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("complaints")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financial/Accounting Module Models
+// ─────────────────────────────────────────────────────────────
+
+model AccountLedger {
+  id           String               @id @default(cuid())
+  name         String               @unique
+  type         AccountType          // ✅ Enum reference (defined above)
+  balance      Float                @default(0)
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  
+  // Relations
+  transactions AccountTransaction[]
+
+  @@map("account_ledgers")
+}
+
+model AccountTransaction {
+  id              String           @id @default(cuid())
+  accountId       String
+  transactionType TransactionKind  // ✅ Enum reference (defined above)
+  amount          Float
+  description     String
+  reference       String?
+  date            DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  // Relations
+  account AccountLedger @relation(fields: [accountId], references: [id])
+
+  @@map("account_transactions")
 }

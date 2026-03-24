@@ -11,7 +11,8 @@ import {
   Wifi,
   Factory,
   DollarSign,
-  CreditCard
+  CreditCard,
+  TrendingUp
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -50,6 +51,16 @@ export default function Sidebar() {
       href: '/dashboard/expenses',
       label: 'Expenses',
       icon: DollarSign
+    },
+    {
+      href: '/dashboard/reports',
+      label: 'Reports',
+      icon: TrendingUp
+    },
+    {
+      href: '/dashboard/complaints',
+      label: 'Complaints',
+      icon: Users
     },
     {
       href: '/dashboard/service-providers',

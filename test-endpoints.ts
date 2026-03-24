@@ -100,6 +100,13 @@ async function testEndpoints() {
     const basicPackage = await prisma.package.findFirst({ where: { name: 'Basic Package' }});
 
     if (basicPackage) {
+      // Get an admin to assign as the creator
+      const clientCreator = await prisma.admin.findFirst({
+        select: {
+          id: true
+        }
+      });
+
       // POST /api/clients
       const newClient = await prisma.client.create({
         data: {
@@ -115,7 +122,8 @@ async function testEndpoints() {
           expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
           paymentStatus: 'paid',
           status: 'active',
-          notes: 'Test client'
+          notes: 'Test client',
+          createdBy: clientCreator?.id || '' // Use the first admin's ID, or empty string as fallback
         }
       });
       console.log(`  ✓ Created new client: ${newClient.name}`);

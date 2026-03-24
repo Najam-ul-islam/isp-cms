@@ -1,7 +1,10 @@
-import prisma from '@/lib/prisma';
+import "server-only";
+import {prisma} from '@/lib/prisma';
 import { ClientStatus, PaymentStatus } from '@prisma/client';
 import { getPaymentStats } from '../../payments/services';
 import { getExpenseStats } from '../../expenses/services';
+import { getAccountSummary } from '../../accounts/services';
+import { getAreaInsights } from '../../areas/services';
 
 export const getDashboardStats = async () => {
   const today = new Date();
@@ -107,6 +110,12 @@ export const getDashboardStats = async () => {
     }
   });
 
+  // Get account summary
+  const accountSummary = await getAccountSummary();
+
+  // Get area insights
+  const areaInsights = await getAreaInsights();
+
   return {
     totalUsers,
     activeUsers,
@@ -127,7 +136,13 @@ export const getDashboardStats = async () => {
     todayRecovery: todayRecovery._sum.amount || 0,
     todayExpenses: todayExpenses._sum.amount || 0,
     newUsersToday,
-    expiringToday: expireToday
+    expiringToday: expireToday,
+
+    // Phase 3 additions
+    totalReceivable: accountSummary.totalReceivable,
+    totalPayable: accountSummary.totalPayable,
+    netBalance: accountSummary.netBalance,
+    areaInsights: areaInsights
   };
 };
 

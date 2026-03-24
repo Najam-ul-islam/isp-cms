@@ -1,0 +1,216 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+  engineType    = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Admin {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role      @default(EMPLOYEE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  packages  Package[]
+  clients   Client[]
+
+  @@map("admins")
+}
+
+model Package {
+  id                String           @id @default(cuid())
+  name              String           @unique
+  speed             Int
+  price             Float
+  durationDays      Int
+  description       String           @default("")
+  isActive          Boolean          @default(true)
+  createdBy         String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  purchasePrice     Float?
+  serviceProviderId String?
+  clients           Client[]
+  creator           Admin            @relation(fields: [createdBy], references: [id])
+  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+
+  @@map("packages")
+}
+
+model ServiceProvider {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  contactInfo String?
+  address     String?
+  email       String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  packages    Package[]
+
+  @@map("service_providers")
+}
+
+model Client {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String
+  email         String?
+  cnic          String
+  city          String
+  area          String?
+  country       String
+  packageId     String
+  price         Float
+  startDate     DateTime
+  expiryDate    DateTime
+  paymentStatus PaymentStatus
+  status        ClientStatus
+  notes         String?
+  createdAt     DateTime      @default(now())
+  createdBy     String        // Reference to Admin who created this client
+  package       Package       @relation(fields: [packageId], references: [id])
+  creator       Admin         @relation(fields: [createdBy], references: [id])
+  areaModel     Area?         @relation(fields: [area], references: [id])
+  payments      Payment[]
+  complaints    Complaint[]
+
+  @@map("clients")
+}
+
+enum PaymentStatus {
+  paid
+  unpaid
+  partial
+}
+
+enum ClientStatus {
+  active
+  expired
+  suspended
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  clientId    String
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?  // e.g., cash, bank transfer, online
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("payments")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float
+  category    String   // e.g., electricity, rent, equipment
+  date        DateTime @default(now())
+  description String?
+  receipt     String?  // path to receipt image/file
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("expenses")
+}
+
+enum ComplaintStatus {
+  open
+  in_progress
+  resolved
+}
+
+model Complaint {
+  id        String          @id @default(cuid())
+  clientId  String
+  title     String
+  description String
+  status    ComplaintStatus @default(open)
+  priority  String          @default("medium") // low, medium, high
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("complaints")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums for Financial/Accounting Module
+// ─────────────────────────────────────────────────────────────
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum TransactionKind {
+  DEBIT
+  CREDIT
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+  FEE
+}
+
+model AccountLedger {
+  id          String      @id @default(cuid())
+  name        String
+  type        AccountType // ← Enum, not String
+  balance     Float       @default(0)
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  transactions AccountTransaction[]
+}
+
+// Fix AccountTransaction to use TransactionKind enum
+model AccountTransaction {
+  id              String          @id @default(cuid())
+  accountId       String
+  transactionType TransactionKind // ← Changed from String to enum
+  amount          Float
+  description     String
+  reference       String?
+  date            DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  account AccountLedger @relation(fields: [accountId], references: [id])
+
+  @@map("account_transactions")
+}
+model Area {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  clients     Client[]
+
+  @@map("areas")
+}

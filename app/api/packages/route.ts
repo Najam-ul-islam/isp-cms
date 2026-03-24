@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server'
   import { getAdminFromToken } from '@/lib/jwt'
-  import prisma from '@/lib/prisma'
+  import {prisma} from '@/lib/prisma'
 
   export async function GET(request: Request) {
     try {
-      const admin = await getAdminFromToken(request as any)
+      const admin = await getAdminFromToken(request);
 
       if (!admin) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      // Check if user has permission to read packages
+      if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
       const packages = await prisma.package.findMany({
@@ -36,10 +41,15 @@ import { NextResponse } from 'next/server'
 
   export async function POST(request: Request) {
     try {
-      const admin = await getAdminFromToken(request as any)
+      const admin = await getAdminFromToken(request);
 
       if (!admin) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      // Check if user has permission to create packages
+      if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
       const { name, speed, price, purchasePrice, durationDays, serviceProviderId } = await request.json()

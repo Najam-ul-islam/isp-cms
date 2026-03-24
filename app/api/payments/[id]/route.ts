@@ -3,13 +3,18 @@ import { getAdminFromToken } from '@/lib/jwt';
 import { getPaymentById, updatePayment, deletePayment } from '../../../../modules/payments/services';
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to read payments
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;
@@ -27,21 +32,29 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to update payments
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;
     const body = await request.json();
     const { amount, method, notes } = body;
-
+      // ✅ Validate amount if provided
+    if (amount !== undefined && (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)) {
+      return NextResponse.json({ error: 'Amount must be a positive number' }, { status: 400 });
+    }
     const updatedPayment = await updatePayment(resolvedParams.id, {
-      id: resolvedParams.id,
+      // id: resolvedParams.id,
       amount: amount !== undefined ? parseFloat(amount) : undefined,
       method,
       notes
@@ -55,13 +68,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    const admin = await getAdminFromToken(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has permission to delete payments
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const resolvedParams = await params;

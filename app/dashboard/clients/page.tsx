@@ -181,7 +181,7 @@ export default function ClientsPage() {
         client.phone.includes(searchTerm) ||
         client.cnic.includes(searchTerm) ||
         client.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.area.toLowerCase().includes(searchTerm.toLowerCase())
+        (client.area && client.area.toLowerCase().includes(searchTerm.toLowerCase()))
 
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
       const matchesPayment = filterPayment === 'all' || client.paymentStatus === filterPayment

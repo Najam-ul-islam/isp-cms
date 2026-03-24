@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
   import { authenticateAdmin, generateToken } from '@/lib/auth'
-  import prisma from '@/lib/prisma'
+  import {prisma} from '@/lib/prisma'
 
   export async function POST(request: Request) {
     try {
@@ -24,8 +24,8 @@ import { NextResponse } from 'next/server'
         )
       }
 
-      // Generate token
-      const token = generateToken(admin.id)
+      // Generate token with role information
+      const token = generateToken(admin.id, admin.role)
 
       return NextResponse.json({
         message: 'Signin successful',

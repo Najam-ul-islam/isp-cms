@@ -6,15 +6,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
-    const admin = await getAdminFromToken(request as any)
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check if user has permission to access dashboard stats
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
     const stats = await getDashboardStats();
 
-    return NextResponse.json(stats);
+    // Ensure we return the new fields as well
+  return NextResponse.json(stats);
 
   } catch (error) {
     console.error('Dashboard stats error:', error)
