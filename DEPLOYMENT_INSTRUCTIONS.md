@@ -282,6 +282,122 @@ npx prisma studio
 12. **Data Retention**: Plan for data retention policies for historical payment and expense records
 13. **Performance**: Monitor performance of reporting queries, especially with large datasets
 
+## Directory Structure
+
+The ISP Admin Panel follows a standard Next.js application structure:
+
+```
+isp-cms/
+├── README.md
+├── DEPLOYMENT_INSTRUCTIONS.md
+├── package.json
+├── tsconfig.json
+├── next.config.mjs
+├── .env.example
+├── .gitignore
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── login/
+│   │   │   ├── page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── signup/
+│   │   │   ├── page.tsx
+│   │   │   └── layout.tsx
+│   │   └── dashboard/
+│   │       ├── layout.tsx
+│   │       ├── page.tsx
+│   │       ├── clients/
+│   │       │   ├── page.tsx
+│   │       │   ├── [id]/
+│   │       │   │   └── edit/
+│   │       │   │       └── page.tsx
+│   │       │   └── new/
+│   │       │       └── page.tsx
+│   │       ├── packages/
+│   │       │   ├── page.tsx
+│   │       │   └── new/
+│   │       │       └── page.tsx
+│   │       ├── payments/
+│   │       │   ├── page.tsx
+│   │       │   └── new/
+│   │       │       └── page.tsx
+│   │       ├── expenses/
+│   │       │   ├── page.tsx
+│   │       │   └── new/
+│   │       │       └── page.tsx
+│   │       ├── reports/
+│   │       │   └── page.tsx
+│   │       ├── complaints/
+│   │       │   ├── page.tsx
+│   │       │   └── new/
+│   │       │       └── page.tsx
+│   │       └── activities/
+│   │           └── page.tsx
+│   ├── components/
+│   │   ├── ui/
+│   │   │   ├── Card.tsx
+│   │   │   ├── Button.tsx
+│   │   │   ├── Input.tsx
+│   │   │   ├── Table.tsx
+│   │   │   └── Form.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── Navbar.tsx
+│   │   ├── DashboardCard.tsx
+│   │   ├── ClientForm.tsx
+│   │   ├── PackageForm.tsx
+│   │   ├── PaymentForm.tsx
+│   │   ├── ExpenseForm.tsx
+│   │   ├── ComplaintForm.tsx
+│   │   └── ReportComponent.tsx
+│   ├── lib/
+│   │   ├── db.ts
+│   │   ├── auth.ts
+│   │   └── utils.ts
+│   ├── hooks/
+│   │   └── useAuth.ts
+│   └── styles/
+│       └── globals.css
+├── public/
+│   └── favicon.ico
+└── api/
+    ├── auth/
+    │   ├── signup.ts
+    │   ├── signin.ts
+    │   └── logout.ts
+    ├── clients/
+    │   ├── index.ts
+    │   ├── [id].ts
+    │   └── [id]/index.ts
+    ├── packages/
+    │   ├── index.ts
+    │   └── [id].ts
+    ├── payments/
+    │   ├── index.ts
+    │   ├── [id].ts
+    │   └── client/
+    │       └── [clientId].ts
+    ├── expenses/
+    │   ├── index.ts
+    │   └── [id].ts
+    ├── complaints/
+    │   ├── index.ts
+    │   └── [id].ts
+    ├── reports/
+    │   ├── financial.ts
+    │   ├── payments.ts
+    │   ├── expenses.ts
+    │   ├── clients.ts
+    │   └── complaints.ts
+    └── dashboard/
+        ├── stats.ts
+        └── expiring_clients.ts
+```
+
 ## System Architecture
 
 The ISP Admin Panel follows a modern full-stack architecture:
