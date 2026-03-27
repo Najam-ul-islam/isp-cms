@@ -24,8 +24,8 @@ import { NextResponse } from 'next/server'
         )
       }
 
-      // Generate token with role information
-      const token = generateToken(admin.id, admin.role)
+      // Generate token with role and company information
+      const token = generateToken(admin.id, admin.role, admin.companyId)
 
       return NextResponse.json({
         message: 'Signin successful',

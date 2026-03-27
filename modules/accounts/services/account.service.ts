@@ -16,6 +16,7 @@ export const createAccountLedger = async (data: {
   name: string;
   type: AccountType;
   description?: string;
+  companyId: string;
 }) => {
   return await createAccountLedgerRepo(data);
 };
@@ -26,12 +27,13 @@ export const createAccountTransaction = async (data: {
   amount: number;
   description: string;
   reference?: string;
+  companyId: string;
 }) => {
   return await createAccountTransactionRepo(data);
 };
 
-export const getAccountSummary = async (): Promise<AccountSummary> => {
-  return await getAccountSummaryRepo();
+export const getAccountSummary = async (companyId: string): Promise<AccountSummary> => {
+  return await getAccountSummaryRepo(companyId);
 };
 
 export const getAccountTransactions = async (accountId: string) => {

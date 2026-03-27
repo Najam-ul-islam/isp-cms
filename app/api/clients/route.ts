@@ -2,8 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
 import { getClientsWithFilters } from '../../../modules/clients/services'
+import { AdminWithPackages } from '@/lib/jwt'
 import { ClientStatus, PaymentStatus } from '@prisma/client'
 import { Prisma } from '@prisma/client'
+import { logAction } from '../../../modules/audit/services'
 
 function parseClientStatus(value: string | null): ClientStatus | undefined {
   if (!value) return undefined;
@@ -47,7 +49,7 @@ export async function GET(request: Request) {
       search: searchParams.get('search') || undefined
     };
 
-    const clients = await getClientsWithFilters(filters);
+    const clients = await getClientsWithFilters(admin, filters);
 
     return NextResponse.json(clients)
   } catch (error) {
@@ -163,7 +165,8 @@ export async function POST(request: Request) {
       areaExists = await prisma.area.create({
         data: {
           name: area,
-          description: `${area} area created automatically`
+          description: `${area} area created automatically`,
+          companyId: admin.companyId  // Required for multi-tenancy
         }
       });
     }
@@ -180,6 +183,7 @@ export async function POST(request: Request) {
       startDate: parsedStartDate,
       expiryDate: parsedExpiryDate,
       notes: notes || null,
+      companyId: admin.companyId,  // Multi-tenant association
       createdBy: admin.id  // Associate client with the admin creating it
     };
 
@@ -194,6 +198,20 @@ export async function POST(request: Request) {
     const client = await prisma.client.create({
       data: clientData
     })
+
+    // Log the client creation
+    await logAction({
+      userId: admin.id,
+      action: 'CREATE_CLIENT',
+      entity: 'CLIENT',
+      entityId: client.id,
+      metadata: {
+        clientName: client.name,
+        clientPhone: client.phone,
+        packageName: client.packageId
+      },
+      companyId: admin.companyId
+    });
 
     return NextResponse.json(client, { status: 201 })
   } catch (error) {

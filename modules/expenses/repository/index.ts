@@ -1,7 +1,7 @@
 import {prisma} from '@/lib/prisma';
 import { CreateExpenseInput, UpdateExpenseInput, ExpenseFilters } from '../types';
 
-export const createExpense = async (data: CreateExpenseInput) => {
+export const createExpense = async (data: CreateExpenseInput, companyId: string) => {
   return await prisma.expense.create({
     data: {
       title: data.title,
@@ -10,6 +10,7 @@ export const createExpense = async (data: CreateExpenseInput) => {
       date: data.date || new Date(),
       description: data.description || '',
       receipt: data.receipt || '',
+      companyId
     },
   });
 };
@@ -20,8 +21,10 @@ export const getExpenseById = async (id: string) => {
   });
 };
 
-export const getExpenses = async (filters?: ExpenseFilters) => {
-  const whereClause: any = {};
+export const getExpenses = async (filters?: ExpenseFilters, companyId?: string) => {
+  const whereClause: any = {
+    ...(companyId && { companyId })
+  };
 
   if (filters?.category) {
     whereClause.category = filters.category;
@@ -50,10 +53,15 @@ export const getExpenses = async (filters?: ExpenseFilters) => {
   });
 };
 
-export const updateExpense = async (id: string, data: UpdateExpenseInput) => {
+export const updateExpense = async (id: string, data: UpdateExpenseInput, companyId?: string) => {
+  const whereClause: any = { id };
+  if (companyId) {
+    whereClause.companyId = companyId;
+  }
+
   const { title, amount, category, date, description, receipt } = data;
   return await prisma.expense.update({
-    where: { id },
+    where: whereClause,
     data: {
       ...(title !== undefined && { title }),
       ...(amount !== undefined && { amount }),
@@ -65,14 +73,21 @@ export const updateExpense = async (id: string, data: UpdateExpenseInput) => {
   });
 };
 
-export const deleteExpense = async (id: string) => {
+export const deleteExpense = async (id: string, companyId?: string) => {
+  const whereClause: any = { id };
+  if (companyId) {
+    whereClause.companyId = companyId;
+  }
+
   return await prisma.expense.delete({
-    where: { id }
+    where: whereClause
   });
 };
 
-export const getExpenseStats = async (startDate?: Date, endDate?: Date) => {
-  const whereClause: any = {};
+export const getExpenseStats = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  const whereClause: any = {
+    companyId
+  };
 
   if (startDate && endDate) {
     whereClause.date = {

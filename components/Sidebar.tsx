@@ -12,7 +12,10 @@ import {
   Factory,
   DollarSign,
   CreditCard,
-  TrendingUp
+  TrendingUp,
+  Package as PackageIcon,
+  ShoppingCart,
+  BadgePercent
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -66,6 +69,16 @@ export default function Sidebar() {
       href: '/dashboard/service-providers',
       label: 'Service Providers',
       icon: Factory
+    },
+    {
+      href: '/dashboard/inventory',
+      label: 'Inventory',
+      icon: PackageIcon
+    },
+    {
+      href: '/dashboard/employees',
+      label: 'Employees',
+      icon: Users
     },
   ]
 
@@ -147,65 +160,3 @@ export default function Sidebar() {
     </aside>
   )
 }
-
-
-// 'use client'
-
-//   import { useRouter } from 'next/navigation'
-//   import Link from 'next/link'
-
-//   export default function Sidebar() {
-//     const router = useRouter()
-
-//     const handleLogout = () => {
-//       localStorage.removeItem('token')
-//       // Also clear the token from cookies
-//       document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-//       router.push('/login')
-//       router.refresh()
-//     }
-
-//     return (
-//       <div className="w-64 bg-gray-800 text-white min-h-screen">
-//         <div className="p-4">
-//           <h1 className="text-xl font-bold">ISP Admin Panel</h1>
-//         </div>
-//         <nav className="mt-6">
-//           <ul>
-//             <li>
-//               <Link
-//                 href="/dashboard"
-//                 className="block py-2 px-4 hover:bg-gray-700 rounded"
-//               >
-//                 Dashboard
-//               </Link>
-//             </li>
-//             <li>
-//               <Link
-//                 href="/dashboard/clients"
-//                 className="block py-2 px-4 hover:bg-gray-700 rounded"
-//               >
-//                 Clients
-//               </Link>
-//             </li>
-//             <li>
-//               <Link
-//                 href="/dashboard/packages"
-//                 className="block py-2 px-4 hover:bg-gray-700 rounded"
-//               >
-//                 Packages
-//               </Link>
-//             </li>
-//             <li>
-//               <button
-//                 onClick={handleLogout}
-//                 className="w-full text-left block py-2 px-4 hover:bg-gray-700 rounded"
-//               >
-//                 Logout
-//               </button>
-//             </li>
-//           </ul>
-//         </nav>
-//       </div>
-//     )
-//   }

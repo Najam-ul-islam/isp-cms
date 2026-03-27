@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const stats = await getDashboardStats();
+    const stats = await getDashboardStats(admin);
 
     // Ensure we return the new fields as well
   return NextResponse.json(stats);

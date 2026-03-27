@@ -28,12 +28,21 @@ async function testEndpoints() {
     // Test 2: Simulate signup endpoint
     console.log('Test 2: Testing signup endpoint...');
     const newAdminEmail = `test${Date.now()}@example.com`;
+
+    // Create a company for the new admin
+    const company = await prisma.company.create({
+      data: {
+        name: 'Test Company for ' + newAdminEmail,
+      }
+    });
+
     const hashedNewPassword = await hashPassword('password123');
     const newAdmin = await prisma.admin.create({
       data: {
         name: 'Test User',
         email: newAdminEmail,
-        password: hashedNewPassword
+        password: hashedNewPassword,
+        companyId: company.id
       }
     });
     console.log(`  ✓ Created new admin: ${newAdmin.email}\n`);
@@ -65,33 +74,39 @@ async function testEndpoints() {
     // Get an admin to assign as the creator
     const packageCreator = await prisma.admin.findFirst({
       select: {
-        id: true
+        id: true,
+        companyId: true
       }
     });
 
-    const newPackage = await prisma.package.create({
-      data: {
-        name: 'Premium Package',
-        speed: 100,
-        price: 59.99,
-        durationDays: 30,
-        createdBy: packageCreator?.id || '' // Use the first admin's ID, or empty string as fallback
-      }
-    });
-    console.log(`  ✓ Created new package: ${newPackage.name}`);
+    if (packageCreator) {
+      const newPackage = await prisma.package.create({
+        data: {
+          name: 'Premium Package',
+          speed: 100,
+          price: 59.99,
+          durationDays: 30,
+          createdBy: packageCreator.id,
+          companyId: packageCreator.companyId
+        }
+      });
+      console.log(`  ✓ Created new package: ${newPackage.name}`);
 
-    // PUT /api/packages
-    const updatedPackage = await prisma.package.update({
-      where: { id: newPackage.id },
-      data: { price: 69.99 }
-    });
-    console.log(`  ✓ Updated package price to: $${updatedPackage.price}`);
+      // PUT /api/packages
+      const updatedPackage = await prisma.package.update({
+        where: { id: newPackage.id },
+        data: { price: 69.99 }
+      });
+      console.log(`  ✓ Updated package price to: $${updatedPackage.price}`);
 
-    // DELETE /api/packages
-    await prisma.package.delete({
-      where: { id: newPackage.id }
-    });
-    console.log(`  ✓ Deleted package\n`);
+      // DELETE /api/packages
+      await prisma.package.delete({
+        where: { id: newPackage.id }
+      });
+      console.log(`  ✓ Deleted package\n`);
+    } else {
+      console.log('  ✗ No admin found to create package with\n');
+    }
 
     // Test 5: Simulate clients endpoints
     console.log('Test 5: Testing clients endpoints...');
@@ -103,7 +118,8 @@ async function testEndpoints() {
       // Get an admin to assign as the creator
       const clientCreator = await prisma.admin.findFirst({
         select: {
-          id: true
+          id: true,
+          companyId: true
         }
       });
 
@@ -123,7 +139,8 @@ async function testEndpoints() {
           paymentStatus: 'paid',
           status: 'active',
           notes: 'Test client',
-          createdBy: clientCreator?.id || '' // Use the first admin's ID, or empty string as fallback
+          createdBy: clientCreator?.id || '', // Use the first admin's ID, or empty string as fallback
+          companyId: clientCreator?.companyId || '' // Use the first admin's company ID, or empty string as fallback
         }
       });
       console.log(`  ✓ Created new client: ${newClient.name}`);

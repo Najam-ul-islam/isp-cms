@@ -10,6 +10,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if user has permission to read complaints
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('clientId');
     const status = searchParams.get('status');
@@ -51,6 +56,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if user has permission to create complaints
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const { clientId, title, description, priority } = await request.json();
 
     if (!clientId || !title || !description) {
@@ -64,7 +74,8 @@ export async function POST(request: Request) {
       clientId,
       title,
       description,
-      priority
+      priority,
+      companyId: admin.companyId
     });
 
     return NextResponse.json(complaint, { status: 201 });

@@ -1,12 +1,13 @@
 import "server-only";
 import {prisma} from '@/lib/prisma';
 import { ClientStatus, PaymentStatus } from '@prisma/client';
-import { getPaymentStats } from '../../payments/services';
-import { getExpenseStats } from '../../expenses/services';
 import { getAccountSummary } from '../../accounts/services';
 import { getAreaInsights } from '../../areas/services';
+import { getInventoryStats } from '../../inventory/services';
+import { getEmployeeStats } from '../../employees/services';
+import { AdminWithPackages } from '@/lib/jwt';
 
-export const getDashboardStats = async () => {
+export const getDashboardStats = async (admin: AdminWithPackages) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -22,23 +23,32 @@ export const getDashboardStats = async () => {
   const next7Days = new Date(today);
   next7Days.setDate(today.getDate() + 7);
 
-  // Client counts
-  const totalUsers = await prisma.client.count();
+  // Client counts (with multi-tenancy)
+  const totalUsers = await prisma.client.count({
+    where: { companyId: admin.companyId }
+  });
   const activeUsers = await prisma.client.count({
-    where: { status: ClientStatus.active }
+    where: {
+      status: ClientStatus.active,
+      companyId: admin.companyId
+    }
   });
   const expiredUsers = await prisma.client.count({
-    where: { status: ClientStatus.expired }
+    where: {
+      status: ClientStatus.expired,
+      companyId: admin.companyId
+    }
   });
 
-  // Expiration alerts
+  // Expiration alerts (with multi-tenancy)
   const expireToday = await prisma.client.count({
     where: {
       expiryDate: {
         gte: today,
         lte: endOfDay
       },
-      status: ClientStatus.active
+      status: ClientStatus.active,
+      companyId: admin.companyId
     }
   });
 
@@ -48,7 +58,8 @@ export const getDashboardStats = async () => {
         gt: endOfDay,
         lte: next3Days
       },
-      status: ClientStatus.active
+      status: ClientStatus.active,
+      companyId: admin.companyId
     }
   });
 
@@ -58,11 +69,12 @@ export const getDashboardStats = async () => {
         gt: next3Days,
         lte: next7Days
       },
-      status: ClientStatus.active
+      status: ClientStatus.active,
+      companyId: admin.companyId
     }
   });
 
-  // Revenue metrics
+  // Revenue metrics (with multi-tenancy)
   const paidToday = await prisma.client.aggregate({
     _sum: { price: true },
     where: {
@@ -70,7 +82,8 @@ export const getDashboardStats = async () => {
       expiryDate: {
         gte: today,
         lte: endOfDay
-      }
+      },
+      companyId: admin.companyId
     }
   });
 
@@ -81,7 +94,8 @@ export const getDashboardStats = async () => {
       expiryDate: {
         gte: today,
         lte: endOfDay
-      }
+      },
+      companyId: admin.companyId
     }
   });
 
@@ -92,29 +106,35 @@ export const getDashboardStats = async () => {
       expiryDate: {
         gt: endOfDay,
         lte: next7Days
-      }
+      },
+      companyId: admin.companyId
     }
   });
 
-  // New extended metrics
-  const totalRevenue = await getPaymentStats();
-  const totalExpenses = await getExpenseStats();
-  const todayRecovery = await getPaymentStats(today, today);
-  const todayExpenses = await getExpenseStats(today, today);
+  // New extended metrics with multi-tenancy
+  const totalRevenue = await getPaymentStatsByCompany(admin.companyId);
+  const totalExpenses = await getExpenseStatsByCompany(admin.companyId);
+  const todayRecovery = await getPaymentStatsByCompany(admin.companyId, today, today);
+  const todayExpenses = await getExpenseStatsByCompany(admin.companyId, today, today);
   const newUsersToday = await prisma.client.count({
     where: {
       createdAt: {
         gte: today,
         lte: endOfDay
-      }
+      },
+      companyId: admin.companyId
     }
   });
 
   // Get account summary
-  const accountSummary = await getAccountSummary();
+  const accountSummary = await getAccountSummary(admin.companyId);
 
   // Get area insights
-  const areaInsights = await getAreaInsights();
+  const areaInsights = await getAreaInsights(admin.companyId);
+
+  // Get inventory and employee stats
+  const inventoryStats = await getInventoryStats(admin);
+  const employeeStats = await getEmployeeStats(admin);
 
   return {
     totalUsers,
@@ -142,11 +162,83 @@ export const getDashboardStats = async () => {
     totalReceivable: accountSummary.totalReceivable,
     totalPayable: accountSummary.totalPayable,
     netBalance: accountSummary.netBalance,
-    areaInsights: areaInsights
+    areaInsights: areaInsights,
+
+    // New inventory and employee stats
+    totalInventoryItems: inventoryStats.totalItems,
+    lowStockItems: inventoryStats.lowStockItems,
+    totalInventoryValue: inventoryStats.totalValue,
+    totalEmployees: employeeStats.totalEmployees,
+    employeeRoles: employeeStats.roleCounts
   };
 };
 
-export const getExpiringClients = async () => {
+// Helper functions for multi-tenancy with existing modules
+const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  const whereClause: any = {
+    client: {
+      companyId
+    }
+  };
+
+  if (startDate && endDate) {
+    whereClause.paymentDate = {
+      gte: startDate,
+      lte: endDate,
+    };
+  } else if (startDate) {
+    whereClause.paymentDate = {
+      gte: startDate,
+    };
+  } else if (endDate) {
+    whereClause.paymentDate = {
+      lte: endDate,
+    };
+  }
+
+  return await prisma.payment.aggregate({
+    where: whereClause,
+    _sum: {
+      amount: true,
+    },
+    _count: {
+      id: true,
+    },
+  });
+};
+
+const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  const whereClause: any = {
+    companyId
+  };
+
+  if (startDate && endDate) {
+    whereClause.date = {
+      gte: startDate,
+      lte: endDate,
+    };
+  } else if (startDate) {
+    whereClause.date = {
+      gte: startDate,
+    };
+  } else if (endDate) {
+    whereClause.date = {
+      lte: endDate,
+    };
+  }
+
+  return await prisma.expense.aggregate({
+    where: whereClause,
+    _sum: {
+      amount: true,
+    },
+    _count: {
+      id: true,
+    },
+  });
+};
+
+export const getExpiringClients = async (admin: AdminWithPackages) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -159,7 +251,8 @@ export const getExpiringClients = async () => {
         gte: today,
         lte: next7Days
       },
-      status: ClientStatus.active
+      status: ClientStatus.active,
+      companyId: admin.companyId
     },
     include: {
       package: {

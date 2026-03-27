@@ -24,6 +24,7 @@ export interface CreatePaymentInput {
   amount: number;
   method?: string;
   notes?: string;
+  companyId: string;
 }
 
 export interface UpdatePaymentInput {

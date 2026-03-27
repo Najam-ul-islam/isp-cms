@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       endDate,
     };
 
-    const expenses = await getExpenses(filters);
+    const expenses = await getExpenses(admin, filters);
     return NextResponse.json(expenses);
   } catch (error) {
     console.error('Error fetching expenses:', error);
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Title, amount, and category are required' }, { status: 400 });
     }
 
-    const expense = await createExpense({
+    const expense = await createExpense(admin, {
       title,
       amount: parseFloat(amount),
       category,

@@ -20,7 +20,11 @@ import {
   ArrowDownRight,
   Plus,
   CreditCard,
-  Receipt
+  Receipt,
+  Package,
+  AlertTriangle,
+  Shield,
+  User
 } from "lucide-react";
 
 // Import new dashboard components
@@ -58,6 +62,16 @@ interface StatsData {
     totalClients: number;
     activeClients: number;
     expiredClients: number;
+  }>;
+  totalInventoryItems: number;
+  lowStockItems: number;
+  totalInventoryValue: number;
+  totalEmployees: number;
+  employeeRoles: Array<{
+    role: string;
+    _count: {
+      _all: number;
+    };
   }>;
 }
 
@@ -244,46 +258,48 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50/30">
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 border-b border-slate-200/60 px-8 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 border-b border-slate-200/60 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 mt-14 lg:mt-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between max-w-7xl mx-auto gap-4 sm:gap-0">
           <div>
-            <h1 className="text-2xl font-bold bg-linear-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold bg-linear-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               Welcome back! Here's what's happening with your ISP today.
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
+            <div className="hidden md:flex items-center gap-2 text-xs sm:text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
               <Clock className="w-4 h-4" />
               <span>Updated: {lastUpdated.toLocaleTimeString()}</span>
             </div>
-            <button
-              onClick={handleRefresh}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
-              title="Refresh data"
-            >
-              <RefreshCw
-                className={`w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors ${loading ? "animate-spin" : ""}`}
-              />
-            </button>
-            <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg shadow-blue-500/25">
-              A
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+                title="Refresh data"
+              >
+                <RefreshCw
+                  className={`w-4 sm:w-5 h-4 sm:h-5 text-slate-600 group-hover:text-blue-600 transition-colors ${loading ? "animate-spin" : ""}`}
+                />
+              </button>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg shadow-blue-500/25">
+                A
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-8 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* QUICK ACTIONS */}
         <QuickActions />
 
         {/* TOP STATS */}
         <Section title="User Overview" icon={<Users className="w-5 h-5" />}>
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <StatCard
               title="Total Users"
               value={stats?.totalUsers ?? 0}
@@ -317,7 +333,7 @@ export default function DashboardPage() {
           icon={<TrendingUp className="w-5 h-5" />}
           variant="success"
         >
-          <div className="grid md:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <FinCard
               title="Today's Recovery"
               amount={stats?.todayRecovery ?? 0}
@@ -357,7 +373,7 @@ export default function DashboardPage() {
           icon={<DollarSign className="w-5 h-5" />}
           variant="default"
         >
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <FinCard
               title="Total Revenue"
               amount={stats?.totalRevenue ?? 0}
@@ -386,7 +402,7 @@ export default function DashboardPage() {
         <AccountsSummary />
 
         {/* CHARTS SECTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6">
           <ChartCard
             title="Revenue vs Expenses (Monthly)"
             type="line"
@@ -421,10 +437,73 @@ export default function DashboardPage() {
         </div>
 
         {/* AREA-BASED INSIGHTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6">
           <AreaInsights />
           <ActivityFeed />
         </div>
+
+        {/* INVENTORY OVERVIEW */}
+        <Section
+          title="Inventory Overview"
+          icon={<Package className="w-5 h-5" />}
+          variant="default"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+            <InventoryCard
+              title="Total Items"
+              value={stats?.totalInventoryItems ?? 0}
+              icon={<Package className="w-6 h-6" />}
+              color="blue"
+              onClick={() => router.push('/dashboard/inventory')}
+            />
+            <InventoryCard
+              title="Low Stock Items"
+              value={stats?.lowStockItems ?? 0}
+              icon={<AlertTriangle className="w-6 h-6" />}
+              color="amber"
+              onClick={() => router.push('/dashboard/inventory')}
+            />
+            <InventoryCard
+              title="Total Value"
+              value={stats?.totalInventoryValue ?? 0}
+              icon={<DollarSign className="w-6 h-6" />}
+              color="emerald"
+              subtitle="Rs"
+              onClick={() => router.push('/dashboard/inventory')}
+            />
+          </div>
+        </Section>
+
+        {/* EMPLOYEE OVERVIEW */}
+        <Section
+          title="Employee Overview"
+          icon={<Users className="w-5 h-5" />}
+          variant="default"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+            <EmployeeCard
+              title="Total Employees"
+              value={stats?.totalEmployees ?? 0}
+              icon={<Users className="w-6 h-6" />}
+              color="purple"
+              onClick={() => router.push('/dashboard/employees')}
+            />
+            <EmployeeCard
+              title="Admins"
+              value={stats?.employeeRoles?.find(r => r.role === 'ADMIN')?._count._all ?? 0}
+              icon={<Shield className="w-6 h-6" />}
+              color="indigo"
+              onClick={() => router.push('/dashboard/employees')}
+            />
+            <EmployeeCard
+              title="Staff"
+              value={stats?.employeeRoles?.find(r => r.role === 'EMPLOYEE')?._count._all ?? 0}
+              icon={<User className="w-6 h-6" />}
+              color="blue"
+              onClick={() => router.push('/dashboard/employees')}
+            />
+          </div>
+        </Section>
 
         {/* EXPIRATION ALERTS */}
         <Section
@@ -432,7 +511,7 @@ export default function DashboardPage() {
           icon={<AlertCircle className="w-5 h-5" />}
           variant="warning"
         >
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <AlertCard
               title="Expiring Today"
               value={stats?.expireToday ?? 0}
@@ -467,7 +546,7 @@ export default function DashboardPage() {
           icon={<DollarSign className="w-5 h-5" />}
           variant="success"
         >
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <FinCard
               title="Paid Today"
               amount={stats?.paidToday ?? 0}
@@ -636,6 +715,180 @@ Thank you.`,
 }
 
 /* ==================== REUSABLE COMPONENTS ==================== */
+
+function InventoryCard({
+  title,
+  value,
+  icon,
+  color,
+  subtitle,
+  onClick,
+}: {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  color: "blue" | "emerald" | "rose" | "amber" | "purple" | "indigo";
+  subtitle?: string;
+  onClick?: () => void;
+}) {
+  const colors = {
+    blue: {
+      bg: "from-blue-50 to-blue-100/50",
+      icon: "bg-blue-500",
+      text: "text-blue-600",
+      border: "border-blue-200",
+    },
+    emerald: {
+      bg: "from-emerald-50 to-emerald-100/50",
+      icon: "bg-emerald-500",
+      text: "text-emerald-600",
+      border: "border-emerald-200",
+    },
+    rose: {
+      bg: "from-rose-50 to-rose-100/50",
+      icon: "bg-rose-500",
+      text: "text-rose-600",
+      border: "border-rose-200",
+    },
+    amber: {
+      bg: "from-amber-50 to-amber-100/50",
+      icon: "bg-amber-500",
+      text: "text-amber-600",
+      border: "border-amber-200",
+    },
+    purple: {
+      bg: "from-purple-50 to-purple-100/50",
+      icon: "bg-purple-500",
+      text: "text-purple-600",
+      border: "border-purple-200",
+    },
+    indigo: {
+      bg: "from-indigo-50 to-indigo-100/50",
+      icon: "bg-indigo-500",
+      text: "text-indigo-600",
+      border: "border-indigo-200",
+    },
+  };
+
+  const c = colors[color];
+
+  return (
+    <div
+      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
+    >
+      {/* Decorative gradient blob */}
+      <div
+        className={`absolute -top-10 -right-10 w-32 h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+      />
+
+      <div className="relative flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <p className="text-3xl font-bold text-slate-800 tracking-tight">
+            {value.toLocaleString()}
+          </p>
+          {subtitle && (
+            <p className="text-xs text-slate-400">{subtitle}</p>
+          )}
+        </div>
+
+        <div
+          className={`p-3 rounded-xl bg-linear-to-br ${c.icon} shadow-lg shadow-${color}-500/25 text-white`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeCard({
+  title,
+  value,
+  icon,
+  color,
+  subtitle,
+  onClick,
+}: {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  color: "blue" | "emerald" | "rose" | "amber" | "purple" | "indigo";
+  subtitle?: string;
+  onClick?: () => void;
+}) {
+  const colors = {
+    blue: {
+      bg: "from-blue-50 to-blue-100/50",
+      icon: "bg-blue-500",
+      text: "text-blue-600",
+      border: "border-blue-200",
+    },
+    emerald: {
+      bg: "from-emerald-50 to-emerald-100/50",
+      icon: "bg-emerald-500",
+      text: "text-emerald-600",
+      border: "border-emerald-200",
+    },
+    rose: {
+      bg: "from-rose-50 to-rose-100/50",
+      icon: "bg-rose-500",
+      text: "text-rose-600",
+      border: "border-rose-200",
+    },
+    amber: {
+      bg: "from-amber-50 to-amber-100/50",
+      icon: "bg-amber-500",
+      text: "text-amber-600",
+      border: "border-amber-200",
+    },
+    purple: {
+      bg: "from-purple-50 to-purple-100/50",
+      icon: "bg-purple-500",
+      text: "text-purple-600",
+      border: "border-purple-200",
+    },
+    indigo: {
+      bg: "from-indigo-50 to-indigo-100/50",
+      icon: "bg-indigo-500",
+      text: "text-indigo-600",
+      border: "border-indigo-200",
+    },
+  };
+
+  const c = colors[color];
+
+  return (
+    <div
+      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
+    >
+      {/* Decorative gradient blob */}
+      <div
+        className={`absolute -top-10 -right-10 w-32 h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+      />
+
+      <div className="relative flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <p className="text-3xl font-bold text-slate-800 tracking-tight">
+            {value.toLocaleString()}
+          </p>
+          {subtitle && (
+            <p className="text-xs text-slate-400">{subtitle}</p>
+          )}
+        </div>
+
+        <div
+          className={`p-3 rounded-xl bg-linear-to-br ${c.icon} shadow-lg shadow-${color}-500/25 text-white`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Section({
   title,
@@ -961,7 +1214,7 @@ function DashboardSkeleton() {
               <div className="w-9 h-9 bg-slate-200 rounded-lg" />
               <div className="h-5 w-40 bg-slate-200 rounded" />
             </div>
-            <div className="grid md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
               {[1, 2, 3].map((card) => (
                 <div
                   key={card}

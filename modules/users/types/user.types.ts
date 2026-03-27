@@ -14,6 +14,7 @@ export interface CreateUserInput {
   email: string;
   password: string;
   role?: Role;
+  companyId: string;
 }
 
 export interface UpdateUserInput {

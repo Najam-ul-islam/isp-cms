@@ -32,8 +32,8 @@ export const getPaymentById = async (id: string) => {
   return await getPaymentByIdRepo(id);
 };
 
-export const getPayments = async (filters?: PaymentFilters) => {
-  return await getPaymentsRepo(filters);
+export const getPayments = async (admin: AdminWithPackages, filters?: PaymentFilters) => {
+  return await getPaymentsRepo(filters, admin.companyId);
 };
 
 export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
@@ -57,16 +57,19 @@ export const deletePayment = async (id: string) => {
   return await deletePaymentRepo(id);
 };
 
-export const getPaymentStats = async (startDate?: Date, endDate?: Date) => {
-  return await getPaymentStatsRepo(startDate, endDate);
+export const getPaymentStats = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  return await getPaymentStatsRepo(companyId, startDate, endDate);
 };
 
 
+
+import { AdminWithPackages } from '@/lib/jwt';
 
 // export const getRecentPayments = async (limit: number = 5): Promise<PaymentWithClient[]> => {
 //   return await getPaymentsRepo({ limit, sortBy: 'createdAt', sortOrder: 'desc' });
 // };
 export const getRecentPayments = async (
+  admin: AdminWithPackages,
   limit: number = 5
 ): Promise<PaymentWithClient[]> => {
   // ✅ Now this works because getPaymentsRepo returns PaymentWithClient[]
@@ -74,7 +77,7 @@ export const getRecentPayments = async (
     limit,
     sortBy: 'paymentDate',
     sortOrder: 'desc'
-  });
+  }, admin.companyId);
 
   // Type assertion to satisfy TypeScript compiler
   return payments as PaymentWithClient[];

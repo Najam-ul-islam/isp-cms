@@ -17,6 +17,7 @@ export interface CreateComplaintInput {
   title: string;
   description: string;
   priority?: string;
+  companyId: string;
 }
 
 export interface UpdateComplaintInput {

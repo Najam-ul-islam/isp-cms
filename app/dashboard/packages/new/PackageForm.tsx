@@ -158,7 +158,7 @@ export default function PackageForm() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-14 lg:mt-0">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -168,7 +168,7 @@ export default function PackageForm() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-800">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-800">
               Add New Package
             </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -195,10 +195,10 @@ export default function PackageForm() {
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Package Name */}
-            <div className="md:col-span-2">
+            <div className="col-span-full">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="name">
                 Package Name <span className="text-rose-500">*</span>
               </label>
@@ -294,7 +294,7 @@ export default function PackageForm() {
             </div>
 
             {/* Service Provider */}
-            <div className="md:col-span-2">
+            <div className="col-span-full">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="serviceProvider">
                 Service Provider
               </label>
@@ -319,19 +319,19 @@ export default function PackageForm() {
         </div>
 
         {/* Form Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-gray-400">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
               Required field
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => router.back()}
               disabled={submitting}
-              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+              className="w-full sm:w-auto px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Cancel
@@ -339,7 +339,7 @@ export default function PackageForm() {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center gap-2"
+              className="w-full sm:w-auto px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const expiringClients = await getExpiringClients();
+    const expiringClients = await getExpiringClients(admin);
 
     return NextResponse.json(expiringClients);
 

@@ -7,6 +7,7 @@ export interface AdminWithPackages {
   name: string;
   email: string;
   role: string;
+  companyId: string;
   createdAt: Date;
   updatedAt: Date;
   packages?: Package[];
@@ -34,6 +35,7 @@ export const getAdminFromToken = async (request: Request): Promise<AdminWithPack
     name: admin.name,
     email: admin.email,
     role: admin.role,
+    companyId: admin.companyId,
     createdAt: admin.createdAt,
     updatedAt: admin.updatedAt,
     packages: admin.packages,

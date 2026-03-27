@@ -21,9 +21,9 @@ export async function GET(request: Request) {
 
     // Get recent activities from different modules
     const [recentPayments, recentClients, recentComplaints] = await Promise.all([
-      getRecentPayments(5),
-      getRecentClients(5),
-      getRecentComplaints(5)
+      getRecentPayments(admin, 5),
+      getRecentClients(admin, 5),
+      getRecentComplaints(admin, 5)
     ]);
 
     // Define types for activities

@@ -9,6 +9,7 @@ export const createPayment = async (data: CreatePaymentInput) => {
       amount: data.amount,
       method: data.method || 'CASH',
       notes: data.notes || '',
+      companyId: data.companyId
     },
     include: {
       client: {
@@ -37,8 +38,10 @@ export const getPaymentById = async (id: string) => {
   });
 };
 
-export const getPayments = async (filters?: PaymentFilters) => {
-  const whereClause: Prisma.PaymentWhereInput = {};
+export const getPayments = async (filters?: PaymentFilters, companyId?: string) => {
+  const whereClause: Prisma.PaymentWhereInput = {
+    ...(companyId && { client: { companyId } })
+  };
 
   if (filters?.clientId) {
     whereClause.clientId = filters.clientId;
@@ -167,8 +170,12 @@ export const deletePayment = async (id: string) => {
   });
 };
 
-export const getPaymentStats = async (startDate?: Date, endDate?: Date) => {
-  const whereClause: any = {};
+export const getPaymentStats = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  const whereClause: any = {
+    client: {
+      companyId
+    }
+  };
 
   if (startDate && endDate) {
     whereClause.paymentDate = {

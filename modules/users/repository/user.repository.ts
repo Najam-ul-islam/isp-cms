@@ -10,7 +10,8 @@ export const createUser = async (userData: CreateUserInput) => {
       name: userData.name,
       email: userData.email,
       password: hashedPassword,
-      role: userData.role || Role.EMPLOYEE
+      role: userData.role || Role.EMPLOYEE,
+      companyId: userData.companyId
     }
   });
 };

@@ -8,7 +8,8 @@ export const createComplaint = async (complaintData: CreateComplaintInput) => {
       clientId: complaintData.clientId,
       title: complaintData.title,
       description: complaintData.description,
-      priority: complaintData.priority || 'medium'
+      priority: complaintData.priority || 'medium',
+      companyId: complaintData.companyId
     },
     include: {
       client: true

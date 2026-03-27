@@ -34,7 +34,8 @@
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[124..127]\")",
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx' | Select-String -Pattern 'X className'\\).LineNumber\")",
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[540..550]\")",
-      "Bash(find . -name \"*.ts\" -path \"*/modules/*/services/*\" -exec basename {})"
+      "Bash(find . -name \"*.ts\" -path \"*/modules/*/services/*\" -exec basename {})",
+      "Bash(npx tsc:*)"
     ]
   }
 }

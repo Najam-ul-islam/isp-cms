@@ -16,6 +16,9 @@ import { NextResponse } from 'next/server'
       }
 
       // Check if admin already exists
+      const adminCount = await prisma.admin.count()
+
+      // Check if email already exists
       const existingAdmin = await prisma.admin.findUnique({
         where: { email }
       })
@@ -30,18 +33,32 @@ import { NextResponse } from 'next/server'
       // Hash password
       const hashedPassword = await hashPassword(password)
 
-      // Create admin with default EMPLOYEE role
+      // Create a company first (for now, using a default company approach)
+      // In a real scenario, we'd have a proper company creation flow
+      // For now, we'll create a company with the admin's name as the company name
+      const company = await prisma.company.create({
+        data: {
+          name: `${name}'s Company`,
+        }
+      });
+
+      // If this is the first user signing up, make them a SUPER_ADMIN
+      // Otherwise, default to EMPLOYEE role
+      const role = adminCount === 0 ? Role.SUPER_ADMIN : Role.EMPLOYEE;
+
+      // Create admin with appropriate role and assign to company
       const admin = await prisma.admin.create({
         data: {
           name,
           email,
           password: hashedPassword,
-          role: Role.EMPLOYEE  // Default role for new users
+          role,  // First user gets SUPER_ADMIN, others get EMPLOYEE
+          companyId: company.id
         }
       })
 
-      // Generate token with role information
-      const token = generateToken(admin.id, admin.role)
+      // Generate token with role and company information
+      const token = generateToken(admin.id, admin.role, admin.companyId)
 
       return NextResponse.json({
         message: 'Admin created successfully',

@@ -10,6 +10,7 @@ import {
   getComplaintsByStatus as getComplaintsByStatusRepo
 } from '../repository/complaint.repository';
 import {prisma} from '@/lib/prisma';
+import { AdminWithPackages } from '@/lib/jwt';
 
 export const createComplaint = async (complaintData: CreateComplaintInput) => {
   // Validate that client exists
@@ -45,9 +46,14 @@ export const getComplaintsByStatus = async (status: ComplaintStatus) => {
   return await getComplaintsByStatusRepo(status);
 };
 
-export const getRecentComplaints = async (limit: number = 5) => {
+export const getRecentComplaints = async (admin: AdminWithPackages, limit: number = 5) => {
   return await prisma.complaint.findMany({
     take: limit,
+    where: {
+      client: {
+        companyId: admin.companyId
+      }
+    },
     include: {
       client: {
         select: {

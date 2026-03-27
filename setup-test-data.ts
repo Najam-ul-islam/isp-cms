@@ -15,12 +15,20 @@ async function setupTestData() {
     // Create a test admin if one doesn't exist
     const adminCount = await prisma.admin.count();
     if (adminCount === 0) {
+      // Create a company first
+      const company = await prisma.company.create({
+        data: {
+          name: 'Test Company',
+        }
+      });
+
       const hashedPassword = await hashPassword('password123');
       await prisma.admin.create({
         data: {
           name: 'Test Admin',
           email: 'admin@test.com',
-          password: hashedPassword
+          password: hashedPassword,
+          companyId: company.id
         }
       });
       console.log('Created test admin: admin@test.com / password123');
@@ -39,13 +47,20 @@ async function setupTestData() {
       });
 
       if (admin) {
+        // Get the company ID from the admin
+        const adminWithCompany = await prisma.admin.findUnique({
+          where: { id: admin.id },
+          select: { companyId: true }
+        });
+
         await prisma.package.create({
           data: {
             name: 'Basic Package',
             speed: 25,
             price: 29.99,
             durationDays: 30,
-            createdBy: admin.id
+            createdBy: admin.id,
+            companyId: adminWithCompany!.companyId
           }
         });
         console.log('Created test package: Basic Package');

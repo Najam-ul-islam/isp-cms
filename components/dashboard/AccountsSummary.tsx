@@ -17,7 +17,8 @@ export default function AccountsSummary() {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        const data = await getAccountSummary();
+        const admin = JSON.parse(localStorage.getItem('admin') || '{}');
+        const data = await getAccountSummary(admin.companyId);
         setSummary(data);
       } catch (error) {
         console.error('Error fetching account summary:', error);

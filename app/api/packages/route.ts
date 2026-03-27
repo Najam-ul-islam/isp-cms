@@ -16,6 +16,9 @@ import { NextResponse } from 'next/server'
       }
 
       const packages = await prisma.package.findMany({
+        where: {
+          companyId: admin.companyId  // Only return packages from admin's company
+        },
         include: {
           serviceProvider: true,  // Include service provider information
           _count: {
@@ -48,19 +51,22 @@ import { NextResponse } from 'next/server'
       }
 
       // Check if user has permission to create packages
-      if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+      if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const { name, speed, price, purchasePrice, durationDays, serviceProviderId } = await request.json()
+      const { name, speed, price, purchasePrice, durationDays, serviceProviderId, companyId: requestCompanyId } = await request.json()
 
-      // Validate required fields
+      // Validate required fields (excluding companyId which should come from admin)
       if (!name || !speed || !price || !durationDays) {
         return NextResponse.json(
-          { error: 'Missing required fields' },
+          { error: 'Missing required fields: name, speed, price, durationDays' },
           { status: 400 }
         )
       }
+
+      // Use the admin's company ID instead of the one from request
+      const companyId = admin.companyId;
 
       const pkg = await prisma.package.create({
         data: {
@@ -70,6 +76,7 @@ import { NextResponse } from 'next/server'
           purchasePrice: purchasePrice || 0, // Default to 0 if not provided
           durationDays,
           serviceProviderId: serviceProviderId || null, // Connect to service provider if provided
+          companyId,
           createdBy: admin.id  // Use the authenticated admin's ID as the creator
         }
       })

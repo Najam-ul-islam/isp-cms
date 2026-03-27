@@ -243,7 +243,7 @@ export default function NewClientPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-14 lg:mt-0">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -253,7 +253,7 @@ export default function NewClientPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-2xl text-slate-800 lg:text-3xl font-bold  dark:text-slate-800">
+            <h1 className="text-xl sm:text-2xl text-slate-800 lg:text-3xl font-bold dark:text-slate-800">
                 Add New Client
               </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -280,17 +280,17 @@ export default function NewClientPage() {
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Personal Information Section */}
-            <div className="lg:col-span-2">
+            <div>
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                 <User className="w-5 h-5 text-blue-500" />
                 Personal Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5">
                 {/* Name */}
-                <div className="md:col-span-2">
+                <div className="col-span-full">
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="name">
                     Full Name <span className="text-rose-500">*</span>
                   </label>
@@ -349,12 +349,12 @@ export default function NewClientPage() {
             </div>
 
             {/* Address Section */}
-            <div className="lg:col-span-2">
+            <div>
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-amber-500" />
                 Address Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5">
                 {/* City */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="city">
@@ -414,14 +414,14 @@ export default function NewClientPage() {
             </div>
 
             {/* Package & Pricing Section */}
-            <div className="lg:col-span-2">
+            <div>
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                 <Wifi className="w-5 h-5 text-purple-500" />
                 Package & Pricing
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5">
                 {/* Package Selection */}
-                <div className="md:col-span-2">
+                <div className="col-span-full">
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="package">
                     Select Package <span className="text-rose-500">*</span>
                   </label>
@@ -552,12 +552,12 @@ export default function NewClientPage() {
             </div>
 
             {/* Status Section */}
-            <div className="lg:col-span-2">
+            <div>
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-500" />
                 Status Settings
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5">
                 {/* Payment Status */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="paymentStatus">
@@ -603,7 +603,7 @@ export default function NewClientPage() {
             </div>
 
             {/* Notes Section */}
-            <div className="lg:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="notes">
                 <FileText className="w-4 h-4 inline mr-1" />
                 Additional Notes
@@ -621,19 +621,19 @@ export default function NewClientPage() {
         </div>
 
         {/* Form Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-gray-400">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
               Required field
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => router.back()}
               disabled={submitting}
-              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+              className="w-full sm:w-auto px-5 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Cancel
@@ -641,7 +641,7 @@ export default function NewClientPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center gap-2"
+              className="w-full sm:w-auto px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>
@@ -712,9 +712,9 @@ function NewClientSkeleton() {
           {[1, 2, 3].map((section) => (
             <div key={section} className="space-y-4">
               <div className="h-5 w-40 bg-slate-200 dark:bg-gray-700 rounded" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5">
                 {[1, 2, 3, 4].map((field) => (
-                  <div key={field} className={field === 3 ? 'md:col-span-2' : ''}>
+                  <div key={field} className={field === 3 ? 'col-span-full' : ''}>
                     <div className="h-4 w-24 bg-slate-100 dark:bg-gray-800 rounded mb-2" />
                     <div className="h-10 bg-slate-100 dark:bg-gray-900 rounded-xl" />
                   </div>

@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       method: method || undefined,
     };
 
-    const payments = await getPayments(filters);
+    const payments = await getPayments(admin, filters);
     return NextResponse.json(payments);
   } catch (error) {
     console.error('Error fetching payments:', error);
@@ -58,7 +58,8 @@ export async function POST(request: Request) {
       clientId,
       amount: parseFloat(amount),
       method,
-      notes
+      notes,
+      companyId: admin.companyId
     });
 
     return NextResponse.json(payment);

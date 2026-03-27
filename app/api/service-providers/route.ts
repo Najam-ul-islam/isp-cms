@@ -56,12 +56,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, contactInfo, address, email, phone } = await request.json()
+    const { name, company, contactInfo, address, email, phone } = await request.json()
 
     // Validate required fields
-    if (!name) {
+    if (!name || !company) {
       return NextResponse.json(
-        { error: 'Name is required' },
+        { error: 'Name and company are required' },
         { status: 400 }
       )
     }
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
     const serviceProvider = await prisma.serviceProvider.create({
       data: {
         name,
+        company,
         contactInfo: contactInfo || null,
         address: address || null,
         email: email || null,

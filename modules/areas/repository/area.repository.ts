@@ -4,11 +4,15 @@ import { Area, AreaInsight } from '../types/area.types';
 export const createArea = async (data: {
   name: string;
   description?: string;
+  companyId: string;
 }): Promise<Area> => {
   return await prisma.area.create({
     data: {
       name: data.name,
       description: data.description || '',
+      company: {
+        connect: { id: data.companyId },
+      },
     },
   });
 };
@@ -39,7 +43,7 @@ export const deleteArea = async (id: string): Promise<void> => {
   });
 };
 
-export const getAreaInsights = async (): Promise<AreaInsight[]> => {
+export const getAreaInsights = async (companyId: string): Promise<AreaInsight[]> => {
   // Get top 5 areas by client count
   const insights = await prisma.client.groupBy({
     by: ['area'],
@@ -53,6 +57,7 @@ export const getAreaInsights = async (): Promise<AreaInsight[]> => {
       area: {
         not: null,
       },
+      companyId
     },
     orderBy: {
       _count: {
@@ -71,6 +76,7 @@ export const getAreaInsights = async (): Promise<AreaInsight[]> => {
         where: {
           area: insight.area,
           status: 'active',
+          companyId
         },
       });
 
@@ -78,6 +84,7 @@ export const getAreaInsights = async (): Promise<AreaInsight[]> => {
         where: {
           area: insight.area,
           status: 'expired',
+          companyId
         },
       });
 
@@ -93,10 +100,11 @@ export const getAreaInsights = async (): Promise<AreaInsight[]> => {
   return detailedInsights;
 };
 
-export const getClientsByArea = async (areaName: string) => {
+export const getClientsByArea = async (areaName: string, companyId: string) => {
   return await prisma.client.findMany({
     where: {
       area: areaName,
+      companyId
     },
     include: {
       package: true,

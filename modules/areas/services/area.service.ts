@@ -8,10 +8,12 @@ import {
   getClientsByArea as getClientsByAreaRepo
 } from '../repository/area.repository';
 import { Area, AreaInsight } from '../types/area.types';
+import { AdminWithPackages } from '@/lib/jwt';
 
 export const createArea = async (data: {
   name: string;
   description?: string;
+  companyId: string;
 }) => {
   return await createAreaRepo(data);
 };
@@ -35,10 +37,10 @@ export const deleteArea = async (id: string) => {
   return await deleteAreaRepo(id);
 };
 
-export const getAreaInsights = async (): Promise<AreaInsight[]> => {
-  return await getAreaInsightsRepo();
+export const getAreaInsights = async (companyId: string): Promise<AreaInsight[]> => {
+  return await getAreaInsightsRepo(companyId);
 };
 
-export const getClientsByArea = async (areaName: string) => {
-  return await getClientsByAreaRepo(areaName);
+export const getClientsByArea = async (areaName: string, companyId: string) => {
+  return await getClientsByAreaRepo(areaName, companyId);
 };

@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       name,
       email,
       password,
-      role: role as Role
+      role: role as Role,
+      companyId: admin.companyId
     });
 
     // Exclude password from response

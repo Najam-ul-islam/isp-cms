@@ -9,6 +9,7 @@ interface CreateAccountLedgerInput {
   name: string;
   type: AccountType;
   description?: string;
+  companyId: string;
 }
 
 interface CreateAccountTransactionInput {
@@ -17,6 +18,7 @@ interface CreateAccountTransactionInput {
   amount: number;
   description: string;
   reference?: string;
+  companyId: string;
 }
 
 export const createAccountLedger = async (
@@ -28,6 +30,7 @@ export const createAccountLedger = async (
       type: data.type,
       description: data.description || '',
       balance: 0,
+      companyId: data.companyId,
     },
   });
 };
@@ -42,19 +45,30 @@ export const createAccountTransaction = async (
       amount: data.amount,
       description: data.description,
       reference: data.reference,
+      companyId: data.companyId,
     },
   });
 };
 
-export const getAccountSummary = async (): Promise<AccountSummary> => {
+export const getAccountSummary = async (companyId: string): Promise<AccountSummary> => {
   const totalReceivable = await prisma.accountTransaction.aggregate({
     _sum: { amount: true },
-    where: { transactionType: 'CREDIT' },
+    where: {
+      transactionType: 'CREDIT',
+      account: {
+        companyId
+      }
+    },
   });
 
   const totalPayable = await prisma.accountTransaction.aggregate({
     _sum: { amount: true },
-    where: { transactionType: 'DEBIT' },
+    where: {
+      transactionType: 'DEBIT',
+      account: {
+        companyId
+      }
+    },
   });
 
   return {

@@ -7,6 +7,19 @@ async function main() {
   // Hash the password
   const hashedPassword = await bcrypt.hash('admin@123', 10);
 
+  // Check if default company exists, create if it doesn't
+  let company = await prisma.company.findFirst({
+    where: { name: 'Default Company' }
+  });
+
+  if (!company) {
+    company = await prisma.company.create({
+      data: {
+        name: 'Default Company',
+      },
+    });
+  }
+
   // Create default admin
   await prisma.admin.upsert({
     where: { email: 'admin@isp.com' },
@@ -16,6 +29,7 @@ async function main() {
       email: 'admin@isp.com',
       password: hashedPassword, // Hashed password
       role: 'ADMIN',
+      companyId: company.id
     },
   });
 
@@ -25,7 +39,11 @@ async function main() {
     await prisma.area.upsert({
       where: { name },
       update: {},
-      create: { name, description: `${name} service area` },
+      create: {
+        name,
+        description: `${name} service area`,
+        companyId: company.id
+      },
     });
   }
 

@@ -14,13 +14,14 @@ import {prisma} from './prisma'
     return await bcrypt.compare(password, hashedPassword)
   }
 
-  export const generateToken = (userId: string, role?: string): string => {
-    return jwt.sign({ userId, role }, process.env.JWT_SECRET!, { expiresIn: '24h' })
+  export const generateToken = (userId: string, role?: string, companyId?: string): string => {
+    return jwt.sign({ userId, role, companyId }, process.env.JWT_SECRET!, { expiresIn: '24h' })
   }
 
   export interface TokenPayload {
   userId: string;
   role?: string;
+  companyId?: string;
 }
 
 export const verifyToken = (token: string): TokenPayload | null => {

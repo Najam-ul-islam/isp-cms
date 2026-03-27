@@ -1,6 +1,3 @@
-// prisma/schema.prisma
-// ✅ Validated for Prisma CLI 5.22.0
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native"]
@@ -12,9 +9,281 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─────────────────────────────────────────────────────────────
-// ENUMS (Must be defined BEFORE models that reference them)
-// ─────────────────────────────────────────────────────────────
+model Company {
+  id                    String                 @id @default(cuid())
+  name                  String
+  createdAt             DateTime               @default(now())
+  ledgers               AccountLedger[]
+  AccountTransaction    AccountTransaction[]
+  admins                Admin[]
+  areas                 Area[]
+  audits                AuditLog[]
+  clients               Client[]
+  complaints            Complaint[]
+  employeeActivities    EmployeeActivity[]
+  employees             Employee[]
+  expenses              Expense[]
+  inventoryItems        InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  packages              Package[]
+  payments              Payment[]
+  providers             ServiceProvider[]
+
+  @@map("companies")
+}
+
+model Admin {
+  id        String     @id @default(cuid())
+  name      String
+  email     String     @unique
+  password  String
+  createdAt DateTime   @default(now())
+  role      Role       @default(EMPLOYEE)
+  updatedAt DateTime   @updatedAt
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  audits    AuditLog[]
+  clients   Client[]
+  packages  Package[]
+
+  @@map("admins")
+}
+
+model ServiceProvider {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  contactInfo String?
+  address     String?
+  email       String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  companyId   String
+  packages    Package[]
+  company     Company   @relation(fields: [companyId], references: [id])
+
+  @@map("service_providers")
+}
+
+model Package {
+  id                String           @id @default(cuid())
+  name              String           @unique
+  speed             Int
+  price             Float
+  durationDays      Int
+  description       String           @default("")
+  isActive          Boolean          @default(true)
+  createdBy         String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  purchasePrice     Float?
+  serviceProviderId String?
+  companyId         String
+  clients           Client[]
+  company           Company          @relation(fields: [companyId], references: [id])
+  creator           Admin            @relation(fields: [createdBy], references: [id])
+  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+
+  @@map("packages")
+}
+
+model Area {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  clients     Client[]
+
+  @@map("areas")
+}
+
+model Client {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String        @unique
+  cnic          String        @unique
+  city          String
+  area          String?
+  country       String
+  packageId     String
+  price         Float
+  startDate     DateTime
+  expiryDate    DateTime
+  paymentStatus PaymentStatus
+  status        ClientStatus
+  notes         String?
+  createdAt     DateTime      @default(now())
+  email         String?       @unique
+  createdBy     String
+  companyId     String
+  areaModel     Area?         @relation(fields: [area], references: [name])
+  company       Company       @relation(fields: [companyId], references: [id])
+  creator       Admin         @relation(fields: [createdBy], references: [id])
+  package       Package       @relation(fields: [packageId], references: [id])
+  complaints    Complaint[]
+  payments      Payment[]
+
+  @@map("clients")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  clientId    String
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companyId   String
+  client      Client   @relation(fields: [clientId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@map("payments")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float
+  category    String
+  date        DateTime @default(now())
+  description String?
+  receipt     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@map("expenses")
+}
+
+model Complaint {
+  id          String          @id @default(cuid())
+  clientId    String
+  title       String
+  description String
+  status      ComplaintStatus @default(open)
+  priority    String          @default("medium")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  companyId   String
+  client      Client          @relation(fields: [clientId], references: [id])
+  company     Company         @relation(fields: [companyId], references: [id])
+
+  @@map("complaints")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  companyId String
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+  user      Admin    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model AccountLedger {
+  id           String               @id @default(cuid())
+  name         String               @unique
+  balance      Float                @default(0)
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  type         AccountType
+  companyId    String
+  company      Company              @relation(fields: [companyId], references: [id])
+  transactions AccountTransaction[]
+
+  @@map("account_ledgers")
+}
+
+model AccountTransaction {
+  id              String          @id @default(cuid())
+  accountId       String
+  amount          Float
+  description     String
+  reference       String?
+  date            DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  transactionType TransactionKind
+  companyId       String
+  account         AccountLedger   @relation(fields: [accountId], references: [id])
+  company         Company         @relation(fields: [companyId], references: [id])
+
+  @@map("account_transactions")
+}
+
+model InventoryItem {
+  id           String                 @id @default(cuid())
+  name         String
+  category     String
+  quantity     Int                    @default(0)
+  unitPrice    Float
+  totalValue   Float                  @default(0)
+  companyId    String
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  company      Company                @relation(fields: [companyId], references: [id])
+  transactions InventoryTransaction[]
+
+  @@map("inventory_items")
+}
+
+model InventoryTransaction {
+  id        String        @id @default(cuid())
+  itemId    String
+  type      String
+  quantity  Int
+  note      String?
+  companyId String
+  createdAt DateTime      @default(now())
+  company   Company       @relation(fields: [companyId], references: [id])
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+model Employee {
+  id          String             @id @default(cuid())
+  name        String
+  email       String             @unique
+  phone       String?
+  role        String
+  salary      Float?
+  companyId   String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  permissions Json?
+  activities  EmployeeActivity[]
+  company     Company            @relation(fields: [companyId], references: [id])
+
+  @@map("employees")
+}
+
+model EmployeeActivity {
+  id         String   @id @default(cuid())
+  employeeId String
+  action     String
+  metadata   Json?
+  companyId  String
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_activities")
+}
 
 enum Role {
   EMPLOYEE
@@ -40,7 +309,6 @@ enum ComplaintStatus {
   resolved
 }
 
-// Financial/Accounting Module Enums
 enum AccountType {
   ASSET
   LIABILITY
@@ -56,192 +324,4 @@ enum TransactionKind {
   REFUND
   ADJUSTMENT
   FEE
-}
-
-// ─────────────────────────────────────────────────────────────
-// MODELS
-// ─────────────────────────────────────────────────────────────
-
-model Admin {
-  id        String    @id @default(cuid())
-  name      String
-  email     String    @unique
-  password  String
-  role      Role      @default(EMPLOYEE)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
-  // Relations
-  packages  Package[]
-  clients   Client[]
-
-  @@map("admins")
-}
-
-model ServiceProvider {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  contactInfo String?
-  address     String?
-  email       String?
-  phone       String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relations
-  packages    Package[]
-
-  @@map("service_providers")
-}
-
-model Package {
-  id                String           @id @default(cuid())
-  name              String           @unique
-  speed             Int
-  price             Float
-  durationDays      Int
-  description       String           @default("")
-  isActive          Boolean          @default(true)
-  createdBy         String
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  purchasePrice     Float?
-  serviceProviderId String?
-  
-  // Relations
-  clients           Client[]
-  creator           Admin            @relation(fields: [createdBy], references: [id])
-  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
-
-  @@map("packages")
-}
-
-model Area {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relations
-  clients     Client[]
-
-  @@map("areas")
-}
-
-model Client {
-  id            String        @id @default(cuid())
-  name          String
-  phone         String        @unique
-  email         String?       @unique
-  cnic          String        @unique
-  city          String
-  area          String?       // Stores the Area.name (not ID)
-  country       String
-  packageId     String
-  price         Float
-  startDate     DateTime
-  expiryDate    DateTime
-  paymentStatus PaymentStatus
-  status        ClientStatus
-  notes         String?
-  createdAt     DateTime      @default(now())
-  createdBy     String        // Reference to Admin who created this client
-  
-  // ✅ Fixed relations:
-  // - area references Area.name (which is @unique)
-  // - packageId references Package.id
-  // - createdBy references Admin.id
-  areaModel     Area?         @relation(fields: [area], references: [name])
-  package       Package       @relation(fields: [packageId], references: [id])
-  creator       Admin         @relation(fields: [createdBy], references: [id])
-  
-  // Reverse relations
-  payments      Payment[]
-  complaints    Complaint[]
-
-  @@map("clients")
-}
-
-model Payment {
-  id          String   @id @default(cuid())
-  clientId    String
-  amount      Float
-  paymentDate DateTime @default(now())
-  method      String?  // e.g., cash, bank transfer, online
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
-  client Client @relation(fields: [clientId], references: [id])
-
-  @@map("payments")
-}
-
-model Expense {
-  id          String   @id @default(cuid())
-  title       String
-  amount      Float
-  category    String   // e.g., electricity, rent, equipment
-  date        DateTime @default(now())
-  description String?
-  receipt     String?  // path to receipt image/file
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("expenses")
-}
-
-model Complaint {
-  id          String          @id @default(cuid())
-  clientId    String
-  title       String
-  description String
-  status      ComplaintStatus @default(open)
-  priority    String          @default("medium") // low, medium, high
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  
-  // Relations
-  client Client @relation(fields: [clientId], references: [id])
-
-  @@map("complaints")
-}
-
-// ─────────────────────────────────────────────────────────────
-// Financial/Accounting Module Models
-// ─────────────────────────────────────────────────────────────
-
-model AccountLedger {
-  id           String               @id @default(cuid())
-  name         String               @unique
-  type         AccountType          // ✅ Enum reference (defined above)
-  balance      Float                @default(0)
-  description  String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  
-  // Relations
-  transactions AccountTransaction[]
-
-  @@map("account_ledgers")
-}
-
-model AccountTransaction {
-  id              String           @id @default(cuid())
-  accountId       String
-  transactionType TransactionKind  // ✅ Enum reference (defined above)
-  amount          Float
-  description     String
-  reference       String?
-  date            DateTime         @default(now())
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  
-  // Relations
-  account AccountLedger @relation(fields: [accountId], references: [id])
-
-  @@map("account_transactions")
 }

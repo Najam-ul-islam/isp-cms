@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
 import {prisma} from '@/lib/prisma'
+import { logAction } from '../../../../modules/audit/services'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,10 @@ export async function GET(
     const clientId = id
 
     const client = await prisma.client.findUnique({
-      where: { id: clientId },
+      where: {
+        id: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      },
       include: {
         package: {
           include: {
@@ -100,7 +104,8 @@ export async function PUT(
         areaExists = await prisma.area.create({
           data: {
             name: area,
-            description: `${area} area created automatically`
+            description: `${area} area created automatically`,
+            companyId: admin.companyId
           }
         });
       }
@@ -174,10 +179,35 @@ export async function PUT(
       updateData.area = area;
     }
 
+    // Get the original client to include in audit log
+    const originalClient = await prisma.client.findUnique({
+      where: {
+        id: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      }
+    });
+
     const updatedClient = await prisma.client.update({
-      where: { id: clientId },
+      where: {
+        id: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      },
       data: updateData
     })
+
+    // Log the client update
+    await logAction({
+      userId: admin.id,
+      action: 'UPDATE_CLIENT',
+      entity: 'CLIENT',
+      entityId: updatedClient.id,
+      metadata: {
+        originalData: originalClient,
+        updatedFields: Object.keys(updateData),
+        clientName: updatedClient.name
+      },
+      companyId: admin.companyId
+    });
 
     return NextResponse.json(updatedClient)
   } catch (error) {
@@ -206,13 +236,40 @@ export async function DELETE(
 
     // Delete related payments first to avoid foreign key constraint
     await prisma.payment.deleteMany({
-      where: { clientId }
+      where: {
+        clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      }
+    });
+
+    // Get the client before deletion for audit log
+    const clientToDelete = await prisma.client.findUnique({
+      where: {
+        id: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      }
     });
 
     // Then delete the client
     await prisma.client.delete({
-      where: { id: clientId }
+      where: {
+        id: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      }
     })
+
+    // Log the client deletion
+    await logAction({
+      userId: admin.id,
+      action: 'DELETE_CLIENT',
+      entity: 'CLIENT',
+      entityId: clientId,
+      metadata: {
+        clientName: clientToDelete?.name,
+        clientPhone: clientToDelete?.phone
+      },
+      companyId: admin.companyId
+    });
 
     return NextResponse.json({ message: 'Client deleted successfully' })
   } catch (error) {
@@ -232,118 +289,3 @@ export async function DELETE(
     )
   }
 }
-
-
-// import { NextResponse } from 'next/server'
-// import { getAdminFromToken } from '@/lib/jwt'
-// import prisma from '@/lib/prisma'
-
-// export const dynamic = 'force-dynamic'
-
-// // GET single client with package info
-// export async function GET(request: Request, { params }: { params: { id: string } }) {
-//   try {
-//     const admin = await getAdminFromToken(request as any)
-
-//     if (!admin) {
-//       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-//     }
-
-//     const clientId = params.id
-
-//     const client = await prisma.client.findUnique({
-//       where: { id: clientId },
-//       include: {
-//         package: true
-//       }
-//     })
-
-//     if (!client) {
-//       return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-//     }
-
-//     return NextResponse.json(client)
-//   } catch (error) {
-//     console.error('Get client error:', error)
-//     return NextResponse.json(
-//       { error: 'Internal server error' },
-//       { status: 500 }
-//     )
-//   }
-// }
-
-// export async function PUT(request: Request, { params }: { params: { id: string } }) {
-//     try {
-//       const admin = await getAdminFromToken(request as any)
-
-//       if (!admin) {
-//         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-//       }
-
-//       const clientId = params.id
-//       const {
-//         name,
-//         phone,
-//         cnic,
-//         city,
-//         country,
-//         packageId,
-//         price,
-//         startDate,
-//         expiryDate,
-//         paymentStatus,
-//         status,
-//         notes
-//       } = await request.json()
-
-//       const updatedClient = await prisma.client.update({
-//         where: { id: clientId },
-//         data: {
-//           name,
-//           phone,
-//           cnic,
-//           city,
-//           country,
-//           packageId,
-//           price,
-//           startDate: new Date(startDate),
-//           expiryDate: new Date(expiryDate),
-//           paymentStatus,
-//           status,
-//           notes: notes || null
-//         }
-//       })
-
-//       return NextResponse.json(updatedClient)
-//     } catch (error) {
-//       console.error('Update client error:', error)
-//       return NextResponse.json(
-//         { error: 'Internal server error' },
-//         { status: 500 }
-//       )
-//     }
-//   }
-
-//   export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-//     try {
-//       const admin = await getAdminFromToken(request as any)
-
-//       if (!admin) {
-//         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-//       }
-
-//       const clientId = params.id
-
-//       await prisma.client.delete({
-//         where: { id: clientId }
-//       })
-
-//       return NextResponse.json({ message: 'Client deleted successfully' })
-//     } catch (error) {
-//       console.error('Delete client error:', error)
-//       return NextResponse.json(
-//         { error: 'Internal server error' },
-//         { status: 500 }
-//       )
-//     }
-//   }

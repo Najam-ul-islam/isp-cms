@@ -22,10 +22,10 @@ export async function GET(request: Request) {
 
     // Get all dashboard data
     const [stats, recentPayments, recentClients, recentComplaints] = await Promise.all([
-      getDashboardStats(),
-      getRecentPayments(5),
-      getRecentClients(5),
-      getRecentComplaints(5)
+      getDashboardStats(admin),
+      getRecentPayments(admin, 5),
+      getRecentClients(admin, 5),
+      getRecentComplaints(admin, 5)
     ]);
 
     interface Activity {

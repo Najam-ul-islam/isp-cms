@@ -23,7 +23,10 @@ export async function GET(
     const packageId = id
 
     const pkg = await prisma.package.findUnique({
-      where: { id: packageId },
+      where: {
+        id: packageId,
+        companyId: admin.companyId  // Ensure package belongs to admin's company
+      },
       include: {
         serviceProvider: true  // Include service provider information
       }
@@ -56,7 +59,7 @@ export async function PUT(
     }
 
     // Check if user has permission to update packages
-    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -66,7 +69,10 @@ export async function PUT(
     const { name, speed, price, purchasePrice, durationDays, serviceProviderId } = await request.json()
 
     const updatedPackage = await prisma.package.update({
-      where: { id: packageId },
+      where: {
+        id: packageId,
+        companyId: admin.companyId  // Ensure package belongs to admin's company
+      },
       data: {
         name,
         speed,
@@ -101,12 +107,25 @@ export async function DELETE(
     }
 
     // Check if user has permission to delete packages
-    if (admin.role !== 'SUPER_ADMIN') {
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     const { id } = await params  // ✅ Await params
     const packageId = id
+
+    // Verify that the package belongs to the admin's company
+    const packageRecord = await prisma.package.findUnique({
+      where: { id: packageId }
+    });
+
+    if (!packageRecord) {
+      return NextResponse.json({ error: 'Package not found' }, { status: 404 });
+    }
+
+    if (packageRecord.companyId !== admin.companyId) {
+      return NextResponse.json({ error: 'Forbidden: Package does not belong to your company' }, { status: 403 });
+    }
 
     // Get URL search parameters to check if reassignment is requested
     const url = new URL(request.url);
@@ -150,75 +169,3 @@ export async function DELETE(
     )
   }
 }
-
-
-// import { NextResponse } from 'next/server'
-//   import { getAdminFromToken } from '@/lib/jwt'
-//   import prisma from '@/lib/prisma'
-
-//   export async function PUT(request: Request, { params }: { params: { id: string } }) {
-//     try {
-//       const admin = await getAdminFromToken(request as any)
-
-//       if (!admin) {
-//         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-//       }
-
-//       const packageId = params.id
-//       const { name, speed, price, durationDays } = await request.json()
-
-//       const updatedPackage = await prisma.package.update({
-//         where: { id: packageId },
-//         data: {
-//           name,
-//           speed,
-//           price,
-//           durationDays
-//         }
-//       })
-
-//       return NextResponse.json(updatedPackage)
-//     } catch (error) {
-//       console.error('Update package error:', error)
-//       return NextResponse.json(
-//         { error: 'Internal server error' },
-//         { status: 500 }
-//       )
-//     }
-//   }
-
-//   export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-//     try {
-//       const admin = await getAdminFromToken(request as any)
-
-//       if (!admin) {
-//         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-//       }
-
-//       const packageId = params.id
-
-//       // Check if there are clients associated with this package
-//       const clientsWithPackage = await prisma.client.count({
-//         where: { packageId }
-//       })
-
-//       if (clientsWithPackage > 0) {
-//         return NextResponse.json(
-//           { error: 'Cannot delete package with associated clients' },
-//           { status: 400 }
-//         )
-//       }
-
-//       await prisma.package.delete({
-//         where: { id: packageId }
-//       })
-
-//       return NextResponse.json({ message: 'Package deleted successfully' })
-//     } catch (error) {
-//       console.error('Delete package error:', error)
-//       return NextResponse.json(
-//         { error: 'Internal server error' },
-//         { status: 500 }
-//       )
-//     }
-//   }
