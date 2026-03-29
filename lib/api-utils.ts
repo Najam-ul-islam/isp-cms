@@ -4,10 +4,10 @@ import { redirect } from 'next/navigation';
 export async function authenticatedFetch(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token');
 
-  const headers = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers,
-  };
+  } as Record<string, string>;
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -40,10 +40,10 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
 export async function authenticatedFetchWithRedirect(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token');
 
-  const headers = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers,
-  };
+  } as Record<string, string>;
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
