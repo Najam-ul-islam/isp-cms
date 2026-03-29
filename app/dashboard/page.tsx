@@ -121,6 +121,9 @@ export default function DashboardPage() {
       ]);
 
       if (overviewRes.status === 401 || expiringRes.status === 401) {
+        // Clear the expired token
+        localStorage.removeItem("token");
+        document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         router.push("/login");
         return;
       }
@@ -186,6 +189,9 @@ export default function DashboardPage() {
           ]);
 
           if (statsRes.status === 401 || expiringRes.status === 401) {
+            // Clear the expired token
+            localStorage.removeItem("token");
+            document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             router.push("/login");
             return;
           }
@@ -234,6 +240,9 @@ export default function DashboardPage() {
       ]);
 
       if (overviewRes.status === 401 || expiringRes.status === 401) {
+        // Clear the expired token
+        localStorage.removeItem("token");
+        document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         router.push("/login");
         return;
       }

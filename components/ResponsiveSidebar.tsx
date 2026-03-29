@@ -26,6 +26,7 @@ export default function ResponsiveSidebar() {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [showToggle, setShowToggle] = useState(false)
 
   // Check if mobile screen
   useEffect(() => {
@@ -116,13 +117,6 @@ export default function ResponsiveSidebar() {
         {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
-      {/* Desktop toggle button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="hidden lg:block fixed top-4 left-4 z-40 p-2 rounded-lg bg-gray-800 text-white shadow-lg"
-      >
-        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
 
       {/* Sidebar backdrop (mobile) */}
       {sidebarOpen && (
@@ -135,12 +129,14 @@ export default function ResponsiveSidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:static z-40 h-screen w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white
+          fixed lg:static z-40 h-screen w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           ${sidebarOpen ? 'w-64' : 'w-20'} lg:w-auto
           flex flex-col shadow-xl border-r border-gray-700/50
         `}
+        onMouseEnter={() => setShowToggle(true)}
+        onMouseLeave={() => setShowToggle(false)}
       >
         {/* Logo/Header */}
         <div className="p-4 border-b border-gray-700/50">
@@ -193,7 +189,7 @@ export default function ResponsiveSidebar() {
         <div className="border-t border-gray-700/50 space-y-2">
           {/* Optional: User Profile Preview */}
           <div className={`flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-700/30 ${sidebarOpen ? 'mx-2 mb-2' : 'justify-center'}`}>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
               A
             </div>
             <div className={`${sidebarOpen ? '' : 'hidden'}`}>
@@ -207,7 +203,7 @@ export default function ResponsiveSidebar() {
             onClick={handleLogout}
             className={`
               flex items-center gap-3 px-3 py-2.5 rounded-xl
-              text-gray-300 hover:text-white hover:bg-red-500/20
+              text-gray-300 hover:text-white hover:bg-red-900
               hover:shadow-lg hover:shadow-red-500/20
               transition-all duration-200 ease-in-out
               group
@@ -218,6 +214,20 @@ export default function ResponsiveSidebar() {
             <span className={`font-medium ${sidebarOpen ? '' : 'hidden'}`}>Logout</span>
           </button>
         </div>
+
+        {/* Toggle button positioned at the edge of the sidebar */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className={`
+            absolute top-1/2 -translate-y-1/2 z-50 bg-red-800 text-white shadow-lg hover:bg-red-800 transition-all duration-300
+            ${sidebarOpen ? 'right-0 translate-x-1/2' : 'right-0 translate-x-1/2'} // Positioned at the right edge
+            p-2 rounded-full w-8 h-8 flex items-center justify-center
+            ${showToggle ? 'opacity-100 visible' : 'opacity-0 invisible'}
+          `}
+          title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+        </button>
       </aside>
     </>
   )

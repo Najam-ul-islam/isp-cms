@@ -17,6 +17,16 @@ export const createPayment = async (data: CreatePaymentInput) => {
           id: true,
           name: true,
           phone: true,
+          email: true,
+          packageId: true,
+          price: true, // This is the price the client pays (might be different from package price)
+          package: {
+            select: {
+              id: true,
+              name: true,
+              price: true, // This is the actual package price
+            }
+          }
         }
       }
     }
@@ -32,6 +42,16 @@ export const getPaymentById = async (id: string) => {
           id: true,
           name: true,
           phone: true,
+          email: true,
+          packageId: true,
+          price: true, // This is the price the client pays (might be different from package price)
+          package: {
+            select: {
+              id: true,
+              name: true,
+              price: true, // This is the actual package price
+            }
+          }
         }
       }
     }
@@ -49,8 +69,8 @@ export const getPayments = async (filters?: PaymentFilters, companyId?: string) 
 
   if (filters?.startDate || filters?.endDate) {
     whereClause.paymentDate = {
-      ...(filters.startDate && { gte: filters.startDate }),
-      ...(filters.endDate && { lte: filters.endDate }),
+      ...(filters.startDate && { gte: new Date(filters.startDate) }),
+      ...(filters.endDate && { lte: new Date(filters.endDate) }),
     };
   }
 
@@ -73,6 +93,13 @@ export const getPayments = async (filters?: PaymentFilters, companyId?: string) 
           id: true,
           name: true,
           phone: true,
+          email: true,
+          package: {
+            select: {
+              name: true,
+            }
+          },
+          price: true,
         },
       },
     },
@@ -158,6 +185,16 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
           id: true,
           name: true,
           phone: true,
+          email: true,
+          packageId: true,
+          price: true, // This is the price the client pays (might be different from package price)
+          package: {
+            select: {
+              id: true,
+              name: true,
+              price: true, // This is the actual package price
+            }
+          }
         }
       }
     }
@@ -201,4 +238,47 @@ export const getPaymentStats = async (companyId: string, startDate?: Date, endDa
       id: true,
     },
   });
+};
+
+// New function to get payments grouped by date for charts
+export const getPaymentsGroupedByDate = async (companyId: string, startDate?: Date, endDate?: Date) => {
+  const whereClause: any = {
+    client: {
+      companyId
+    }
+  };
+
+  if (startDate && endDate) {
+    whereClause.paymentDate = {
+      gte: startDate,
+      lte: endDate,
+    };
+  } else if (startDate) {
+    whereClause.paymentDate = {
+      gte: startDate,
+    };
+  } else if (endDate) {
+    whereClause.paymentDate = {
+      lte: endDate,
+    };
+  }
+
+  // Group payments by date and aggregate
+  const payments = await prisma.$queryRaw<Array<{
+    date: Date;
+    amount: number;
+    count: number;
+  }>>`
+    SELECT
+      DATE("paymentDate") as date,
+      SUM("amount") as amount,
+      COUNT(*) as count
+    FROM "Payment"
+    WHERE "companyId" = ${companyId}
+    ${startDate && endDate ? Prisma.sql`AND "paymentDate" BETWEEN ${startDate} AND ${endDate}` : Prisma.empty}
+    GROUP BY DATE("paymentDate")
+    ORDER BY DATE("paymentDate")
+  `;
+
+  return payments;
 };

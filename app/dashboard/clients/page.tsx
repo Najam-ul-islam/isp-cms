@@ -17,6 +17,9 @@ interface ClientWithPackage extends Client {
 interface ExtendedClient extends ClientWithPackage {
   email: any
   _count?: { payments: number }
+  totalPaid?: number
+  remainingAmount?: number
+  effectivePaymentStatus?: string
 }
 
 export default function ClientsPage() {
@@ -32,8 +35,8 @@ export default function ClientsPage() {
     (initialStatusFilter as 'all' | 'active' | 'expired' | 'suspended') || 'all'
   )
   const initialPaymentFilter = urlParams?.get('payment') || 'all'
-  const [filterPayment, setFilterPayment] = useState<'all' | 'paid' | 'unpaid' | 'pending'>(
-    (initialPaymentFilter as 'all' | 'paid' | 'unpaid' | 'pending') || 'all'
+  const [filterPayment, setFilterPayment] = useState<'all' | 'paid' | 'unpaid' | 'partial'>(
+    (initialPaymentFilter as 'all' | 'paid' | 'unpaid' | 'partial') || 'all'
   )
   const initialExpiringFilter = urlParams?.get('expiring') || 'none'
   const [expiringFilter, setExpiringFilter] = useState<'none' | 'today' | '3days' | '7days'>(
@@ -127,7 +130,7 @@ export default function ClientsPage() {
         client.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (client.area && client.area.toLowerCase().includes(searchTerm.toLowerCase()))
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
-      const matchesPayment = filterPayment === 'all' || client.paymentStatus === filterPayment
+      const matchesPayment = filterPayment === 'all' || (client.effectivePaymentStatus || client.paymentStatus) === filterPayment
       const now = new Date(); now.setHours(0, 0, 0, 0)
       const next3Days = new Date(now); next3Days.setDate(now.getDate() + 3)
       const next7Days = new Date(now); next7Days.setDate(now.getDate() + 7)
@@ -185,6 +188,7 @@ export default function ClientsPage() {
     switch (status) {
       case 'paid': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
       case 'unpaid': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
+      case 'partial': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
       case 'pending': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
       default: return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
     }
@@ -249,7 +253,7 @@ export default function ClientsPage() {
           </div>
           <div className="relative">
             <select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value as typeof filterPayment)} className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer min-w-35">
-              <option value="all">All Payments</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="pending">Pending</option>
+              <option value="all">All Payments</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="partial">Partial</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
@@ -306,7 +310,12 @@ export default function ClientsPage() {
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-700">
                       <div className="flex flex-wrap gap-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${getPaymentStyles(client.paymentStatus || 'unknown')}`}>{client.paymentStatus || 'unknown'}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${getPaymentStyles(client.effectivePaymentStatus || client.paymentStatus || 'unknown')}`}>
+                          {client.effectivePaymentStatus
+                            ? `${client.effectivePaymentStatus} - ${formatPKR(client.totalPaid || 0)}`
+                            : `${client.paymentStatus || 'unknown'} - ${formatPKR(client.totalPaid || 0)}`
+                          }
+                        </span>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>{clientExpired ? 'Expired' : client.status || 'unknown'}</span>
                       </div>
                       <div className="flex items-center gap-1">
@@ -372,7 +381,12 @@ export default function ClientsPage() {
                           {clientExpired && <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded-full">Expired</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${getPaymentStyles(client.paymentStatus || 'unknown')}`}>{client.paymentStatus || 'unknown'}</span></td>
+                      <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${getPaymentStyles(client.effectivePaymentStatus || client.paymentStatus || 'unknown')}`}>
+                        {client.effectivePaymentStatus
+                          ? `${client.effectivePaymentStatus} - ${formatPKR(client.totalPaid || 0)}`
+                          : `${client.paymentStatus || 'unknown'} - ${formatPKR(client.totalPaid || 0)}`
+                        }
+                      </span></td>
                       <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>{clientExpired ? 'Expired' : client.status || 'unknown'}</span></td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-end gap-1">
@@ -414,8 +428,8 @@ export default function ClientsPage() {
               <span>Showing {currentClients.length} of {filteredClients.length} clients</span>
               <div className="flex flex-wrap items-center gap-3">
                 <span>Total: <strong className="text-emerald-600 dark:text-emerald-400">{formatPKR(clients.reduce((sum, c) => sum + (c.price || 0), 0))}</strong></span>
-                <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" />{clients.filter(c => c.paymentStatus === 'paid').length} Paid</span>
-                <span className="flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5 text-rose-500" />{clients.filter(c => c.paymentStatus === 'unpaid').length} Unpaid</span>
+                <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" />{clients.filter(c => (c.effectivePaymentStatus || c.paymentStatus) === 'paid').length} Paid</span>
+                <span className="flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5 text-rose-500" />{clients.filter(c => (c.effectivePaymentStatus || c.paymentStatus) === 'unpaid').length} Unpaid</span>
               </div>
             </div>
           </div>
@@ -651,7 +665,7 @@ function ClientsSkeleton() {
 //         (client.area && client.area.toLowerCase().includes(searchTerm.toLowerCase()))
 
 //       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
-//       const matchesPayment = filterPayment === 'all' || client.paymentStatus === filterPayment
+//       const matchesPayment = filterPayment === 'all' || (client.effectivePaymentStatus || client.paymentStatus) === filterPayment
 
 //       // Handle expiring filter
 //       const now = new Date();

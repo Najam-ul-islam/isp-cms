@@ -1,17 +1,32 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { CreditCard, Plus, Search, Calendar, FileText, Edit, Trash2, Download, Filter, IndianRupee } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CreditCard,
+  Plus,
+  Search,
+  Calendar,
+  FileText,
+  Edit,
+  Trash2,
+  Download,
+  Filter,
+  IndianRupee,
+} from "lucide-react";
 
 interface Payment {
   id: string;
   clientName: string;
   clientId: string;
+  contact?: string;
   amount: number;
   date: string;
   method: string;
   notes?: string;
+  totalPaid?: number;
+  remainingAmount?: number;
+  totalAmount?: number; // Total amount based on package or subscription
 }
 
 export default function PaymentsPage() {
@@ -19,69 +34,132 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMethod, setSelectedMethod] = useState('all');
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState("all");
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
+    start: "",
+    end: "",
+  });
+  const [selectedClientDetails, setSelectedClientDetails] = useState<Payment | null>(null);
 
   const router = useRouter();
 
   const paymentMethods = [
-    'Cash', 'Bank Transfer', 'Online', 'Credit Card', 'Debit Card', 'Mobile Payment'
+    "Cash",
+    "Bank Transfer",
+    "Online",
+    "Credit Card",
+    "Debit Card",
+    "Mobile Payment",
   ];
 
   useEffect(() => {
     const fetchPayments = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem("token");
         if (!token) {
-          router.push('/login');
+          router.push("/login");
           return;
         }
 
-        const response = await fetch('/api/payments', {
+        // Build query parameters for date range
+        let url = "/api/payments";
+        const params = new URLSearchParams();
+
+        if (dateRange.start) {
+          params.append('startDate', dateRange.start);
+        }
+        if (dateRange.end) {
+          params.append('endDate', dateRange.end);
+        }
+
+        if (params.toString()) {
+          url += '?' + params.toString();
+        }
+
+        const response = await fetch(url, {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
 
         if (response.ok) {
           const data = await response.json();
           // Since the API returns payment with client details, we need to map it to our Payment interface
-          const mappedPayments = data.map((p: any) => ({
-            id: p.id,
-            clientName: p.client?.name || 'Unknown Client',
-            clientId: p.clientId,
-            amount: p.amount,
-            date: p.paymentDate,
-            method: p.method || 'Cash',
-            notes: p.notes || ''
-          }));
+          const mappedPayments = data.map((p: any) => {
+            // Determine contact information with priority: phone first, then email, else show name only
+            const contactInfo = p.client?.phone || p.client?.email || "";
+
+            // Format client name as "Name (contact)" if contact exists, otherwise just the name
+            const clientName = contactInfo
+              ? `${p.client?.name || "Unknown Client"} (${contactInfo})`
+              : p.client?.name || "Unknown Client";
+
+            // Total amount is based on the client's package price
+            const totalAmount = p.client?.price || 0;
+
+            return {
+              id: p.id,
+              clientName: clientName,
+              clientId: p.clientId,
+              contact: contactInfo || "-", // Keep separate for filtering/search
+              amount: p.amount,
+              date: p.paymentDate,
+              method: p.method || "Cash",
+              notes: p.notes || "",
+              totalAmount: totalAmount,
+              totalPaid: p.totalPaid || 0,
+              remainingAmount: p.remainingAmount || 0,
+            };
+          });
           setPayments(mappedPayments);
         } else if (response.status === 401) {
-          router.push('/login');
+          router.push("/login");
         }
       } catch (error) {
-        console.error('Error fetching payments:', error);
+        console.error("Error fetching payments:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchPayments();
-  }, [router]);
+  }, [router, dateRange.start, dateRange.end]);
 
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = payment.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         payment.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         payment.method.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredPayments = payments.filter((payment) => {
+    const matchesSearch =
+      payment.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.method.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesMethod = selectedMethod === 'all' || payment.method === selectedMethod;
+    const matchesMethod =
+      selectedMethod === "all" || payment.method === selectedMethod;
 
-    return matchesSearch && matchesMethod;
+    // Apply date range filter if dates are selected
+    let matchesDate = true;
+    if (dateRange.start && dateRange.end) {
+      const paymentDate = new Date(payment.date);
+      const startDate = new Date(dateRange.start);
+      const endDate = new Date(dateRange.end);
+      matchesDate = paymentDate >= startDate && paymentDate <= endDate;
+    } else if (dateRange.start) {
+      const paymentDate = new Date(payment.date);
+      const startDate = new Date(dateRange.start);
+      matchesDate = paymentDate >= startDate;
+    } else if (dateRange.end) {
+      const paymentDate = new Date(payment.date);
+      const endDate = new Date(dateRange.end);
+      matchesDate = paymentDate <= endDate;
+    }
+
+    return matchesSearch && matchesMethod && matchesDate;
   });
 
-  const totalPayments = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const totalPayments = filteredPayments.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
 
   const handleAddPayment = () => {
     setEditingPayment(null);
@@ -94,110 +172,173 @@ export default function PaymentsPage() {
   };
 
   const handleDeletePayment = async (id: string) => {
-    if (confirm('Are you sure you want to delete this payment?')) {
+    if (confirm("Are you sure you want to delete this payment?")) {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem("token");
         if (!token) {
-          router.push('/login');
+          router.push("/login");
           return;
         }
 
         const response = await fetch(`/api/payments/${id}`, {
-          method: 'DELETE',
+          method: "DELETE",
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
 
         if (response.ok) {
-          setPayments(payments.filter(payment => payment.id !== id));
+          setPayments(payments.filter((payment) => payment.id !== id));
         } else if (response.status === 401) {
-          router.push('/login');
+          router.push("/login");
         } else {
-          alert('Failed to delete payment');
+          alert("Failed to delete payment");
         }
       } catch (error) {
-        console.error('Error deleting payment:', error);
-        alert('Failed to delete payment');
+        console.error("Error deleting payment:", error);
+        alert("Failed to delete payment");
       }
     }
   };
 
   const handleSavePayment = async (paymentData: Partial<Payment>) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
-        router.push('/login');
+        router.push("/login");
         return;
       }
 
       if (editingPayment) {
         // Update existing payment
         const response = await fetch(`/api/payments/${editingPayment.id}`, {
-          method: 'PUT',
+          method: "PUT",
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(paymentData),
         });
 
         if (response.ok) {
           const updatedPayment = await response.json();
+
+          // Determine contact information with priority: phone first, then email, else show name only
+          const contactInfo = updatedPayment.client?.phone || updatedPayment.client?.email || "";
+
+          // Format client name as "Name (contact)" if contact exists, otherwise just the name
+          const clientName = contactInfo
+            ? `${updatedPayment.client?.name || "Unknown Client"} (${contactInfo})`
+            : updatedPayment.client?.name || "Unknown Client";
+
+          // Total amount is based on the client's package price
+          const totalAmount = updatedPayment.client?.price || 0;
+
           const mappedPayment = {
             id: updatedPayment.id,
-            clientName: updatedPayment.client?.name || 'Unknown Client',
+            clientName: clientName,
             clientId: updatedPayment.clientId,
+            contact: contactInfo || "-", // Keep separate for filtering/search
             amount: updatedPayment.amount,
             date: updatedPayment.paymentDate,
-            method: updatedPayment.method || 'Cash',
-            notes: updatedPayment.notes || ''
+            method: updatedPayment.method || "Cash",
+            notes: updatedPayment.notes || "",
+            totalAmount: totalAmount,
+            totalPaid: updatedPayment.totalPaid || 0,
+            remainingAmount: updatedPayment.remainingAmount || 0,
           };
 
-          setPayments(payments.map(pay =>
-            pay.id === editingPayment.id ? mappedPayment : pay
-          ));
+          setPayments(
+            payments.map((pay) =>
+              pay.id === editingPayment.id ? mappedPayment : pay,
+            ),
+          );
           setShowForm(false);
         } else if (response.status === 401) {
-          router.push('/login');
+          router.push("/login");
         } else {
-          alert('Failed to update payment');
+          alert("Failed to update payment");
         }
       } else {
         // Add new payment
-        const response = await fetch('/api/payments', {
-          method: 'POST',
+        const response = await fetch("/api/payments", {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(paymentData),
         });
 
         if (response.ok) {
           const newPayment = await response.json();
+
+          // Determine contact information with priority: phone first, then email, else show name only
+          const contactInfo = newPayment.client?.phone || newPayment.client?.email || "";
+
+          // Format client name as "Name (contact)" if contact exists, otherwise just the name
+          const clientName = contactInfo
+            ? `${newPayment.client?.name || "Unknown Client"} (${contactInfo})`
+            : newPayment.client?.name || "Unknown Client";
+
+          // Total amount is based on the client's package price
+          const totalAmount = newPayment.client?.price || 0;
+
           const mappedNewPayment = {
             id: newPayment.id,
-            clientName: newPayment.client?.name || 'Unknown Client',
+            clientName: clientName,
             clientId: newPayment.clientId,
+            contact: contactInfo || "-", // Keep separate for filtering/search
             amount: newPayment.amount,
             date: newPayment.paymentDate,
-            method: newPayment.method || 'Cash',
-            notes: newPayment.notes || ''
+            method: newPayment.method || "Cash",
+            notes: newPayment.notes || "",
+            totalAmount: totalAmount,
+            totalPaid: newPayment.totalPaid || 0,
+            remainingAmount: newPayment.remainingAmount || 0,
           };
 
           setPayments([...payments, mappedNewPayment]);
           setShowForm(false);
         } else if (response.status === 401) {
-          router.push('/login');
+          router.push("/login");
         } else {
-          alert('Failed to add payment');
+          alert("Failed to add payment");
         }
+        // // Add new payment
+        // const response = await fetch("/api/payments", {
+        //   method: "POST",
+        //   headers: {
+        //     Authorization: `Bearer ${token}`,
+        //     "Content-Type": "application/json",
+        //   },
+        //   body: JSON.stringify(paymentData),
+        // });
+
+        // if (response.ok) {
+        //   const newPayment = await response.json();
+        //   const mappedNewPayment = {
+        //     id: newPayment.id,
+        //     clientName: newPayment.client?.name || "Unknown Client",
+        //     clientId: newPayment.clientId,
+        //     amount: newPayment.amount,
+        //     date: newPayment.paymentDate,
+        //     method: newPayment.method || "Cash",
+        //     notes: newPayment.notes || "",
+        //   };
+
+        //   setPayments([...payments, mappedNewPayment]);
+        //   setShowForm(false);
+        // } else if (response.status === 401) {
+        //   router.push("/login");
+        // } else {
+        //   alert("Failed to add payment");
+        // }
       }
     } catch (error) {
-      console.error('Error saving payment:', error);
-      alert('Failed to save payment');
+      console.error("Error saving payment:", error);
+      alert("Failed to save payment");
     }
   };
 
@@ -250,9 +391,7 @@ export default function PaymentsPage() {
               <FileText className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
-            {filteredPayments.length}
-          </div>
+          <div className="text-2xl font-bold">{filteredPayments.length}</div>
         </div>
 
         <div className="p-5 bg-white rounded-xl border shadow-sm">
@@ -263,7 +402,12 @@ export default function PaymentsPage() {
             </div>
           </div>
           <div className="text-2xl font-bold">
-            Rs {filteredPayments.length ? Math.round(totalPayments / filteredPayments.length).toLocaleString("en-PK") : '0'}
+            Rs{" "}
+            {filteredPayments.length
+              ? Math.round(
+                  totalPayments / filteredPayments.length,
+                ).toLocaleString("en-PK")
+              : "0"}
           </div>
         </div>
       </div>
@@ -292,8 +436,10 @@ export default function PaymentsPage() {
               className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white appearance-none cursor-pointer"
             >
               <option value="all">All Methods</option>
-              {paymentMethods.map(method => (
-                <option key={method} value={method}>{method}</option>
+              {paymentMethods.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
               ))}
             </select>
           </div>
@@ -304,7 +450,9 @@ export default function PaymentsPage() {
             <input
               type="date"
               value={dateRange.start}
-              onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+              onChange={(e) =>
+                setDateRange({ ...dateRange, start: e.target.value })
+              }
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
               placeholder="Start date"
             />
@@ -314,7 +462,9 @@ export default function PaymentsPage() {
             <input
               type="date"
               value={dateRange.end}
-              onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+              onChange={(e) =>
+                setDateRange({ ...dateRange, end: e.target.value })
+              }
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
               placeholder="End date"
             />
@@ -331,9 +481,12 @@ export default function PaymentsPage() {
               <CreditCard className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h2 className="font-semibold text-slate-800 dark:text-white">All Payments</h2>
+              <h2 className="font-semibold text-slate-800 dark:text-white">
+                All Payments
+              </h2>
               <p className="text-sm text-slate-500 dark:text-gray-400">
-                {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''} found
+                {filteredPayments.length} payment
+                {filteredPayments.length !== 1 ? "s" : ""} found
               </p>
             </div>
           </div>
@@ -344,12 +497,15 @@ export default function PaymentsPage() {
           <table className="w-full">
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
-                <th className="px-6 py-4">Client</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Method</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Notes</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-3 py-4">Client</th>
+                <th className="px-3 py-4">Contact</th>
+                <th className="px-3 py-4">Total Amount</th>
+                <th className="px-3 py-4">Total Paid</th>
+                <th className="px-3 py-4">Remaining</th>
+                <th className="px-3 py-4">Date</th>
+                <th className="px-3 py-4">Method</th>
+                <th className="px-3 py-4">Amount</th>
+                <th className="px-3 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
@@ -360,30 +516,72 @@ export default function PaymentsPage() {
                     className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800 dark:text-white">{payment.clientName}</div>
+                    <td className="px-3 py-4">
+                      <div
+                        className="font-semibold text-slate-800 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 underline"
+                        onClick={() => setSelectedClientDetails(payment)}
+                        title="Click to view client payment details"
+                      >
+                        {payment.clientName}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-gray-300">
-                      {new Date(payment.date).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
+
+                    {/* Contact Column */}
+                    <td className="px-3 py-4">
+                      {payment.contact && payment.contact !== "-" ? (
+                        <span className="text-slate-600 dark:text-gray-300 text-sm">
+                          {payment.contact}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-gray-500 text-sm">
+                          -
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Total Amount Column */}
+                    <td className="px-3 py-4">
+                      <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                        Rs {(payment.totalAmount || 0).toLocaleString("en-PK")}
+                      </span>
+                    </td>
+
+                    {/* Total Paid Column */}
+                    <td className="px-3 py-4">
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        Rs {(payment.totalPaid || 0).toLocaleString("en-PK")}
+                      </span>
+                    </td>
+
+                    {/* Remaining Amount Column */}
+                    <td className="px-3 py-4">
+                      <span className={`font-semibold ${
+                        (payment.remainingAmount || 0) > 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        Rs {(payment.remainingAmount || 0).toLocaleString("en-PK")}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-4 text-slate-600 dark:text-gray-300">
+                      {new Date(payment.date).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
                       })}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-4">
                       <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full font-medium">
                         {payment.method}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-4">
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                         Rs {payment.amount.toLocaleString("en-PK")}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-gray-400">
-                      {payment.notes || '-'}
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEditPayment(payment)}
@@ -394,7 +592,7 @@ export default function PaymentsPage() {
                         </button>
                         <button
                           onClick={() => handleDeletePayment(payment.id)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors group/btn"
+                          className="p-2 text-rose-600 hover:bg-rose-500 dark:hover:bg-rose-900/20 rounded-lg transition-colors group/btn"
                           title="Delete payment"
                         >
                           <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
@@ -405,15 +603,20 @@ export default function PaymentsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
+                  {/* TOTAL COLUMNS  */}
+                  <td colSpan={9} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
                       <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
                         <CreditCard className="w-12 h-12 opacity-50" />
                       </div>
                       <div>
-                        <p className="font-semibold text-lg">No payments found</p>
+                        <p className="font-semibold text-lg">
+                          No payments found
+                        </p>
                         <p className="text-sm mt-1">
-                          {searchTerm ? `No results for "${searchTerm}"` : 'Get started by adding your first payment'}
+                          {searchTerm
+                            ? `No results for "${searchTerm}"`
+                            : "Get started by adding your first payment"}
                         </p>
                       </div>
                       {!searchTerm && (
@@ -443,6 +646,86 @@ export default function PaymentsPage() {
           paymentMethods={paymentMethods}
         />
       )}
+
+      {/* Client Details Modal */}
+      {selectedClientDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Client Payment Details
+              </h2>
+              <button
+                onClick={() => setSelectedClientDetails(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl">
+                <h3 className="font-semibold text-gray-800 mb-2">{selectedClientDetails.clientName}</h3>
+                {selectedClientDetails.contact && selectedClientDetails.contact !== "-" && (
+                  <p className="text-gray-600 text-sm">Contact: {selectedClientDetails.contact}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                  <p className="text-sm text-indigo-600 font-medium">Total Amount</p>
+                  <p className="text-2xl font-bold text-indigo-800">
+                    Rs {(selectedClientDetails.totalAmount || 0).toLocaleString("en-PK")}
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                  <p className="text-sm text-emerald-600 font-medium">Total Paid</p>
+                  <p className="text-2xl font-bold text-emerald-800">
+                    Rs {(selectedClientDetails.totalPaid || 0).toLocaleString("en-PK")}
+                  </p>
+                </div>
+
+                <div className={`p-4 rounded-xl border ${
+                  (selectedClientDetails.remainingAmount || 0) > 0
+                    ? 'bg-rose-50 border-rose-100'
+                    : 'bg-emerald-50 border-emerald-100'
+                }`}>
+                  <p className="text-sm font-medium mb-1">
+                    {selectedClientDetails.remainingAmount && (selectedClientDetails.remainingAmount || 0) > 0
+                      ? 'Remaining Amount'
+                      : 'Payment Status'}
+                  </p>
+                  <p className={`text-2xl font-bold ${
+                    (selectedClientDetails.remainingAmount || 0) > 0
+                      ? 'text-rose-600'
+                      : 'text-emerald-600'
+                  }`}>
+                    Rs {(selectedClientDetails.remainingAmount || 0).toLocaleString("en-PK")}
+                  </p>
+                  {selectedClientDetails.remainingAmount && (selectedClientDetails.remainingAmount || 0) <= 0 && (
+                    <p className="text-emerald-600 text-sm mt-1">✅ Fully Paid</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  onClick={() => {
+                    // Pre-fill payment form for this client
+                    setEditingPayment(selectedClientDetails);
+                    setShowForm(true);
+                    setSelectedClientDetails(null);
+                  }}
+                  className="w-full px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+                >
+                  Add Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -452,7 +735,7 @@ function PaymentFormModal({
   payment,
   onClose,
   onSave,
-  paymentMethods
+  paymentMethods,
 }: {
   payment: Payment | null;
   onClose: () => void;
@@ -460,53 +743,73 @@ function PaymentFormModal({
   paymentMethods: string[];
 }) {
   const [formData, setFormData] = useState({
-    clientName: payment?.clientName || '',
-    clientId: payment?.clientId || '',
+    clientName: payment?.clientName || "",
+    clientId: payment?.clientId || "",
     amount: payment?.amount || 0,
-    date: payment?.date || new Date().toISOString().split('T')[0],
+    date: payment?.date || new Date().toISOString().split("T")[0],
     method: payment?.method || paymentMethods[0],
-    notes: payment?.notes || ''
   });
 
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string; packageName: string; packagePrice: number }[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch('/api/clients', {
+        const response = await fetch("/api/clients", {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
 
         if (response.ok) {
           const data = await response.json();
-          // Map clients to id/name pairs
-          const clientOptions = data.map((client: any) => ({
-            id: client.id,
-            name: client.name
-          }));
+          // Map clients to id/name pairs with contact info and package details
+          const clientOptions = data.map((client: any) => {
+            // Determine contact information with priority: phone first, then email
+            const contactInfo = client.phone || client.email || "";
+
+            // Format client name as "Name (contact)" if contact exists, otherwise just the name
+            const displayName = contactInfo
+              ? `${client.name} (${contactInfo})`
+              : client.name;
+
+            // Include package information in the display
+            const packageName = client.package?.name || 'No Package';
+            const packagePrice = client.price || 0;
+
+            return {
+              id: client.id,
+              name: displayName,
+              originalName: client.name, // Keep original name for reference
+              phone: client.phone,
+              email: client.email,
+              packageName: packageName,
+              packagePrice: packagePrice,
+            };
+          });
           setClients(clientOptions);
 
           // If editing, set the correct client
           if (payment) {
-            const matchedClient = clientOptions.find((c: { id: string }) => c.id === payment.clientId);
+            const matchedClient = clientOptions.find(
+              (c: { id: string }) => c.id === payment.clientId,
+            );
             if (matchedClient) {
-              setFormData(prev => ({
+              setFormData((prev) => ({
                 ...prev,
                 clientName: matchedClient.name,
-                clientId: matchedClient.id
+                clientId: matchedClient.id,
               }));
             }
           }
         }
       } catch (error) {
-        console.error('Error fetching clients:', error);
+        console.error("Error fetching clients:", error);
       } finally {
         setLoadingClients(false);
       }
@@ -515,28 +818,34 @@ function PaymentFormModal({
     fetchClients();
   }, [payment]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) => {
     const { name, value } = e.target;
 
-    if (name === 'clientName') {
+    if (name === "clientName") {
       // Find the corresponding client ID when client name is selected
-      const selectedClient = clients.find(client => client.name === value);
-      setFormData(prev => ({
+      const selectedClient = clients.find((client) => client.name === value);
+      setFormData((prev) => ({
         ...prev,
         [name]: value,
-        clientId: selectedClient ? selectedClient.id : ''
+        clientId: selectedClient ? selectedClient.id : "",
       }));
     } else {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        [name]: name === 'amount' ? Number(value) : value
+        [name]: name === "amount" ? Number(value) : value,
       }));
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    // Remove notes field from form data before saving
+    const { clientName, ...paymentData } = formData;
+    onSave(paymentData);
   };
 
   if (loadingClients) {
@@ -545,7 +854,7 @@ function PaymentFormModal({
         <div className="bg-white rounded-2xl p-6 w-full max-w-md">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">
-              {payment ? 'Edit Payment' : 'Add New Payment'}
+              {payment ? "Edit Payment" : "Add New Payment"}
             </h2>
             <button
               onClick={onClose}
@@ -569,7 +878,7 @@ function PaymentFormModal({
       <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900">
-            {payment ? 'Edit Payment' : 'Add New Payment'}
+            {payment ? "Edit Payment" : "Add New Payment"}
           </h2>
           <button
             onClick={onClose}
@@ -581,7 +890,9 @@ function PaymentFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Client *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Client *
+            </label>
             <select
               name="clientName"
               value={formData.clientName}
@@ -590,14 +901,18 @@ function PaymentFormModal({
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
             >
               <option value="">Select a client</option>
-              {clients.map(client => (
-                <option key={client.id} value={client.name}>{client.name}</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.name}>
+                  {client.name} - {client.packageName} (Rs. {client.packagePrice})
+                </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Amount *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Amount *
+            </label>
             <input
               type="number"
               name="amount"
@@ -612,7 +927,9 @@ function PaymentFormModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Method *
+            </label>
             <select
               name="method"
               value={formData.method}
@@ -620,14 +937,18 @@ function PaymentFormModal({
               required
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
             >
-              {paymentMethods.map(method => (
-                <option key={method} value={method}>{method}</option>
+              {paymentMethods.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Date *
+            </label>
             <input
               type="date"
               name="date"
@@ -638,17 +959,6 @@ function PaymentFormModal({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
-              placeholder="Enter payment notes (optional)"
-            />
-          </div>
 
           <div className="flex gap-3 pt-4">
             <button
@@ -662,7 +972,7 @@ function PaymentFormModal({
               type="submit"
               className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
             >
-              {payment ? 'Update' : 'Add'} Payment
+              {payment ? "Update" : "Add"} Payment
             </button>
           </div>
         </form>
@@ -688,7 +998,10 @@ function PaymentsSkeleton() {
       {/* Stats Skeleton */}
       <div className="grid md:grid-cols-3 gap-5">
         {[1, 2, 3].map((item) => (
-          <div key={item} className="p-5 bg-white dark:bg-gray-800 rounded-xl border">
+          <div
+            key={item}
+            className="p-5 bg-white dark:bg-gray-800 rounded-xl border"
+          >
             <div className="flex justify-between items-center mb-3">
               <div className="h-4 w-24 bg-slate-100 dark:bg-gray-700 rounded" />
               <div className="w-10 h-10 bg-slate-100 dark:bg-gray-700 rounded-xl" />

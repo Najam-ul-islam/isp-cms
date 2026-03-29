@@ -46,7 +46,7 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
     ];
   }
 
-  return await prisma.client.findMany({
+  const clients = await prisma.client.findMany({
     where: whereClause,
     include: {
       package: {
@@ -59,6 +59,47 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
       createdAt: 'desc'
     }
   });
+
+  // Calculate total paid amount for each client
+  const clientsWithPaymentData = await Promise.all(
+    clients.map(async (client) => {
+      // Get all payments for this client
+      const payments = await prisma.payment.findMany({
+        where: {
+          clientId: client.id
+        }
+      });
+
+      // Calculate total paid amount
+      const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+      // Calculate remaining amount
+      const totalDue = client.price;
+      const remainingAmount = totalDue - totalPaid;
+
+      // Determine the effective payment status based on actual payments
+      let effectivePaymentStatus = client.paymentStatus;
+      if (totalPaid > 0 && totalPaid < totalDue) {
+        effectivePaymentStatus = 'partial';
+      } else if (totalPaid >= totalDue) {
+        effectivePaymentStatus = 'paid';
+      } else if (totalPaid === 0) {
+        effectivePaymentStatus = 'unpaid';
+      }
+
+      return {
+        ...client,
+        _count: {
+          payments: payments.length
+        },
+        totalPaid: totalPaid,
+        remainingAmount: remainingAmount,
+        effectivePaymentStatus: effectivePaymentStatus
+      };
+    })
+  );
+
+  return clientsWithPaymentData;
 };
 
 export const getClientStats = async (admin: AdminWithPackages, filters?: ClientFilters) => {

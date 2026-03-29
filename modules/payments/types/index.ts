@@ -8,6 +8,7 @@ export const paymentWithClientInclude = {
       id: true,
       name: true,
       phone: true,
+      email: true,
     },
   },
 } as const satisfies Prisma.PaymentInclude;
