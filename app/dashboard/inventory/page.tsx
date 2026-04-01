@@ -23,16 +23,22 @@ export default function InventoryPage() {
   useEffect(() => {
     const fetchInventory = async () => {
       try {
-        const token = localStorage.getItem("token");
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (authCheck.status === 401) {
+          router.push('/login');
+          return;
+        }
 
         const response = await fetch(`/api/inventory?search=${searchTerm}`, {
-          headers,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (response.status === 401) {

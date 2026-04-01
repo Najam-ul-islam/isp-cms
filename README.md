@@ -77,6 +77,7 @@ Create a `.env` file in the root directory:
 ```env
 DATABASE_URL="postgresql://username:password@localhost:5432/isp_cms"
 JWT_SECRET="your-super-secret-jwt-key-here-make-it-long-and-random"
+JWT_REFRESH_SECRET="your-super-secret-refresh-token-key-here-make-it-long-and-random"
 ```
 
 ### 4. Database Setup
@@ -109,10 +110,15 @@ npm run start
 4. Access the dashboard at `/dashboard` to manage clients and packages
 
 ## Security Features
-- Passwords are hashed using bcrypt
-- JWT tokens for authentication
+- Passwords are hashed using bcrypt with 10 salt rounds
+- JWT Access + Refresh token strategy with HTTP-only cookies
+- Secure token storage with automatic rotation
+- CSRF protection with validation tokens
+- Rate limiting to prevent brute force attacks
+- Session management with database tracking
+- Secure cookie configuration (HttpOnly, Secure, SameSite)
 - Middleware protection for private routes
-- Input validation on API endpoints
+- Input validation and sanitization on all API endpoints
 
 ## Technologies Used
 - Next.js 16+ (App Router)
@@ -160,19 +166,34 @@ npm run start
   {
     "name": "string",
     "email": "string",
-    "password": "string"
+    "password": "string",
+    "rememberMe": "boolean (optional)"
   }
   ```
-  Response: `{ "message": "success", "token": "jwt_token", "admin": {...} }`
+  Headers: `X-CSRF-Token: csrf_token_value`
+  Response: `{ "message": "success", "admin": {...} }`
+  Cookies: `access_token`, `refresh_token` (HTTP-only)
 
 - **POST /api/auth/signin**
   ```json
   {
     "email": "string",
-    "password": "string"
+    "password": "string",
+    "rememberMe": "boolean (optional)"
   }
   ```
-  Response: `{ "message": "success", "token": "jwt_token", "admin": {...} }`
+  Headers: `X-CSRF-Token: csrf_token_value`
+  Response: `{ "message": "success", "admin": {...} }`
+  Cookies: `access_token`, `refresh_token` (HTTP-only)
+
+- **POST /api/auth/logout**
+  Headers: `X-CSRF-Token: csrf_token_value`
+  Response: `{ "message": "Logged out successfully" }`
+  Cookies: `access_token` and `refresh_token` are cleared
+
+- **POST /api/auth/refresh**
+  Response: `{ "message": "Tokens refreshed successfully", "user": {...} }`
+  Cookies: New `access_token` and `refresh_token` (HTTP-only)
 
 ### Clients
 - **GET /api/clients** - Requires auth header

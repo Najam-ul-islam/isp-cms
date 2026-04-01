@@ -7,7 +7,7 @@ import { Client, Package, ServiceProvider } from '@prisma/client'
 import {
   User, Phone, CreditCard, MapPin, Calendar, CheckCircle, AlertCircle, X,
   RefreshCw, Search, ChevronDown, ArrowUpDown, Edit2, Trash2, Plus,
-  Wifi, Clock, IndianRupee, Mail, Hash, Building, Factory
+  Wifi, Clock, IndianRupee, Mail, Hash, Building, Factory, FileText
 } from 'lucide-react'
 
 interface ClientWithPackage extends Client {
@@ -55,31 +55,52 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) { router.push('/login'); return }
-    const fetchClients = async () => {
+    // Check if user is authenticated by making a simple API call
+    const checkAuth = async () => {
       try {
-        const res = await fetch('/api/clients', {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          cache: 'no-store'
+        const res = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
         })
-        if (res.ok) {
-          const data: ExtendedClient[] = await res.json()
-          setClients(data)
-        } else if (res.status === 401) {
+
+        if (res.status === 401) {
           router.push('/login')
-        } else {
-          showNotification('error', 'Failed to fetch clients')
+          return
         }
+
+        const fetchClients = async () => {
+          try {
+            const res = await fetch('/api/clients', {
+              credentials: 'include', // This ensures cookies are sent with the request
+              cache: 'no-store'
+            })
+
+            if (res.ok) {
+              const data: ExtendedClient[] = await res.json()
+              setClients(data)
+            } else if (res.status === 401) {
+              router.push('/login')
+            } else {
+              showNotification('error', 'Failed to fetch clients')
+            }
+          } catch (err) {
+            console.error('Error fetching clients:', err)
+            showNotification('error', 'Network error. Please try again.')
+            router.push('/login')
+          } finally {
+            setLoading(false)
+          }
+        }
+
+        fetchClients()
       } catch (err) {
-        console.error('Error fetching clients:', err)
-        showNotification('error', 'Network error. Please try again.')
+        console.error('Auth check failed:', err)
         router.push('/login')
-      } finally {
         setLoading(false)
       }
     }
-    fetchClients()
+
+    checkAuth()
   }, [router])
 
   useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterPayment, expiringFilter])
@@ -97,18 +118,19 @@ export default function ClientsPage() {
   }, [filterStatus, filterPayment, expiringFilter])
 
   const handleDelete = async (id: string) => {
-    const token = localStorage.getItem('token')
-    if (!token) return
     setDeletingId(id)
     try {
       const res = await fetch(`/api/clients/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include' // This ensures cookies are sent with the request
       })
       if (res.ok) {
         setClients(clients.filter(client => client.id !== id))
         showNotification('success', 'Client deleted successfully')
         setShowDeleteConfirm(null)
+      } else if (res.status === 401) {
+        router.push('/login') // Redirect to login if unauthorized
       } else {
         const error = await res.json()
         showNotification('error', error.message || 'Failed to delete client')
@@ -118,6 +140,17 @@ export default function ClientsPage() {
       showNotification('error', 'An error occurred while deleting')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleGenerateInvoice = async (client: ExtendedClient) => {
+    try {
+      // Navigate to the invoice detail page
+      router.push(`/dashboard/clients/${client.id}/invoice`);
+      showNotification('success', `Navigating to invoice for ${client.name}`);
+    } catch (err) {
+      console.error('Error navigating to invoice:', err);
+      showNotification('error', 'Failed to navigate to invoice');
     }
   }
 
@@ -259,7 +292,7 @@ export default function ClientsPage() {
           </div>
           <div className="relative">
             <select value={`${sortBy}-${sortOrder}`} onChange={(e) => { const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder]; setSortBy(newSortBy); setSortOrder(newSortOrder) }} className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer min-w-40">
-              <option value="name-asc">Name (A-Z)</option><option value="name-desc">Name (Z-A)</option><option value="phone-asc">Phone (A-Z)</option><option value="phone-desc">Phone (Z-A)</option><option value="city-asc">City (A-Z)</option><option value="city-desc">City (Z-A)</option><option value="area-asc">Area (A-Z)</option><option value="area-desc">Area (Z-A)</option><option value="price-asc">Price (Low-High)</option><option value="price-desc">Price (High-Low)</option><option value="expiryDate-asc">Expiry (Soon-Late)</option><option value="expiryDate-desc">Expiry (Late-Soon)</option>
+              <option value="name-asc">Name (A-Z)</option><option value="name-desc">Name (Z-A)</option><option value="phone-asc">Phone (A-Z)</option><option value="phone-desc">Phone (Z-A)</option><option value="area-asc">Area (A-Z)</option><option value="area-desc">Area (Z-A)</option><option value="price-asc">Price (Low-High)</option><option value="price-desc">Price (High-Low)</option><option value="expiryDate-asc">Expiry (Soon-Late)</option><option value="expiryDate-desc">Expiry (Late-Soon)</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
@@ -282,7 +315,7 @@ export default function ClientsPage() {
               {currentClients.map((client, index) => {
                 const clientExpired = isExpired(client.expiryDate)
                 return (
-                  <div key={client.id} className="p-3 hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group" style={{ animationDelay: `${index * 50}ms` }}>
+                  <div key={client.id} className="p-3 hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group cursor-pointer" style={{ animationDelay: `${index * 50}ms` }} onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
                     <div className="flex items-start gap-2 mb-2">
                       <div className="p-2 bg-linear-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg shadow-indigo-500/20 shrink-0"><User className="w-4 h-4 text-white" /></div>
                       <div className="flex-1 min-w-0">
@@ -319,8 +352,11 @@ export default function ClientsPage() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>{clientExpired ? 'Expired' : client.status || 'unknown'}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Link href={`/dashboard/clients/${client.id}/edit`} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></Link>
-                        <button onClick={() => setShowDeleteConfirm(client.id)} disabled={deletingId === client.id} className="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded transition-colors disabled:opacity-50" title="Delete">
+                        <button onClick={(e) => { e.stopPropagation(); handleGenerateInvoice(client) }} className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Generate Invoice">
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/clients/${client.id}/edit`) }} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(client.id) }} disabled={deletingId === client.id} className="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded transition-colors disabled:opacity-50" title="Delete">
                           {deletingId === client.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
                       </div>
@@ -347,7 +383,6 @@ export default function ClientsPage() {
               <tr className="text-left text-xs font-medium text-slate-500 dark:text-gray-400">
                 <th className="px-4 py-2.5">Client</th>
                 <th className="px-4 py-2.5">Contact</th>
-                <th className="px-4 py-2.5"><button onClick={() => { setSortBy('city'); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc') }} className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-gray-200 transition-colors">City<ArrowUpDown className="w-3 h-3" /></button></th>
                 <th className="px-4 py-2.5">Area</th>
                 <th className="px-4 py-2.5">Package</th>
                 <th className="px-4 py-2.5">Provider</th>
@@ -363,14 +398,13 @@ export default function ClientsPage() {
                 currentClients.map((client, index) => {
                   const clientExpired = isExpired(client.expiryDate)
                   return (
-                    <tr key={client.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group" style={{ animationDelay: `${index * 50}ms` }}>
+                    <tr key={client.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group cursor-pointer" style={{ animationDelay: `${index * 50}ms` }} onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <div><p className="text-sm text-slate-800 dark:text-white font-medium">{client.name}</p><p className="text-[10px] text-slate-500 dark:text-gray-400 flex items-center gap-0.5"><Hash className="w-2.5 h-2.5" />{client.cnic}</p></div>
                         </div>
                       </td>
                       <td className="px-4 py-2.5"><div className="space-y-0.5"><p className="text-sm text-slate-700 dark:text-gray-200">{client.phone}</p>{client.email && <p className="text-[10px] text-slate-500 dark:text-gray-400">{client.email}</p>}</div></td>
-                      <td className="px-4 py-2.5"><p className="text-sm text-slate-700 dark:text-gray-200">{client.city}</p></td>
                       <td className="px-4 py-2.5"><p className="text-sm text-slate-700 dark:text-gray-200">{client.area || '-'}</p></td>
                       <td className="px-4 py-2.5"><div className="space-y-0.5"><p className="text-sm text-slate-800 dark:text-white">{client.package?.name || 'No Package'}</p>{client.package && <p className="text-[10px] text-slate-500 dark:text-gray-400">{client.package.speed} Mbps</p>}</div></td>
                       <td className="px-4 py-2.5"><div className="space-y-0.5"><p className="text-sm text-slate-800 dark:text-white">{client.package?.serviceProvider?.name || 'No Provider'}</p>{client.package?.serviceProvider && <p className="text-[10px] text-slate-500 dark:text-gray-400">{client.package.purchasePrice ? formatPKR(client.package.purchasePrice) : 'N/A'}</p>}</div></td>
@@ -390,8 +424,11 @@ export default function ClientsPage() {
                       <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>{clientExpired ? 'Expired' : client.status || 'unknown'}</span></td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-end gap-1">
-                          <Link href={`/dashboard/clients/${client.id}/edit`} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></Link>
-                          <button onClick={() => setShowDeleteConfirm(client.id)} disabled={deletingId === client.id} className="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded transition-colors disabled:opacity-50" title="Delete">
+                          <button onClick={(e) => { e.stopPropagation(); handleGenerateInvoice(client) }} className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors" title="Generate Invoice">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/clients/${client.id}/edit`) }} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(client.id) }} disabled={deletingId === client.id} className="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded transition-colors disabled:opacity-50" title="Delete">
                             {deletingId === client.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                           </button>
                         </div>

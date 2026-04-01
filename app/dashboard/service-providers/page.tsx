@@ -47,51 +47,73 @@ export default function ServiceProvidersPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const fetchServiceProviders = async () => {
+    // Check if user is authenticated by making a simple API call
+    const checkAuth = async () => {
       try {
-        const res = await fetch('/api/service-providers', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          cache: 'no-store'
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          setServiceProviders(data);
-        } else if (res.status === 401) {
+        if (authCheck.status === 401) {
           router.push('/login');
-        } else {
-          showNotification('error', 'Failed to fetch service providers');
+          return;
         }
+
+        const fetchServiceProviders = async () => {
+          try {
+            const res = await fetch('/api/service-providers', {
+              credentials: 'include', // This ensures cookies are sent with the request
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              cache: 'no-store'
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              setServiceProviders(data);
+            } else if (res.status === 401) {
+              router.push('/login');
+            } else {
+              showNotification('error', 'Failed to fetch service providers');
+            }
+          } catch (err) {
+            console.error('Error fetching service providers:', err);
+            showNotification('error', 'Network error. Please try again.');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchServiceProviders();
       } catch (err) {
-        console.error('Error fetching service providers:', err);
-        showNotification('error', 'Network error. Please try again.');
-      } finally {
-        setLoading(false);
+        console.error('Error during auth check:', err);
+        showNotification('error', 'Authentication error. Please try again.');
       }
     };
 
-    fetchServiceProviders();
+    checkAuth();
   }, [router]);
 
   const handleDelete = async (id: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    // Check if user is authenticated by making a simple API call
+    const authCheck = await fetch('/api/auth/check', {
+      method: 'GET',
+      credentials: 'include' // This ensures cookies are sent with the request
+    });
+
+    if (authCheck.status === 401) {
+      router.push('/login');
+      return;
+    }
 
     setDeletingId(id);
     try {
       const res = await fetch(`/api/service-providers/${id}`, {
         method: 'DELETE',
+        credentials: 'include', // This ensures cookies are sent with the request
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });

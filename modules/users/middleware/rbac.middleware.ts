@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFromToken } from '@/lib/jwt';
+import { getAdminFromRequest } from '@/lib/secure-jwt';
 import { Role } from '@prisma/client';
+import { getAuthTokensFromRequest } from '@/lib/token';
+import { handleTokenRefresh } from '@/lib/auth-service';
 
 interface PermissionRule {
   [resource: string]: {
@@ -53,18 +55,31 @@ export const checkPermission = async (
   requiredRoles: Role[]
 ): Promise<{ allowed: boolean; userId?: string; userRole?: Role }> => {
   try {
-    // Extract token from request
-    const token = request.headers.get('authorization')?.replace('Bearer ', '') ||
-                  request.cookies.get('token')?.value;
-
-    if (!token) {
-      return { allowed: false };
-    }
-
-    // Verify token and get user info
-    const admin = await getAdminFromToken({ headers: { authorization: `Bearer ${token}` } } as any);
+    // Get admin info from the access token
+    const admin = await getAdminFromRequest(request);
 
     if (!admin) {
+      // If access token is invalid, try to refresh it
+      const { refreshToken } = getAuthTokensFromRequest(request);
+      if (refreshToken) {
+        // Attempt token refresh
+        const refreshResponse = await handleTokenRefresh(request);
+        if (refreshResponse?.status === 200) {
+          // Successfully refreshed, try to get admin again
+          const newAdmin = await getAdminFromRequest(request);
+          if (newAdmin) {
+            // Check if user has required role
+            const hasPermission = requiredRoles.includes(newAdmin.role as Role);
+
+            return {
+              allowed: hasPermission,
+              userId: newAdmin.id,
+              userRole: newAdmin.role as Role
+            };
+          }
+        }
+      }
+
       return { allowed: false };
     }
 

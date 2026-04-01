@@ -24,16 +24,25 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     // Check if current user is admin
-    const token = localStorage.getItem("token");
-    if (token) {
+    const checkAdminStatus = async () => {
       try {
-        // Decode JWT token to check role
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setIsAdmin(payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN');
+        const response = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.user.role === 'ADMIN' || data.user.role === 'SUPER_ADMIN');
+        } else {
+          router.push('/login');
+        }
       } catch (error) {
-        console.error('Error decoding token:', error);
+        console.error('Error checking admin status:', error);
       }
-    }
+    };
+
+    checkAdminStatus();
   }, []);
 
   const handleRoleChange = async (employeeId: string, newRole: string) => {
@@ -43,17 +52,23 @@ export default function EmployeesPage() {
     }
 
     try {
-      const token = localStorage.getItem("token");
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (authCheck.status === 401) {
+        router.push('/login');
+        return;
+      }
 
       const response = await fetch("/api/employees", {
         method: "PUT",
-        headers,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           id: employeeId,
           action: 'assign-role',
@@ -84,16 +99,22 @@ export default function EmployeesPage() {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const token = localStorage.getItem("token");
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (authCheck.status === 401) {
+          router.push('/login');
+          return;
+        }
 
         const response = await fetch(`/api/employees?search=${searchTerm}`, {
-          headers,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (response.status === 401) {

@@ -33,15 +33,20 @@ export default function ExpensesPage() {
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (authCheck.status === 401) {
           router.push('/login');
           return;
         }
 
         const response = await fetch('/api/expenses', {
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -87,16 +92,21 @@ export default function ExpensesPage() {
   const handleDeleteExpense = async (id: string) => {
     if (confirm('Are you sure you want to delete this expense?')) {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (authCheck.status === 401) {
           router.push('/login');
           return;
         }
 
         const response = await fetch(`/api/expenses/${id}`, {
           method: 'DELETE',
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -117,8 +127,13 @@ export default function ExpensesPage() {
 
   const handleSaveExpense = async (expenseData: Partial<Expense>) => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
+
+      if (authCheck.status === 401) {
         router.push('/login');
         return;
       }
@@ -127,8 +142,8 @@ export default function ExpensesPage() {
         // Update existing expense
         const response = await fetch(`/api/expenses/${editingExpense.id}`, {
           method: 'PUT',
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(expenseData),
@@ -149,8 +164,8 @@ export default function ExpensesPage() {
         // Add new expense
         const response = await fetch('/api/expenses', {
           method: 'POST',
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(expenseData),

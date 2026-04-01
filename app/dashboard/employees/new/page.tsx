@@ -104,12 +104,16 @@ export default function NewEmployeePage() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (authCheck.status === 401) {
+        router.push('/login');
+        return;
+      }
 
       // Prepare permissions data
       const permissionsData: Record<string, any> = {};
@@ -123,8 +127,10 @@ export default function NewEmployeePage() {
 
       const response = await fetch("/api/employees", {
         method: "POST",
-        headers,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           ...formData,
           salary: formData.salary ? parseFloat(formData.salary) : undefined,
@@ -282,68 +288,70 @@ export default function NewEmployeePage() {
             </div>
           </div>
 
-          <div className="space-y-3">
-            {permissions.map((permission, index) => (
-              <div key={permission.module} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
-                <span className="font-medium text-slate-700">{permission.module}</span>
+          <div className="max-h-[400px] overflow-y-auto pr-2 -mr-2 p-2">
+            <div className="space-y-3">
+              {permissions.map((permission, index) => (
+                <div key={permission.module} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                  <span className="font-medium text-slate-700">{permission.module}</span>
 
-                <div className="flex items-center gap-4">
-                  {/* Read */}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={permission.read}
-                      onChange={() => togglePermission(index, 'read')}
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      permission.read
-                        ? "bg-emerald-500 border-emerald-500"
-                        : "border-slate-300"
-                    }`}>
-                      {permission.read && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <span className="text-sm">Read</span>
-                  </label>
+                  <div className="flex items-center gap-4">
+                    {/* Read */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permission.read}
+                        onChange={() => togglePermission(index, 'read')}
+                        className="sr-only"
+                      />
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        permission.read
+                          ? "bg-emerald-500 border-emerald-500"
+                          : "border-slate-300"
+                      }`}>
+                        {permission.read && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="text-sm">Read</span>
+                    </label>
 
-                  {/* Write */}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={permission.write}
-                      onChange={() => togglePermission(index, 'write')}
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      permission.write
-                        ? "bg-blue-500 border-blue-500"
-                        : "border-slate-300"
-                    }`}>
-                      {permission.write && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <span className="text-sm">Write</span>
-                  </label>
+                    {/* Write */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permission.write}
+                        onChange={() => togglePermission(index, 'write')}
+                        className="sr-only"
+                      />
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        permission.write
+                          ? "bg-blue-500 border-blue-500"
+                          : "border-slate-300"
+                      }`}>
+                        {permission.write && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="text-sm">Write</span>
+                    </label>
 
-                  {/* Execute */}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={permission.execute}
-                      onChange={() => togglePermission(index, 'execute')}
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      permission.execute
-                        ? "bg-purple-500 border-purple-500"
-                        : "border-slate-300"
-                    }`}>
-                      {permission.execute && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <span className="text-sm">Execute</span>
-                  </label>
+                    {/* Execute */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permission.execute}
+                        onChange={() => togglePermission(index, 'execute')}
+                        className="sr-only"
+                      />
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        permission.execute
+                          ? "bg-purple-500 border-purple-500"
+                          : "border-slate-300"
+                      }`}>
+                        {permission.execute && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="text-sm">Execute</span>
+                    </label>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">

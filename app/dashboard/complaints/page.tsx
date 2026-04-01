@@ -48,15 +48,20 @@ export default function ComplaintsPage() {
 
     setClientsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
+
+      if (authCheck.status === 401) {
         router.push('/login');
         return;
       }
 
       const response = await fetch('/api/clients', {
+        credentials: 'include', // This ensures cookies are sent with the request
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -93,15 +98,20 @@ export default function ComplaintsPage() {
   useEffect(() => {
     const fetchComplaints = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (authCheck.status === 401) {
           router.push('/login');
           return;
         }
 
         const response = await fetch(`/api/complaints`, {
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });

@@ -1,42 +1,89 @@
 import { NextResponse } from 'next/server'
-  import { authenticateAdmin, generateToken } from '@/lib/auth'
-  import {prisma} from '@/lib/prisma'
+import { authenticateAdmin } from '@/lib/auth'
+import { authenticateAndGenerateTokens } from '@/lib/auth-service'
 
-  export async function POST(request: Request) {
-    try {
-      const { email, password } = await request.json()
+export async function POST(request: Request) {
+  try {
+    // Validate CSRF token for security
+    const { csrfMiddleware } = await import('@/lib/csrf-protection');
+    const csrfValidation = await csrfMiddleware(request as any);
 
-      // Validate input
-      if (!email || !password) {
-        return NextResponse.json(
-          { error: 'Email and password are required' },
-          { status: 400 }
-        )
-      }
+    if (!csrfValidation.valid) {
+      return Response.json(
+        { error: csrfValidation.error || 'CSRF validation failed' },
+        { status: 403 }
+      );
+    }
 
-      // Authenticate admin
-      const admin = await authenticateAdmin(email, password)
+    const { email, password, rememberMe = false } = await request.json()
 
-      if (!admin) {
-        return NextResponse.json(
-          { error: 'Invalid credentials' },
-          { status: 401 }
-        )
-      }
+    // Apply rate limiting based on email after parsing it
+    const { rateLimitByEmail } = await import('@/lib/rate-limiter');
+    const rateLimitResult = await rateLimitByEmail(email, 'AUTH_SIGNIN');
 
-      // Generate token with role and company information
-      const token = generateToken(admin.id, admin.role, admin.companyId)
+    if (!rateLimitResult.success) {
+      return Response.json(
+        { error: rateLimitResult.error },
+        { status: 429, headers: {
+          'Retry-After': Math.floor(rateLimitResult.resetTime / 1000).toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimitResult.resetTime.toString(),
+        }}
+      );
+    }
 
-      return NextResponse.json({
-        message: 'Signin successful',
-        admin: { id: admin.id, name: admin.name, email: admin.email },
-        token
-      })
-    } catch (error) {
-      console.error('Signin error:', error)
+    // Validate input
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Internal server error' },
+        { error: 'Email and password are required' },
+        { status: 400 }
+      )
+    }
+
+    // Authenticate admin
+    const admin = await authenticateAdmin(email, password)
+
+    if (!admin) {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+
+    // Generate access and refresh tokens
+    const tokens = await authenticateAndGenerateTokens(admin.id, rememberMe)
+
+    if (!tokens) {
+      return NextResponse.json(
+        { error: 'Failed to generate authentication tokens' },
         { status: 500 }
       )
     }
-    }
+
+    // Set tokens in HTTP-only cookies
+    const response = NextResponse.json({
+      message: 'Signin successful',
+      admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role, companyId: admin.companyId }
+    })
+
+    // Set both access and refresh tokens as HTTP-only cookies
+    const { setAccessTokenCookie, setRefreshTokenCookie } = await import('@/lib/token')
+    setAccessTokenCookie(response, tokens.accessToken)
+    setRefreshTokenCookie(response, tokens.refreshToken, rememberMe)
+
+    // Create a session for the user
+    const { createSession } = await import('@/lib/session-manager');
+    const userAgent = request.headers.get('user-agent') || undefined;
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined;
+
+    await createSession(admin.id, userAgent, ip);
+
+    return response
+  } catch (error) {
+    console.error('Signin error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

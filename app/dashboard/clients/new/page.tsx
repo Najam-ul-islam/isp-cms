@@ -72,19 +72,11 @@ export default function NewClientPage() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push('/login')
-      return
-    }
-
-    const fetchPackages = async () => {
+    // Check authentication by making a simple API call that requires auth
+    const checkAuthAndFetchPackages = async () => {
       try {
         const res = await fetch('/api/packages', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
+          credentials: 'include', // This ensures cookies are sent with the request
           cache: 'no-store'
         })
 
@@ -105,7 +97,7 @@ export default function NewClientPage() {
       }
     }
 
-    fetchPackages()
+    checkAuthAndFetchPackages()
   }, [router])
 
   // Auto-fill price when package is selected
@@ -143,17 +135,14 @@ export default function NewClientPage() {
     e.preventDefault()
     setSubmitting(true)
 
-    const token = localStorage.getItem('token')
-    if (!token) return
-
     try {
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
+        credentials: 'include' // This ensures cookies are sent with the request
+      , body: JSON.stringify({
           name,
           phone,
           cnic,

@@ -1,7 +1,6 @@
 
 import { CreatePaymentInput, UpdatePaymentInput, PaymentFilters } from '../types';
 import {
-  createPayment as createPaymentRepo,
   getPaymentById as getPaymentByIdRepo,
   getPayments as getPaymentsRepo,
   updatePayment as updatePaymentRepo,
@@ -9,39 +8,8 @@ import {
   getPaymentStats as getPaymentStatsRepo
 } from '../repository';
 import { PaymentWithClient } from '../types';
-
-
-export const createPayment = async (data: CreatePaymentInput) => {
-  // Validate inputs
-  if (!data.clientId) {
-    throw new Error('Client ID is required');
-  }
-
-  if (data.amount <= 0) {
-    throw new Error('Amount must be greater than 0');
-  }
-
-  const newPayment = await createPaymentRepo(data);
-
-  // Calculate total paid by this client across all payments
-  const clientPayments = await getPaymentsRepo({ clientId: newPayment.clientId }, newPayment.companyId);
-  const totalPaid = clientPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
-  // Use package price if available, otherwise fall back to client price
-  const packagePrice = newPayment.client?.package?.price;
-  const clientPrice = newPayment.client?.price;
-  const totalAmount = packagePrice ?? clientPrice ?? 0; // Package price takes precedence
-  const remainingAmount = totalAmount - totalPaid;
-
-  const paymentWithTotals = {
-    ...newPayment,
-    totalAmount: totalAmount,
-    totalDue: totalAmount, // Total due is based on the package price
-    totalPaid: totalPaid,
-    remainingAmount: remainingAmount
-  };
-
-  return paymentWithTotals;
-};
+import { prisma } from '@/lib/prisma';
+import { getClientPaymentSummary } from '@/lib/payment-calculator';
 
 export const getPaymentById = async (id: string) => {
   if (!id) {
@@ -54,34 +22,18 @@ export const getPaymentById = async (id: string) => {
 export const getPayments = async (admin: AdminWithPackages, filters?: PaymentFilters) => {
   const payments = await getPaymentsRepo(filters, admin.companyId);
 
-  // Group payments by client to calculate totals efficiently
-  const paymentsByClientId = payments.reduce((acc: Record<string, any[]>, payment: any) => {
-    if (!acc[payment.clientId]) {
-      acc[payment.clientId] = [];
-    }
-    acc[payment.clientId].push(payment);
-    return acc;
-  }, {});
-
-  // Calculate total paid for each client
-  const clientTotals = {} as Record<string, number>;
-  Object.keys(paymentsByClientId).forEach(clientId => {
-    clientTotals[clientId] = paymentsByClientId[clientId as any].reduce((sum: number, payment: any) => sum + payment.amount, 0);
-  });
-
-  // Add totalPaid and remainingAmount to each payment
-  const paymentsWithTotals = payments.map((payment: any) => {
-    const totalPaid = clientTotals[payment.clientId] || 0;
-    const totalDue = payment.client?.price || 0; // Client's package price is what they owe
-    const remainingAmount = totalDue - totalPaid;
-
-    return {
-      ...payment,
-      totalDue: totalDue,
-      totalPaid: totalPaid,
-      remainingAmount: remainingAmount
-    };
-  });
+  // Add payment summary data to each payment
+  const paymentsWithTotals = await Promise.all(
+    payments.map(async (payment: any) => {
+      const summary = await getClientPaymentSummary(payment.clientId);
+      return {
+        ...payment,
+        totalDue: summary.total,
+        totalPaid: summary.totalPaid,
+        remainingAmount: summary.remaining
+      };
+    })
+  );
 
   return paymentsWithTotals;
 };
@@ -96,9 +48,72 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
     throw new Error('Amount must be greater than 0');
   }
 
-  const updatedPayment = await updatePaymentRepo(id, data);
+  // Use transaction to ensure consistency
+  const updatedPayment = await prisma.$transaction(async (tx) => {
+    // Update the payment record
+    const updatedPayment = await tx.payment.update({
+      where: { id },
+      data: {
+        ...(data.amount !== undefined && { amount: data.amount }),
+        ...(data.method !== undefined && { method: data.method }),
+        ...(data.notes !== undefined && { notes: data.notes }),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            area: true, // Include area for client display
+            packageId: true,
+            price: true, // This is the price the client pays (might be different from package price)
+            package: {
+              select: {
+                id: true,
+                name: true,
+                price: true, // This is the actual package price
+              }
+            }
+          }
+        }
+      }
+    });
 
-  // Calculate total paid by this client across all payments
+    // Recalculate payment status and update client
+    const updatedSummary = await getClientPaymentSummary(updatedPayment.clientId);
+
+    // Update client's payment status
+    await tx.client.update({
+      where: { id: updatedPayment.clientId },
+      data: {
+        paymentStatus: updatedSummary.effectivePaymentStatus
+      }
+    });
+
+    // If payment status is now 'paid', extend expiry date by package duration
+    if (updatedSummary.effectivePaymentStatus === 'paid') {
+      const packageInfo = await tx.package.findUnique({
+        where: { id: updatedPayment.client.packageId }
+      });
+
+      if (packageInfo) {
+        const newExpiryDate = new Date();
+        newExpiryDate.setDate(newExpiryDate.getDate() + packageInfo.durationDays);
+
+        await tx.client.update({
+          where: { id: updatedPayment.clientId },
+          data: {
+            expiryDate: newExpiryDate
+          }
+        });
+      }
+    }
+
+    return updatedPayment;
+  });
+
+  // Calculate totals for response
   const clientPayments = await getPaymentsRepo({ clientId: updatedPayment.clientId }, updatedPayment.companyId);
   const totalPaid = clientPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
   const totalDue = updatedPayment.client?.price || 0; // Client's package price is what they owe

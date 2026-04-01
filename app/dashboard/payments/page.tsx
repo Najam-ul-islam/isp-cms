@@ -19,7 +19,7 @@ interface Payment {
   id: string;
   clientName: string;
   clientId: string;
-  contact?: string;
+  area?: string;
   amount: number;
   date: string;
   method: string;
@@ -56,9 +56,14 @@ export default function PaymentsPage() {
   useEffect(() => {
     const fetchPayments = async () => {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          router.push("/login");
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (authCheck.status === 401) {
+          router.push('/login');
           return;
         }
 
@@ -78,8 +83,8 @@ export default function PaymentsPage() {
         }
 
         const response = await fetch(url, {
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         });
@@ -99,11 +104,16 @@ export default function PaymentsPage() {
             // Total amount is based on the client's package price
             const totalAmount = p.client?.price || 0;
 
+            // Format client name as "Name (area)" if area exists, otherwise just the name
+            const clientNameWithArea = p.client?.area
+              ? `${p.client?.name || "Unknown Client"} (${p.client?.area})`
+              : p.client?.name || "Unknown Client";
+
             return {
               id: p.id,
-              clientName: clientName,
+              clientName: clientNameWithArea,
               clientId: p.clientId,
-              contact: contactInfo || "-", // Keep separate for filtering/search
+              area: p.client?.area || "-", // Keep separate for filtering/search if needed
               amount: p.amount,
               date: p.paymentDate,
               method: p.method || "Cash",
@@ -130,7 +140,7 @@ export default function PaymentsPage() {
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
       payment.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.area?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.method.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesMethod =
@@ -174,18 +184,12 @@ export default function PaymentsPage() {
   const handleDeletePayment = async (id: string) => {
     if (confirm("Are you sure you want to delete this payment?")) {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
         const response = await fetch(`/api/payments/${id}`, {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          credentials: 'include' // This ensures cookies are sent with the request
         });
 
         if (response.ok) {
@@ -197,27 +201,22 @@ export default function PaymentsPage() {
         }
       } catch (error) {
         console.error("Error deleting payment:", error);
-        alert("Failed to delete payment");
+        router.push("/login"); // Redirect to login on error
       }
     }
   };
 
   const handleSavePayment = async (paymentData: Partial<Payment>) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        router.push("/login");
-        return;
-      }
 
       if (editingPayment) {
         // Update existing payment
         const response = await fetch(`/api/payments/${editingPayment.id}`, {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          credentials: 'include', // This ensures cookies are sent with the request
           body: JSON.stringify(paymentData),
         });
 
@@ -235,11 +234,16 @@ export default function PaymentsPage() {
           // Total amount is based on the client's package price
           const totalAmount = updatedPayment.client?.price || 0;
 
+          // Format client name as "Name (area)" if area exists, otherwise just the name
+          const clientNameWithArea = updatedPayment.client?.area
+            ? `${updatedPayment.client?.name || "Unknown Client"} (${updatedPayment.client?.area})`
+            : updatedPayment.client?.name || "Unknown Client";
+
           const mappedPayment = {
             id: updatedPayment.id,
-            clientName: clientName,
+            clientName: clientNameWithArea,
             clientId: updatedPayment.clientId,
-            contact: contactInfo || "-", // Keep separate for filtering/search
+            area: updatedPayment.client?.area || "-", // Keep separate for filtering/search
             amount: updatedPayment.amount,
             date: updatedPayment.paymentDate,
             method: updatedPayment.method || "Cash",
@@ -265,9 +269,9 @@ export default function PaymentsPage() {
         const response = await fetch("/api/payments", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          credentials: 'include', // This ensures cookies are sent with the request
           body: JSON.stringify(paymentData),
         });
 
@@ -285,11 +289,16 @@ export default function PaymentsPage() {
           // Total amount is based on the client's package price
           const totalAmount = newPayment.client?.price || 0;
 
+          // Format client name as "Name (area)" if area exists, otherwise just the name
+          const clientNameWithArea = newPayment.client?.area
+            ? `${newPayment.client?.name || "Unknown Client"} (${newPayment.client?.area})`
+            : newPayment.client?.name || "Unknown Client";
+
           const mappedNewPayment = {
             id: newPayment.id,
-            clientName: clientName,
+            clientName: clientNameWithArea,
             clientId: newPayment.clientId,
-            contact: contactInfo || "-", // Keep separate for filtering/search
+            area: newPayment.client?.area || "-", // Keep separate for filtering/search
             amount: newPayment.amount,
             date: newPayment.paymentDate,
             method: newPayment.method || "Cash",
@@ -498,7 +507,6 @@ export default function PaymentsPage() {
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
                 <th className="px-3 py-4">Client</th>
-                <th className="px-3 py-4">Contact</th>
                 <th className="px-3 py-4">Total Amount</th>
                 <th className="px-3 py-4">Total Paid</th>
                 <th className="px-3 py-4">Remaining</th>
@@ -524,19 +532,6 @@ export default function PaymentsPage() {
                       >
                         {payment.clientName}
                       </div>
-                    </td>
-
-                    {/* Contact Column */}
-                    <td className="px-3 py-4">
-                      {payment.contact && payment.contact !== "-" ? (
-                        <span className="text-slate-600 dark:text-gray-300 text-sm">
-                          {payment.contact}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-gray-500 text-sm">
-                          -
-                        </span>
-                      )}
                     </td>
 
                     {/* Total Amount Column */}
@@ -604,7 +599,7 @@ export default function PaymentsPage() {
               ) : (
                 <tr>
                   {/* TOTAL COLUMNS  */}
-                  <td colSpan={9} className="px-3 py-16 text-center">
+                  <td colSpan={8} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
                       <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
                         <CreditCard className="w-12 h-12 opacity-50" />
@@ -644,6 +639,7 @@ export default function PaymentsPage() {
           onClose={() => setShowForm(false)}
           onSave={handleSavePayment}
           paymentMethods={paymentMethods}
+          router={router}
         />
       )}
 
@@ -666,8 +662,8 @@ export default function PaymentsPage() {
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-xl">
                 <h3 className="font-semibold text-gray-800 mb-2">{selectedClientDetails.clientName}</h3>
-                {selectedClientDetails.contact && selectedClientDetails.contact !== "-" && (
-                  <p className="text-gray-600 text-sm">Contact: {selectedClientDetails.contact}</p>
+                {selectedClientDetails.area && selectedClientDetails.area !== "-" && (
+                  <p className="text-gray-600 text-sm">Area: {selectedClientDetails.area}</p>
                 )}
               </div>
 
@@ -736,11 +732,13 @@ function PaymentFormModal({
   onClose,
   onSave,
   paymentMethods,
+  router,
 }: {
   payment: Payment | null;
   onClose: () => void;
   onSave: (data: Partial<Payment>) => void;
   paymentMethods: string[];
+  router: ReturnType<typeof useRouter>;
 }) {
   const [formData, setFormData] = useState({
     clientName: payment?.clientName || "",
@@ -756,12 +754,9 @@ function PaymentFormModal({
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
-
         const response = await fetch("/api/clients", {
+          credentials: 'include', // This ensures cookies are sent with the request
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         });
@@ -807,9 +802,12 @@ function PaymentFormModal({
               }));
             }
           }
+        } else if (response.status === 401) {
+          router.push("/login");
         }
       } catch (error) {
         console.error("Error fetching clients:", error);
+        router.push("/login"); // Redirect to login on error
       } finally {
         setLoadingClients(false);
       }

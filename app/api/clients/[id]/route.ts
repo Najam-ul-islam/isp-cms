@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
-import {prisma} from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import { getClientPaymentSummary } from '@/lib/payment-calculator'
 import { logAction } from '../../../../modules/audit/services'
 
 export const dynamic = 'force-dynamic'
@@ -34,11 +35,39 @@ export async function GET(
       }
     })
 
+    // Calculate payment summary using the utility function
+    const paymentSummary = await getClientPaymentSummary(clientId);
+
+    // Get all payments for this client ordered by date (most recent first)
+    const allClientPayments = await prisma.payment.findMany({
+      where: {
+        clientId: clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      },
+      orderBy: {
+        paymentDate: 'desc' // Order by payment date descending to get latest first
+      }
+    });
+
+    // Get the latest payment date if payments exist
+    const latestPaymentDate = allClientPayments.length > 0 ? allClientPayments[0].paymentDate : null;
+
+    // Combine client data with calculated payment stats
+    const clientWithPaymentStats = {
+      ...client,
+      totalPaid: paymentSummary.totalPaid,
+      remainingAmount: paymentSummary.remaining,
+      totalAmount: paymentSummary.total,
+      effectivePaymentStatus: paymentSummary.effectivePaymentStatus,
+      latestPaymentDate,
+      payments: allClientPayments // Include payment history
+    };
+
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 })
     }
 
-    return NextResponse.json(client)
+    return NextResponse.json(clientWithPaymentStats)
   } catch (error) {
     console.error('Get client error:', error)
     return NextResponse.json(

@@ -11,14 +11,19 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
+    setError('')
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')
+      setLoading(false)
       return
     }
 
@@ -26,13 +31,15 @@ export default function SignupPage() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, rememberMe }),
       })
 
       if (res.ok) {
-        const { token } = await res.json()
-        localStorage.setItem('token', token)
-        document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict;`
+        // Clear any local storage tokens (we're using cookies now)
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token')
+        }
+
         router.push('/dashboard')
         router.refresh()
       } else {
@@ -42,14 +49,14 @@ export default function SignupPage() {
     } catch (err) {
       setError('An error occurred')
       console.error(err)
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 px-4">
-
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-4">
       <div className="bg-white shadow-2xl rounded-2xl w-full max-w-md p-8 space-y-6">
-
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-800">Create Account</h1>
           <p className="text-gray-500 mt-2">Start managing your ISP clients</p>
@@ -62,7 +69,6 @@ export default function SignupPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
           {/* Name */}
           <div className="relative">
             <User className="absolute left-3 top-3 text-gray-400" size={18}/>
@@ -71,8 +77,9 @@ export default function SignupPage() {
               placeholder="Full Name"
               required
               value={name}
-              onChange={(e)=>setName(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={(e) => setName(e.target.value)}
+              disabled={loading}
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
             />
           </div>
 
@@ -84,8 +91,9 @@ export default function SignupPage() {
               placeholder="Email address"
               required
               value={email}
-              onChange={(e)=>setEmail(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
             />
           </div>
 
@@ -97,14 +105,16 @@ export default function SignupPage() {
               placeholder="Password"
               required
               value={password}
-              onChange={(e)=>setPassword(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
             />
 
             <button
               type="button"
-              onClick={()=>setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 text-gray-400"
+              onClick={() => setShowPassword(!showPassword)}
+              disabled={loading}
+              className="absolute right-3 top-3 text-gray-400 disabled:opacity-50"
             >
               {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
             </button>
@@ -118,19 +128,35 @@ export default function SignupPage() {
               placeholder="Confirm Password"
               required
               value={confirmPassword}
-              onChange={(e)=>setConfirmPassword(e.target.value)}
-              className="w-full pl-10 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={loading}
+              className="w-full pl-10 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
             />
+          </div>
+
+          {/* Remember Me */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="remember-me-signup"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={loading}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <label htmlFor="remember-me-signup" className="ml-2 block text-sm text-gray-700">
+              Remember me
+            </label>
           </div>
 
           {/* Button */}
           <button
             type="submit"
-            className="w-full py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
+            disabled={loading}
+            className="w-full py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign Up
+            {loading ? 'Creating account...' : 'Sign Up'}
           </button>
-
         </form>
 
         <div className="text-center text-sm text-gray-600">
@@ -139,7 +165,6 @@ export default function SignupPage() {
             Sign in
           </Link>
         </div>
-
       </div>
     </div>
   )

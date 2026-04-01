@@ -39,19 +39,11 @@ export default function EditClientPage() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     const fetchData = async () => {
       try {
         // Fetch client data
         const clientRes = await fetch(`/api/clients/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include' // This ensures cookies are sent with the request
         });
 
         if (!clientRes.ok) {
@@ -101,9 +93,7 @@ export default function EditClientPage() {
 
         // Fetch all packages with service provider info
         const packagesRes = await fetch('/api/packages', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include' // This ensures cookies are sent with the request
         });
 
         if (!packagesRes.ok) {
@@ -120,6 +110,7 @@ export default function EditClientPage() {
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to load data');
+        router.push('/login'); // Redirect to login on error
       } finally {
         setLoading(false);
       }
@@ -142,20 +133,14 @@ export default function EditClientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     try {
       const res = await fetch(`/api/clients/${id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
+        credentials: 'include' // This ensures cookies are sent with the request
+      , body: JSON.stringify({
           name,
           phone,
           cnic,
@@ -188,6 +173,7 @@ export default function EditClientPage() {
     } catch (err) {
       console.error('Error updating client:', err);
       setError('An error occurred while updating the client');
+      router.push('/login'); // Redirect to login on error
     }
   };
 

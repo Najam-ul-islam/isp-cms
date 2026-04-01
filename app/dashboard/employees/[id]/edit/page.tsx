@@ -52,16 +52,22 @@ export default function EditEmployeePage() {
   useEffect(() => {
     const fetchEmployee = async () => {
       try {
-        const token = localStorage.getItem("token");
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (authCheck.status === 401) {
+          router.push('/login');
+          return;
+        }
 
         const response = await fetch(`/api/employees/${params.id}`, {
-          headers,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (response.status === 401) {
@@ -145,12 +151,16 @@ export default function EditEmployeePage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("token");
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (authCheck.status === 401) {
+        router.push('/login');
+        return;
+      }
 
       // Prepare permissions data
       const permissionsData: Record<string, any> = {};
@@ -164,8 +174,10 @@ export default function EditEmployeePage() {
 
       const response = await fetch(`/api/employees`, {
         method: "PUT",
-        headers,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           id: params.id,
           ...formData,

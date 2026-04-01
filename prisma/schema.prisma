@@ -33,18 +33,20 @@ model Company {
 }
 
 model Admin {
-  id        String     @id @default(cuid())
-  name      String
-  email     String     @unique
-  password  String
-  createdAt DateTime   @default(now())
-  role      Role       @default(EMPLOYEE)
-  updatedAt DateTime   @updatedAt
-  companyId String
-  company   Company    @relation(fields: [companyId], references: [id])
-  audits    AuditLog[]
-  clients   Client[]
-  packages  Package[]
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  role          Role           @default(EMPLOYEE)
+  updatedAt     DateTime       @updatedAt
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  audits        AuditLog[]
+  clients       Client[]
+  packages      Package[]
+  refreshTokens RefreshToken[]
+  sessions      Session[]
 
   @@map("admins")
 }
@@ -283,6 +285,34 @@ model EmployeeActivity {
   employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@map("employee_activities")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+  userAgent String?
+  ip        String?
+  user      Admin    @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  lastActive DateTime @default(now())
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  userAgent  String?
+  ipAddress  String?
+  isActive   Boolean  @default(true)
+  user       Admin    @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
 }
 
 enum Role {

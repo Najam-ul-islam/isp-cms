@@ -33,10 +33,20 @@ export default function ReportsPage() {
         url += `&month=${month}&year=${year}`;
       }
 
-      const token = localStorage.getItem('token');
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include' // This ensures cookies are sent with the request
+      });
+
+      if (authCheck.status === 401) {
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch(url, {
+        credentials: 'include', // This ensures cookies are sent with the request
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });

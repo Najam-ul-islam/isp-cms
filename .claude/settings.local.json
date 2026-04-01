@@ -35,7 +35,11 @@
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx' | Select-String -Pattern 'X className'\\).LineNumber\")",
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\ISP-Client_management-System\\\\isp-cms\\\\app\\\\dashboard\\\\complaints\\\\page.tsx'\\)[540..550]\")",
       "Bash(find . -name \"*.ts\" -path \"*/modules/*/services/*\" -exec basename {})",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node:*)",
+      "Bash(curl -i http://localhost:3000/api/health)",
+      "Bash(curl:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -18,6 +18,7 @@ export const createPayment = async (data: CreatePaymentInput) => {
           name: true,
           phone: true,
           email: true,
+          area: true, // Include area for client display
           packageId: true,
           price: true, // This is the price the client pays (might be different from package price)
           package: {
@@ -43,6 +44,7 @@ export const getPaymentById = async (id: string) => {
           name: true,
           phone: true,
           email: true,
+          area: true, // Include area for client display
           packageId: true,
           price: true, // This is the price the client pays (might be different from package price)
           package: {
@@ -94,6 +96,7 @@ export const getPayments = async (filters?: PaymentFilters, companyId?: string) 
           name: true,
           phone: true,
           email: true,
+          area: true, // Include area for client display
           package: {
             select: {
               name: true,
@@ -186,6 +189,7 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
           name: true,
           phone: true,
           email: true,
+          area: true, // Include area for client display
           packageId: true,
           price: true, // This is the price the client pays (might be different from package price)
           package: {

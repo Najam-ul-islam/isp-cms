@@ -1,6 +1,7 @@
+// lib/jwt.ts
 import { verifyToken } from './auth';
 import { prisma } from './prisma';
-import type { Admin, Package } from '@prisma/client';
+import type { Package } from '@prisma/client';
 
 export interface AdminWithPackages {
   id: string;
@@ -13,22 +14,53 @@ export interface AdminWithPackages {
   packages?: Package[];
 }
 
+
+function parseCookie(cookieHeader: string | null): Record<string, string> {
+  if (!cookieHeader) return {};
+  return cookieHeader.split(';').reduce((acc, cookie) => {
+    const [name, ...rest] = cookie.trim().split('=');
+    if (name && rest.length) acc[name] = rest.join('=');
+    return acc;
+  }, {} as Record<string, string>);
+}
+
 export const getAdminFromToken = async (request: Request): Promise<AdminWithPackages | null> => {
+  let token: string | null = null;
+
+  // Try Authorization header first
   const authHeader = request.headers.get('authorization');
-  if (!authHeader) return null;
+  if (authHeader?.toLowerCase().startsWith('bearer ')) {
+    token = authHeader.slice(7);
+  }
 
-  const token = authHeader.replace('Bearer ', '');
-  if (!token) return null;
+  // Fallback to cookie - ✅ Use 'access_token' to match your cookie name
+  if (!token) {
+    const cookies = parseCookie(request.headers.get('cookie'));
+    token = cookies.access_token || null; // ✅ Must match cookie name in lib/token.ts
+  }
 
+  if (!token) {
+    console.warn('🔐 No token found in request');
+    return null;
+  }
+
+  // Verify token
   const decoded = verifyToken(token);
-  if (!decoded) return null;
+  if (!decoded || !decoded.userId) {
+    console.warn('🔐 Token verification failed');
+    return null;
+  }
 
+  // Fetch admin from DB
   const admin = await prisma.admin.findUnique({
     where: { id: decoded.userId },
-    include: { packages: true }, // ✅ Critical fix
+    include: { packages: true },
   });
 
-  if (!admin) return null;
+  if (!admin) {
+    console.warn('🔐 Admin not found in database');
+    return null;
+  }
 
   return {
     id: admin.id,
@@ -41,57 +73,3 @@ export const getAdminFromToken = async (request: Request): Promise<AdminWithPack
     packages: admin.packages,
   };
 };
-
-
-
-// import { NextRequest } from 'next/server'
-// import { verifyToken } from './auth'
-// import {prisma} from './prisma'
-
-//   export interface AdminWithRole {
-//   id: string;
-//   name: string;
-//   email: string;
-//   role: string;
-//   createdAt: Date;
-//   updatedAt: Date;
-//   packages?: any[]; // Add other properties as needed
-// }
-
-// export const getAdminFromToken = async (request: Request): Promise<AdminWithRole | null> => {
-//     const authHeader = request.headers.get('authorization');
-
-//     if (!authHeader) {
-//       return null;
-//     }
-
-//     const token = authHeader.replace('Bearer ', '');
-
-//     if (!token) {
-//       return null
-//     }
-
-//     const decoded = verifyToken(token)
-//     if (!decoded) {
-//       return null
-//     }
-
-//     const admin = await prisma.admin.findUnique({
-//       where: { id: decoded.userId }
-//     })
-
-//     if (!admin) {
-//       return null
-//     }
-
-//     // Return admin with role from database (more reliable than token)
-//     return {
-//       id: admin.id,
-//       name: admin.name,
-//       email: admin.email,
-//       role: admin.role,
-//       createdAt: admin.createdAt,
-//       updatedAt: admin.updatedAt,
-//       packages: admin.packages
-//     }
-//   }

@@ -104,10 +104,6 @@ export default function PackagesPage() {
   }, [router]);
 
   const handleDelete = async (id: string, reassignToPackageId?: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    setDeletingId(id);
     try {
       let url = `/api/packages/${id}`;
       if (reassignToPackageId) {
@@ -116,10 +112,7 @@ export default function PackagesPage() {
 
       const res = await fetch(url, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: 'include' // This ensures cookies are sent with the request
       });
 
       if (res.ok) {
