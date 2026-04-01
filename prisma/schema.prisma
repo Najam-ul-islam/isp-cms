@@ -49,6 +49,9 @@ model Admin {
   sessions      Session[]
 
   @@map("admins")
+  @@index([companyId])
+  @@index([role])
+  @@index([companyId, role])
 }
 
 model ServiceProvider {
@@ -88,6 +91,9 @@ model Package {
   serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
 
   @@map("packages")
+  @@index([companyId])
+  @@index([isActive])
+  @@index([companyId, isActive])
 }
 
 model Area {
@@ -130,6 +136,14 @@ model Client {
   payments      Payment[]
 
   @@map("clients")
+  @@index([companyId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([expiryDate])
+  @@index([companyId, status])
+  @@index([companyId, paymentStatus])
+  @@index([companyId, expiryDate])
+  @@index([companyId, status, expiryDate])
 }
 
 model Payment {
@@ -146,6 +160,11 @@ model Payment {
   company     Company  @relation(fields: [companyId], references: [id])
 
   @@map("payments")
+  @@index([clientId])
+  @@index([companyId])
+  @@index([paymentDate])
+  @@index([clientId, paymentDate])
+  @@index([companyId, paymentDate])
 }
 
 model Expense {
@@ -162,6 +181,9 @@ model Expense {
   company     Company  @relation(fields: [companyId], references: [id])
 
   @@map("expenses")
+  @@index([companyId])
+  @@index([date])
+  @@index([companyId, date])
 }
 
 model Complaint {
@@ -178,6 +200,9 @@ model Complaint {
   company     Company         @relation(fields: [companyId], references: [id])
 
   @@map("complaints")
+  @@index([companyId])
+  @@index([status])
+  @@index([companyId, status])
 }
 
 model AuditLog {

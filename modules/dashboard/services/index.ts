@@ -14,130 +14,173 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
   const endOfDay = new Date(today);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
   const next3Days = new Date(today);
   next3Days.setDate(today.getDate() + 3);
 
   const next7Days = new Date(today);
   next7Days.setDate(today.getDate() + 7);
 
-  // Client counts (with multi-tenancy)
-  const totalUsers = await prisma.client.count({
-    where: { companyId: admin.companyId }
-  });
-  const activeUsers = await prisma.client.count({
-    where: {
-      status: ClientStatus.active,
-      companyId: admin.companyId
-    }
-  });
-  const expiredUsers = await prisma.client.count({
-    where: {
-      status: ClientStatus.expired,
-      companyId: admin.companyId
-    }
-  });
+  // Execute all queries in parallel to reduce total execution time
+  const [
+    // Basic client counts
+    { _count: { _all: totalUsers } },
+    activeUsers,
+    expiredUsers,
 
-  // Expiration alerts (with multi-tenancy)
-  const expireToday = await prisma.client.count({
-    where: {
-      expiryDate: {
-        gte: today,
-        lte: endOfDay
-      },
-      status: ClientStatus.active,
-      companyId: admin.companyId
-    }
-  });
+    // Expiration alerts
+    expireToday,
+    expireNext3Days,
+    expireNext7Days,
 
-  const expireNext3Days = await prisma.client.count({
-    where: {
-      expiryDate: {
-        gt: endOfDay,
-        lte: next3Days
-      },
-      status: ClientStatus.active,
-      companyId: admin.companyId
-    }
-  });
+    // Revenue metrics
+    paidToday,
+    dueToday,
+    dueNext7Days,
 
-  const expireNext7Days = await prisma.client.count({
-    where: {
-      expiryDate: {
-        gt: next3Days,
-        lte: next7Days
-      },
-      status: ClientStatus.active,
-      companyId: admin.companyId
-    }
-  });
+    // New users today
+    newUsersToday,
 
-  // Revenue metrics (with multi-tenancy)
-  const paidToday = await prisma.client.aggregate({
-    _sum: { price: true },
-    where: {
-      paymentStatus: PaymentStatus.paid,
-      expiryDate: {
-        gte: today,
-        lte: endOfDay
-      },
-      companyId: admin.companyId
-    }
-  });
+    // Extended metrics
+    totalRevenue,
+    totalExpenses,
+    todayRecovery,
+    todayExpenses,
 
-  const dueToday = await prisma.client.aggregate({
-    _sum: { price: true },
-    where: {
-      paymentStatus: PaymentStatus.unpaid,
-      expiryDate: {
-        gte: today,
-        lte: endOfDay
-      },
-      companyId: admin.companyId
-    }
-  });
+    // Other service calls
+    accountSummary,
+    areaInsights,
+    inventoryStats,
+    employeeStats
+  ] = await Promise.all([
+    // Total users
+    prisma.client.aggregate({
+      _count: { _all: true },
+      where: { companyId: admin.companyId }
+    }),
 
-  const dueNext7Days = await prisma.client.aggregate({
-    _sum: { price: true },
-    where: {
-      paymentStatus: PaymentStatus.unpaid,
-      expiryDate: {
-        gt: endOfDay,
-        lte: next7Days
-      },
-      companyId: admin.companyId
-    }
-  });
+    // Active users
+    prisma.client.count({
+      where: {
+        status: ClientStatus.active,
+        companyId: admin.companyId
+      }
+    }),
 
-  // New extended metrics with multi-tenancy
-  const totalRevenue = await getPaymentStatsByCompany(admin.companyId);
-  const totalExpenses = await getExpenseStatsByCompany(admin.companyId);
-  const todayRecovery = await getPaymentStatsByCompany(admin.companyId, today, today);
-  const todayExpenses = await getExpenseStatsByCompany(admin.companyId, today, today);
-  const newUsersToday = await prisma.client.count({
-    where: {
-      createdAt: {
-        gte: today,
-        lte: endOfDay
-      },
-      companyId: admin.companyId
-    }
-  });
+    // Expired users
+    prisma.client.count({
+      where: {
+        status: ClientStatus.expired,
+        companyId: admin.companyId
+      }
+    }),
 
-  // Get account summary
-  const accountSummary = await getAccountSummary(admin.companyId);
+    // Clients expiring today
+    prisma.client.count({
+      where: {
+        expiryDate: {
+          gte: today,
+          lte: endOfDay
+        },
+        status: ClientStatus.active,
+        companyId: admin.companyId
+      }
+    }),
 
-  // Get area insights
-  const areaInsights = await getAreaInsights(admin.companyId);
+    // Clients expiring in next 3 days
+    prisma.client.count({
+      where: {
+        expiryDate: {
+          gt: endOfDay,
+          lte: next3Days
+        },
+        status: ClientStatus.active,
+        companyId: admin.companyId
+      }
+    }),
 
-  // Get inventory and employee stats
-  const inventoryStats = await getInventoryStats(admin);
-  const employeeStats = await getEmployeeStats(admin);
+    // Clients expiring in next 7 days (beyond 3 days)
+    prisma.client.count({
+      where: {
+        expiryDate: {
+          gt: next3Days,
+          lte: next7Days
+        },
+        status: ClientStatus.active,
+        companyId: admin.companyId
+      }
+    }),
+
+    // Paid today revenue
+    prisma.client.aggregate({
+      _sum: { price: true },
+      where: {
+        paymentStatus: PaymentStatus.paid,
+        expiryDate: {
+          gte: today,
+          lte: endOfDay
+        },
+        companyId: admin.companyId
+      }
+    }),
+
+    // Due today revenue
+    prisma.client.aggregate({
+      _sum: { price: true },
+      where: {
+        paymentStatus: PaymentStatus.unpaid,
+        expiryDate: {
+          gte: today,
+          lte: endOfDay
+        },
+        companyId: admin.companyId
+      }
+    }),
+
+    // Due next 7 days revenue
+    prisma.client.aggregate({
+      _sum: { price: true },
+      where: {
+        paymentStatus: PaymentStatus.unpaid,
+        expiryDate: {
+          gt: endOfDay,
+          lte: next7Days
+        },
+        companyId: admin.companyId
+      }
+    }),
+
+    // New users today
+    prisma.client.count({
+      where: {
+        createdAt: {
+          gte: today,
+          lte: endOfDay
+        },
+        companyId: admin.companyId
+      }
+    }),
+
+    // Payment stats
+    getPaymentStatsByCompany(admin.companyId),
+
+    // Expense stats
+    getExpenseStatsByCompany(admin.companyId),
+
+    // Today's recovery
+    getPaymentStatsByCompany(admin.companyId, today, today),
+
+    // Today's expenses
+    getExpenseStatsByCompany(admin.companyId, today, today),
+
+    // Other service calls
+    getAccountSummary(admin.companyId),
+    getAreaInsights(admin.companyId),
+    getInventoryStats(admin),
+    getEmployeeStats(admin)
+  ]);
 
   return {
-    totalUsers,
+    totalUsers: totalUsers,
     activeUsers,
     expiredUsers,
 

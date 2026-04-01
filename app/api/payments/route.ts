@@ -66,18 +66,27 @@ export async function GET(request: Request) {
       }
     });
 
-    // Add payment summary data to each payment
-    const paymentsWithSummary = await Promise.all(
-      payments.map(async (payment) => {
-        const summary = await getClientPaymentSummary(payment.clientId);
-        return {
-          ...payment,
-          totalAmount: summary.total,
-          totalPaid: summary.totalPaid,
-          remainingAmount: summary.remaining
-        };
-      })
+    // Get unique client IDs to fetch payment summaries efficiently
+    const uniqueClientIds = [...new Set(payments.map(payment => payment.clientId))];
+
+    // Fetch all payment summaries in bulk
+    const paymentSummaries = await Promise.all(
+      uniqueClientIds.map(clientId => getClientPaymentSummary(clientId))
     );
+
+    // Create a map of client ID to payment summary
+    const summaryMap = new Map(uniqueClientIds.map((clientId, index) => [clientId, paymentSummaries[index]]));
+
+    // Add payment summary data to each payment using the pre-fetched summaries
+    const paymentsWithSummary = payments.map(payment => {
+      const summary = summaryMap.get(payment.clientId);
+      return {
+        ...payment,
+        totalAmount: summary?.total || 0,
+        totalPaid: summary?.totalPaid || 0,
+        remainingAmount: summary?.remaining || 0
+      };
+    });
 
     return NextResponse.json(paymentsWithSummary);
   } catch (error) {

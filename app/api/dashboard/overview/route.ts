@@ -11,13 +11,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    // Option A: Use your existing getAdminFromToken (queries DB) ✅
-    // const admin = await getAdminFromToken(request);
-    
-    // Option B: Or read from headers set by middleware (faster, no extra DB query)
-    const userId = request.headers.get("x-user-id");
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const admin = await prisma.admin.findUnique({ where: { id: userId } });
+    // Use the existing getAdminFromToken function for consistent authentication
+    const admin = await getAdminFromToken(request);
 
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
