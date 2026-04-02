@@ -28,8 +28,9 @@ export async function middleware(request: NextRequest) {
   // ✅ Public routes - skip auth
   const publicRoutes = [
     "/login",
-    "/signup", 
+    "/signup",
     "/api/auth/signin",
+    "/api/auth/signup", // Add signup API route
     "/api/auth/refresh", // Refresh handles its own auth
   ];
   
