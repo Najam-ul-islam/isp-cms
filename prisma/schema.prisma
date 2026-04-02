@@ -25,6 +25,7 @@ model Company {
   expenses              Expense[]
   inventoryItems        InventoryItem[]
   inventoryTransactions InventoryTransaction[]
+  invoices              Invoice[]              // Add invoices relation
   packages              Package[]
   payments              Payment[]
   providers             ServiceProvider[]
@@ -134,6 +135,7 @@ model Client {
   package       Package       @relation(fields: [packageId], references: [id])
   complaints    Complaint[]
   payments      Payment[]
+  invoices      Invoice[]
 
   @@map("clients")
   @@index([companyId])
@@ -146,9 +148,34 @@ model Client {
   @@index([companyId, status, expiryDate])
 }
 
+model Invoice {
+  id          String      @id @default(cuid())
+  clientId    String
+  amount      Float
+  issuedDate  DateTime    @default(now())
+  dueDate     DateTime
+  status      InvoiceStatus @default(unpaid)
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  companyId   String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments    Payment[]
+
+  @@map("invoices")
+  @@index([clientId])
+  @@index([companyId])
+  @@index([issuedDate])
+  @@index([dueDate])
+  @@index([clientId, issuedDate])
+  @@index([companyId, issuedDate])
+}
+
 model Payment {
   id          String   @id @default(cuid())
   clientId    String
+  invoiceId   String?  // Optional link to invoice
   amount      Float
   paymentDate DateTime @default(now())
   method      String?
@@ -157,10 +184,12 @@ model Payment {
   updatedAt   DateTime @updatedAt
   companyId   String
   client      Client   @relation(fields: [clientId], references: [id])
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id]) // Optional relation to invoice
   company     Company  @relation(fields: [companyId], references: [id])
 
   @@map("payments")
   @@index([clientId])
+  @@index([invoiceId])
   @@index([companyId])
   @@index([paymentDate])
   @@index([clientId, paymentDate])
@@ -344,6 +373,12 @@ enum Role {
   EMPLOYEE
   ADMIN
   SUPER_ADMIN
+}
+
+enum InvoiceStatus {
+  unpaid
+  partial
+  paid
 }
 
 enum PaymentStatus {

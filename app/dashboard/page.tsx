@@ -384,8 +384,8 @@ export default function DashboardPage() {
                 {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* User Overview Section - 4 Cards */}
-          <Section title="User Overview" icon={<Users className="w-5 h-5" />}>
-            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+          <Section title="User Overview" icon={<Users className="w-5 h-5" />} className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
+            <div className=" grid grid-cols-2 gap-4 sm:gap-5">
               <StatCard
                 title="Total Users"
                 value={stats.totalUsers ?? stats.totalClients ?? 0}
@@ -422,6 +422,7 @@ export default function DashboardPage() {
             title="Real-Time Stats"
             icon={<TrendingUp className="w-5 h-5" />}
             variant="success"
+            className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
           >
             <div className="grid grid-cols-2 gap-4 sm:gap-5">
               <StatCard
@@ -464,6 +465,7 @@ export default function DashboardPage() {
     title="Financial Summary"
     icon={<DollarSign className="w-5 h-5" />}
     variant="success"
+    className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
   >
     <div className="grid grid-cols-2 gap-4 sm:gap-5">
       <StatCard
@@ -502,6 +504,7 @@ export default function DashboardPage() {
     title="Accounts Summary"
     icon={<DollarSign className="w-5 h-5" />}
     variant="default"
+    className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl"
   >
     <div className="grid grid-cols-2 gap-4 sm:gap-5">
       <StatCard
@@ -552,6 +555,7 @@ export default function DashboardPage() {
         <Section
           title="Inventory Overview"
           icon={<Package className="w-5 h-5" />}
+          className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <InventoryCard
@@ -580,7 +584,10 @@ export default function DashboardPage() {
         </Section>
 
         {/* EMPLOYEE OVERVIEW */}
-        <Section title="Employee Overview" icon={<Users className="w-5 h-5" />}>
+        <Section 
+        title="Employee Overview" 
+        icon={<Users className="w-5 h-5" />} 
+        className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <EmployeeCard
               title="Total Employees"
@@ -617,6 +624,7 @@ export default function DashboardPage() {
           title="Expiration Alerts"
           icon={<AlertCircle className="w-5 h-5" />}
           variant="warning"
+          className="border-2 border-[#ea6f0050] bg-[#f7f7f7] p-2 rounded-xl"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <AlertCard
@@ -652,6 +660,7 @@ export default function DashboardPage() {
           title="Revenue Overview"
           icon={<DollarSign className="w-5 h-5" />}
           variant="success"
+          className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
             <FinCard

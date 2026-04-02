@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
 import { prisma } from '@/lib/prisma'
-import { getClientPaymentSummary } from '@/lib/payment-calculator'
+import { getClientPaymentSummary, getClientInvoicesWithPayments } from '@/lib/payment-calculator'
 import { logAction } from '../../../../modules/audit/services'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +49,9 @@ export async function GET(
       }
     });
 
+    // Get all invoices with payment details for this client
+    const clientInvoices = await getClientInvoicesWithPayments(clientId);
+
     // Get the latest payment date if payments exist
     const latestPaymentDate = allClientPayments.length > 0 ? allClientPayments[0].paymentDate : null;
 
@@ -56,11 +59,13 @@ export async function GET(
     const clientWithPaymentStats = {
       ...client,
       totalPaid: paymentSummary.totalPaid,
-      remainingAmount: paymentSummary.remaining,
+      remainingAmount: paymentSummary.remainingAmount,
+      overpaidAmount: paymentSummary.overpaidAmount,
       totalAmount: paymentSummary.total,
       effectivePaymentStatus: paymentSummary.effectivePaymentStatus,
       latestPaymentDate,
-      payments: allClientPayments // Include payment history
+      payments: allClientPayments, // Include payment history
+      invoices: clientInvoices // Include invoice details with payment summaries
     };
 
     if (!client) {

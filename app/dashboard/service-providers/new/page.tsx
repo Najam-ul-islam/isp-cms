@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Factory,
@@ -19,11 +19,36 @@ export default function NewServiceProviderPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
   const router = useRouter();
+
+  // Check authentication when the page loads
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        });
+
+        if (authCheck.status === 401) {
+          router.push('/login');
+          return;
+        }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   // Show notification
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
@@ -35,16 +60,13 @@ export default function NewServiceProviderPage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
       const res = await fetch('/api/service-providers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
+        credentials: 'include', // This ensures cookies are sent with the request
         body: JSON.stringify({
           name,
           contactInfo,
@@ -60,6 +82,9 @@ export default function NewServiceProviderPage() {
           router.push('/dashboard/service-providers');
           router.refresh();
         }, 1500);
+      } else if (res.status === 401) {
+        // Handle unauthorized access
+        router.push('/login');
       } else {
         const data = await res.json();
         showNotification('error', data.error || 'Failed to create service provider');
@@ -71,6 +96,16 @@ export default function NewServiceProviderPage() {
       setSubmitting(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-100">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <span className="ml-3 text-slate-600 dark:text-gray-400">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

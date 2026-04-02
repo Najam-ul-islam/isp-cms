@@ -30,7 +30,7 @@ export const getPayments = async (admin: AdminWithPackages, filters?: PaymentFil
         ...payment,
         totalDue: summary.total,
         totalPaid: summary.totalPaid,
-        remainingAmount: summary.remaining
+        remainingAmount: summary.remainingAmount
       };
     })
   );

@@ -37,19 +37,20 @@ export default function PackageForm() {
   // Load service providers on component mount and pre-select if provided in URL
   useEffect(() => {
     const fetchServiceProviders = async () => {
-      const token = localStorage.getItem('token')
-      
-      if (!token) {
-        router.push('/login')
-        return
-      }
-
       try {
+        // Check if user is authenticated by making a simple API call
+        const authCheck = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include' // This ensures cookies are sent with the request
+        })
+
+        if (authCheck.status === 401) {
+          router.push('/login')
+          return
+        }
+
         const res = await fetch('/api/service-providers', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
+          credentials: 'include', // This ensures cookies are sent with the request
           cache: 'no-store'
         })
 
@@ -64,6 +65,7 @@ export default function PackageForm() {
           }
         } else if (res.status === 401) {
           router.push('/login')
+          return; // Early return to prevent setting loading to false after redirect
         } else {
           showNotification('error', 'Failed to fetch service providers')
         }
@@ -88,16 +90,13 @@ export default function PackageForm() {
     e.preventDefault()
     setSubmitting(true)
 
-    const token = localStorage.getItem('token')
-    if (!token) return
-
     try {
       const res = await fetch('/api/packages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
+        credentials: 'include', // This ensures cookies are sent with the request
         body: JSON.stringify({
           name,
           speed: parseInt(speed.toString()),
@@ -114,6 +113,9 @@ export default function PackageForm() {
           router.push('/dashboard/packages')
           router.refresh()
         }, 1500)
+      } else if (res.status === 401) {
+        // Handle unauthorized access
+        router.push('/login')
       } else {
         const data = await res.json()
         showNotification('error', data.error || 'Failed to create package')
