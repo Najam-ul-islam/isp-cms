@@ -379,13 +379,13 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
                 {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* User Overview Section - 4 Cards */}
           <Section title="User Overview" icon={<Users className="w-5 h-5" />} className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
-            <div className=" grid grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <StatCard
                 title="Total Users"
                 value={stats.totalUsers ?? stats.totalClients ?? 0}
@@ -424,7 +424,7 @@ export default function DashboardPage() {
             variant="success"
             className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
           >
-            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <StatCard
                 title="Today's Recovery"
                 value={stats.todayRecovery ?? stats.paidToday ?? 0}
@@ -457,9 +457,9 @@ export default function DashboardPage() {
           </Section>
         </div>
 
-        {/* FINANCIAL METRICS - Full width */}
+{/* FINANCIAL METRICS - Full width */}
 {/* ✅ TWO-COLUMN LAYOUT: Financial Summary + Accounts Summary */}
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
   {/* Financial Summary Section - 4 Cards */}
   <Section
     title="Financial Summary"
@@ -467,7 +467,7 @@ export default function DashboardPage() {
     variant="success"
     className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
   >
-    <div className="grid grid-cols-2 gap-4 sm:gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
       <StatCard
         title="Total Revenue"
         value={stats.totalRevenue ?? 0}
@@ -506,7 +506,7 @@ export default function DashboardPage() {
     variant="default"
     className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl"
   >
-    <div className="grid grid-cols-2 gap-4 sm:gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
       <StatCard
         title="Total Receivable"
         value={stats.totalReceivable ?? 0}
@@ -557,7 +557,7 @@ export default function DashboardPage() {
           icon={<Package className="w-5 h-5" />}
           className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <InventoryCard
               title="Total Items"
               value={stats.totalInventoryItems ?? 0}
@@ -584,11 +584,11 @@ export default function DashboardPage() {
         </Section>
 
         {/* EMPLOYEE OVERVIEW */}
-        <Section 
-        title="Employee Overview" 
-        icon={<Users className="w-5 h-5" />} 
+        <Section
+        title="Employee Overview"
+        icon={<Users className="w-5 h-5" />}
         className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <EmployeeCard
               title="Total Employees"
               value={stats.totalEmployees ?? 0}
@@ -626,7 +626,7 @@ export default function DashboardPage() {
           variant="warning"
           className="border-2 border-[#ea6f0050] bg-[#f7f7f7] p-2 rounded-xl"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <AlertCard
               title="Expiring Today"
               value={stats.expireToday ?? 0}
@@ -662,7 +662,7 @@ export default function DashboardPage() {
           variant="success"
           className="border-2 border-[#00a37c50] bg-[#f7f7f7] p-2 rounded-xl"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <FinCard
               title="Paid Today"
               amount={stats.paidToday ?? 0}
@@ -689,26 +689,27 @@ export default function DashboardPage() {
 
         {/* EXPIRING CLIENTS TABLE */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-linear-to-r from-purple-50/50 to-transparent">
-            <div className="flex items-center gap-3">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 bg-linear-to-r from-purple-50/50 to-transparent">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
-                <Calendar className="w-5 h-5 text-purple-600" />
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-800">
+                <h2 className="text-base sm:font-semibold text-slate-800">
                   Clients Expiring Soon
                 </h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-xs sm:text-sm text-slate-500">
                   Proactive retention opportunities
                 </p>
               </div>
             </div>
-            <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-medium rounded-full">
+            <span className="px-2.5 sm:px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-medium rounded-full self-start sm:self-auto">
               {expiringClients.length} clients
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50/80">
                 <tr className="text-left text-sm font-medium text-slate-500">
@@ -806,6 +807,76 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {expiringClients.length > 0 ? (
+              expiringClients.map((client) => (
+                <div key={client.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center text-sm font-semibold text-slate-600 flex-shrink-0">
+                      {client.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-800 truncate">{client.name}</p>
+                      <p className="text-sm text-slate-600">{client.phone}</p>
+                    </div>
+                    <StatusBadge daysLeft={client.daysLeft} />
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md font-medium">
+                      {client.package}
+                    </span>
+                    <span className="text-slate-600">
+                      {new Date(client.expiryDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <a
+                      href={`https://wa.me/${client.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                        `Hello ${client.name}, your internet package "${client.package}" will expire on ${new Date(
+                          client.expiryDate,
+                        ).toLocaleDateString()}. Please renew to avoid service interruption.`,
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-lg shadow-sm transition-all"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </a>
+                    <a
+                      href={`mailto:${client.email}?subject=${encodeURIComponent(
+                        "Internet Package Expiry Reminder",
+                      )}&body=${encodeURIComponent(
+                        `Hello ${client.name},\n\nYour internet package "${client.package}" will expire on ${new Date(
+                          client.expiryDate,
+                        ).toLocaleDateString()}.\n\nPlease renew your package to avoid service interruption.\n\nThank you.`,
+                      )}`}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg shadow-sm transition-all"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      Email
+                    </a>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                  <UserCheck className="w-12 h-12 opacity-50" />
+                  <p className="font-medium">No expiring clients</p>
+                  <p className="text-sm">
+                    All your clients are up to date! 🎉
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
@@ -835,14 +906,14 @@ function Section({
     success: "from-emerald-600 to-teal-500",
   };
   return (
-    <section className={`space-y-4 ${className}`}>
+    <section className={`space-y-3 sm:space-y-4 ${className}`}>
       <div className="flex items-center gap-2">
         <div
           className={`p-2 rounded-lg bg-linear-to-br ${variants[variant]} shadow-lg`}
         >
           <div className="text-white">{icon}</div>
         </div>
-        <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+        <h2 className="text-base sm:text-lg font-semibold text-slate-800">{title}</h2>
       </div>
       {children}
     </section>
@@ -896,23 +967,25 @@ function StatCard({
   const c = colors[color];
   return (
     <div
-      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
       onClick={onClick}
     >
       <div
-        className={`absolute -top-10 -right-10 w-32 h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+        className={`absolute -top-10 -right-10 w-24 h-24 sm:w-32 sm:h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
       />
       <div className="relative flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="text-3xl font-bold text-slate-800 tracking-tight">
+          <p className="text-xs sm:text-sm font-medium text-slate-500">{title}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
             {value.toLocaleString()}
           </p>
         </div>
         <div
-          className={`p-3 rounded-xl bg-linear-to-br ${c.icon} shadow-lg text-white`}
+          className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-linear-to-br ${c.icon} shadow-lg text-white`}
         >
-          {icon}
+          <div className="w-5 h-5 sm:w-6 sm:h-6">
+            {icon}
+          </div>
         </div>
       </div>
     </div>
@@ -952,21 +1025,21 @@ function FinCard({
   const t = types[type];
   return (
     <div
-      className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
+      className={`bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-2.5 rounded-xl ${t.bg} ${t.color}`}>{icon}</div>
-        <TrendingUp className={`w-5 h-5 ${t.color} opacity-60`} />
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className={`p-2 sm:p-2.5 rounded-lg sm:rounded-xl ${t.bg} ${t.color}`}>{icon}</div>
+        <TrendingUp className={`w-4 h-4 sm:w-5 sm:h-5 ${t.color} opacity-60`} />
       </div>
-      <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
-      <p className="text-2xl font-bold text-slate-800">
+      <p className="text-xs sm:text-sm font-medium text-slate-500 mb-1">{title}</p>
+      <p className="text-xl sm:text-2xl font-bold text-slate-800">
         Rs {amount.toLocaleString("en-PK")}
       </p>
-      <div className={`mt-3 pt-3 border-t ${t.border}`}>
-        <div className="flex items-center gap-2 text-sm">
+      <div className={`mt-2 sm:mt-3 pt-2 sm:pt-3 border-t ${t.border}`}>
+        <div className="flex items-center gap-2 text-xs sm:text-sm">
           <div
-            className={`w-2 h-2 rounded-full ${type === "income" ? "bg-emerald-500" : type === "due" ? "bg-rose-500" : "bg-amber-500"}`}
+            className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${type === "income" ? "bg-emerald-500" : type === "due" ? "bg-rose-500" : "bg-amber-500"}`}
           />
           <span className={t.color}>
             {type === "income"
@@ -1134,24 +1207,26 @@ function InventoryCard({
   const c = colors[color];
   return (
     <div
-      className={`relative bg-white rounded-2xl p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm border ${c.border} hover:shadow-md transition-all duration-300 group overflow-hidden ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
       onClick={onClick}
     >
       <div
-        className={`absolute -top-10 -right-10 w-32 h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+        className={`absolute -top-10 -right-10 w-24 h-24 sm:w-32 sm:h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
       />
       <div className="relative flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="text-3xl font-bold text-slate-800 tracking-tight">
+          <p className="text-xs sm:text-sm font-medium text-slate-500">{title}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">
             {value.toLocaleString()}
           </p>
           {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
         </div>
         <div
-          className={`p-3 rounded-xl bg-linear-to-br ${c.icon} shadow-lg text-white`}
+          className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-linear-to-br ${c.icon} shadow-lg text-white`}
         >
-          {icon}
+          <div className="w-5 h-5 sm:w-6 sm:h-6">
+            {icon}
+          </div>
         </div>
       </div>
     </div>
@@ -1218,29 +1293,29 @@ function AlertCard({
   const u = urgencies[urgency];
   return (
     <div
-      className={`relative bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 overflow-hidden group ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-300 overflow-hidden group ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
       onClick={onClick}
     >
       <div
         className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${u.bg}`}
       />
-      <div className="flex items-start justify-between mb-3">
-        <div className={`p-2 rounded-lg ring-4 ${u.ring}`}>
-          <AlertCircle className={`w-5 h-5 ${u.text}`} />
+      <div className="flex items-start justify-between mb-2 sm:mb-3">
+        <div className={`p-1.5 sm:p-2 rounded-lg sm:rounded-lg ring-2 sm:ring-4 ${u.ring}`}>
+          <AlertCircle className={`w-4 h-4 sm:w-5 sm:h-5 ${u.text}`} />
         </div>
         {value > 0 && (
           <span
-            className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.badge}`}
+            className={`px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs font-semibold rounded-full ${u.badge}`}
           >
             {value} clients
           </span>
         )}
       </div>
-      <h3 className="font-semibold text-slate-800 mb-1">{title}</h3>
-      <p className="text-3xl font-bold text-slate-800 mb-2">{value}</p>
-      <p className="text-sm text-slate-500">{message}</p>
+      <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">{title}</h3>
+      <p className="text-2xl sm:text-3xl font-bold text-slate-800 mb-1 sm:mb-2">{value}</p>
+      <p className="text-xs sm:text-sm text-slate-500">{message}</p>
       {value > 0 && (
-        <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="mt-3 sm:mt-4 h-1.5 sm:h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
             className={`h-full bg-linear-to-r ${u.bg} transition-all duration-500`}
             style={{ width: `${Math.min(value * 15, 100)}%` }}
