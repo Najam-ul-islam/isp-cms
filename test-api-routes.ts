@@ -32,13 +32,13 @@ async function testApiRoutes() {
   // Test 2: Check middleware functionality
   console.log('\n2. Testing middleware...');
   try {
-    const middlewareModule = await import('./middleware');
+    const middlewareModule = await import('./proxy');
     console.log('✅ Middleware module loaded successfully');
 
     // Check if required exports exist
-    const { middleware, config } = middlewareModule;
-    if (typeof middleware === 'function' && typeof config === 'object') {
-      console.log('✅ Middleware exports are correct');
+    const { proxy, config } = middlewareModule;
+    if (typeof proxy === 'function' && typeof config === 'object') {
+      console.log('✅ Proxy exports are correct');
     } else {
       console.log('❌ Missing required middleware exports');
     }

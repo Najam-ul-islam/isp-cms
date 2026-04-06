@@ -37,11 +37,14 @@ export const verifyToken = (token: string): TokenPayload | null => {
       where: { email }
     })
 
+    console.log('[AUTH] admin lookup result:', admin ? { id: admin.id, email: admin.email, role: admin.role, passwordPrefix: admin.password.substring(0, 10) } : null)
+
     if (!admin) {
       return null
     }
 
     const isValid = await verifyPassword(password, admin.password)
+    console.log('[AUTH] password verify result:', isValid)
     if (!isValid) {
       return null
     }

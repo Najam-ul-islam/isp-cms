@@ -67,6 +67,35 @@ export default function InventoryPage() {
 
   const lowStockItems = items.filter(item => item.quantity < 10);
 
+  const handleDeleteItem = async (itemId: string, itemName: string) => {
+    if (!confirm(`Are you sure you want to delete "${itemName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/inventory/${itemId}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete item");
+      }
+
+      // Remove item from local state
+      setItems(items.filter(item => item.id !== itemId));
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      alert("Failed to delete item. Please try again.");
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -212,7 +241,7 @@ export default function InventoryPage() {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => {/* Implement delete */}}
+                            onClick={() => handleDeleteItem(item.id, item.name)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
                             title="Delete"
                           >

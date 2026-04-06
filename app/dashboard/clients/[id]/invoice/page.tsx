@@ -1,21 +1,25 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Client, Package, ServiceProvider } from '@prisma/client';
-import Image from 'next/image';
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Client, Package, ServiceProvider } from "@prisma/client";
+import Image from "next/image";
+import PaymentModal from "@/components/payments/PaymentModal";
 
 interface ClientWithPackage extends Client {
   package: Package & { serviceProvider?: ServiceProvider | null };
 }
 
-interface ExtendedClient extends Omit<ClientWithPackage, 'expiryDate' | 'paymentStatus'> {
+interface ExtendedClient extends Omit<
+  ClientWithPackage,
+  "expiryDate" | "paymentStatus"
+> {
   paymentStatus?: string;
   expiryDate?: Date;
   totalPaid?: number;
   remainingAmount?: number;
   totalAmount?: number;
-  effectivePaymentStatus?: 'paid' | 'partial' | 'unpaid';
+  effectivePaymentStatus?: "paid" | "partial" | "unpaid";
   latestPaymentDate?: Date | null;
 }
 
@@ -25,26 +29,48 @@ export default function ClientInvoicePage() {
 
   const [client, setClient] = useState<ExtendedClient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [additionalCharges, setAdditionalCharges] = useState<
+    Array<{ name: string; amount: number }>
+  >([]);
+  const [showAddCharges, setShowAddCharges] = useState(false);
+  const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
 
   useEffect(() => {
     const fetchClient = async () => {
       try {
         const res = await fetch(`/api/clients/${id}`, {
-          credentials: 'include',
-          cache: 'no-store',
+          credentials: "include",
+          cache: "no-store",
         });
 
         if (res.ok) {
           const data = await res.json();
           setClient(data);
-        } else if (res.status === 401) {
-          router.push('/login');
+
+          if (
+            data.invoices &&
+            data.invoices.length > 0 &&
+            data.invoices[0].additionalCharges
+          ) {
+            try {
+              const charges =
+                typeof data.invoices[0].additionalCharges === "string"
+                  ? JSON.parse(data.invoices[0].additionalCharges)
+                  : data.invoices[0].additionalCharges;
+              if (Array.isArray(charges)) {
+                setAdditionalCharges(charges);
+              }
+            } catch (error) {
+              console.error("Error loading additional charges:", error);
+            }
+          }
         } else {
-          router.push('/login'); // Redirect to login on any error
+          router.push("/login");
         }
       } catch (err) {
         console.error(err);
-        router.push('/login'); // Redirect to login on error
+        router.push("/login");
       } finally {
         setLoading(false);
       }
@@ -54,176 +80,416 @@ export default function ClientInvoicePage() {
   }, [id, router]);
 
   const formatDate = (date: Date | string) =>
-    new Date(date).toLocaleDateString('en-PK');
+    new Date(date).toLocaleDateString("en-PK", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const formatPKR = (amount: number) =>
-    new Intl.NumberFormat('en-PK', {
-      style: 'currency',
-      currency: 'PKR',
-      maximumFractionDigits: 0,
+    new Intl.NumberFormat("en-PK", {
+      style: "currency",
+      currency: "PKR",
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
     }).format(amount);
 
   if (loading || !client) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
-  const total = client.price || 0;
-
-  // ✅ Smart fallback logic
+  const packagePrice = client.price || 0;
+  const additionalTotal = additionalCharges.reduce(
+    (sum, c) => sum + c.amount,
+    0,
+  );
+  const total = packagePrice + additionalTotal;
   const paid = client.totalPaid ?? 0;
-  const remaining = client.remainingAmount ?? total - paid;
+  const remaining = total - paid;
 
-  // ✅ Status color - use effectivePaymentStatus if available, otherwise fall back to paymentStatus
-  const effectiveStatus = client.effectivePaymentStatus || client.paymentStatus;
-  const statusColor =
-    effectiveStatus === 'paid'
-      ? 'text-green-600 bg-green-100'
-      : effectiveStatus === 'partial'
-      ? 'text-yellow-600 bg-yellow-100'
-      : 'text-red-600 bg-red-100';
+  const handleAddCharge = async () => {
+    if (newCharge.name && newCharge.amount) {
+      const charge = {
+        name: newCharge.name,
+        amount: parseFloat(newCharge.amount),
+      };
+      const updatedCharges = [...additionalCharges, charge];
+      setAdditionalCharges(updatedCharges);
+      setNewCharge({ name: "", amount: "" });
 
-  // ✅ WhatsApp Message
+      try {
+        const invoicesResponse = await fetch(
+          `/api/invoices?clientId=${client.id}`,
+          { credentials: "include" },
+        );
+
+        let invoiceId: string | null = null;
+
+        if (invoicesResponse.ok) {
+          const invoices = await invoicesResponse.json();
+          if (invoices.length > 0) {
+            invoiceId = invoices[0].id;
+          }
+        }
+
+        if (!invoiceId) {
+          await fetch("/api/invoices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              clientId: client.id,
+              amount: client.price,
+              dueDate: new Date().toISOString().split("T")[0],
+              description: `Invoice for ${client.name}`,
+              additionalCharges: updatedCharges,
+            }),
+          });
+        } else {
+          await fetch(`/api/invoices/${invoiceId}/additional-charges`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              invoiceId,
+              additionalCharges: updatedCharges,
+            }),
+          });
+        }
+      } catch (error) {
+        console.error("Error saving additional charges:", error);
+      }
+    }
+  };
+
+  const handleRemoveCharge = (index: number) => {
+    setAdditionalCharges(additionalCharges.filter((_, i) => i !== index));
+  };
+
+  let effectiveStatus: string;
+  let statusColor: string;
+
+  if (remaining < -0.01) {
+    effectiveStatus = "OVERPAID";
+    statusColor = "text-blue-600 bg-blue-100";
+  } else if (remaining <= 0.01) {
+    effectiveStatus = "PAID";
+    statusColor = "text-green-600 bg-green-100";
+  } else if (paid > 0) {
+    effectiveStatus = "PARTIAL";
+    statusColor = "text-yellow-600 bg-yellow-100";
+  } else {
+    effectiveStatus = "UNPAID";
+    statusColor = "text-red-600 bg-red-100";
+  }
+
   const sendWhatsApp = () => {
-    const phone = client.phone.replace(/\D/g, '');
-
+    const phone = client.phone.replace(/\D/g, "");
     const message = `
-📄 *Internet Invoice*
+📄 *Package Invoice*
+INV #${client.id.slice(0, 6).toUpperCase()}
+Date: ${formatDate(new Date())}
 
-👤 ${client.name}
-📦 ${client.package?.name} (${client.package?.speed} Mbps)
+👤 *Client Details*
+Name: ${client.name}
+Phone: ${client.phone}
+Address: ${client.area}, ${client.city}
 
-💰 Total: ${formatPKR(total)}
-✅ Paid: ${formatPKR(paid)}
-❌ Remaining: ${formatPKR(remaining)}
+📦 *Package Detail*
+Package: ${client.package?.name}
+Duration: 1 Month
 
-📅 Expiry: ${formatDate(client.expiryDate || new Date())}
-📊 Status: ${client.effectivePaymentStatus || client.paymentStatus || 'UNPAID'}
+💰 *Payment Detail*
+Package Charges: ${formatPKR(packagePrice)}
+One-Time Charges: ${formatPKR(additionalTotal)}
+Subtotal: ${formatPKR(total)}
+Discount: ${formatPKR(0)}
+Grand Total: ${formatPKR(total)}
+
+💳 *Payment Status*
+Paid Amount: ${formatPKR(paid)}
+Remaining Amount: ${formatPKR(remaining)}
+
+Last Payment: ${client.latestPaymentDate ? formatDate(client.latestPaymentDate) : "N/A"}
+Expiry Date: ${formatDate(client.expiryDate || new Date())}
+Status: ${effectiveStatus === "PAID" ? "✅ PAID" : effectiveStatus === "PARTIAL" ? "⏳ PARTIAL" : "❌ UNPAID"}
 
 Please clear your dues. Thank you!
 `;
 
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+      "_blank",
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 gap-4">
+    <div className="min-h-screen bg-linear-to-br from-indigo-50 to-blue-50 flex flex-col items-center justify-center p-4 gap-3">
+      {/* Action Buttons */}
+      <div className="flex gap-2 flex-wrap justify-center">
+        <button
+          onClick={sendWhatsApp}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+        >
+          📲 Send via WhatsApp
+        </button>
+        {remaining > 0.01 && (
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+          >
+            💳 Pay Now
+          </button>
+        )}
+      </div>
 
-      {/* WhatsApp Button */}
-      <button
-        onClick={sendWhatsApp}
-        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm shadow"
-      >
-        📲 Send via WhatsApp
-      </button>
-
-      {/* Ticket UI */}
-      <div className="w-full max-w-md bg-white rounded-[30px] shadow-lg border relative overflow-hidden">
-
-        {/* Top Cut */}
-        <div className="absolute top-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
+      {/* Invoice Container */}
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 relative overflow-hidden">
+        {/* Decorative Top Edge */}
+        <div className="absolute top-0 left-0 right-0 h-4 bg-linear-to-r from-indigo-500 via-purple-500 to-blue-500" />
 
         {/* Header */}
-        <div className="text-center pt-10 pb-4 px-6">
-          <h1 className="text-xl font-semibold text-indigo-600">Package Invoice</h1>
-          <p className="text-sm text-slate-600 mt-1">
+        <div className="text-center pt-6 pb-4 px-6">
+          <h1 className="text-2xl font-bold text-indigo-700">
+            Package Invoice
+          </h1>
+          <p className="text-sm text-slate-600 mt-1 font-medium">
             INV #{client.id.slice(0, 6).toUpperCase()}
           </p>
-
-          <div className="mt-3 inline-block px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md border border-green-300">
+          <div className="mt-2 inline-flex items-center px-3 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
             {formatDate(new Date())}
           </div>
         </div>
 
-        {/* User + Logo */}
-        <div className="flex justify-between items-center px-6 mt-4">
-          <div>
-            <h2 className="text-lg font-semibold">{client.name}</h2>
-            <p className="text-sm text-indigo-500">{client.phone}</p>
-            <p className="text-xs text-slate-500">
-              {client.area}, {client.city}
-            </p>
+        {/* User Info & Logo */}
+        <div className="px-6 pb-4">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-slate-800">
+                {client.name}
+              </h2>
+              <p className="text-sm text-indigo-600 font-medium">
+                {client.phone}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {client.area}, {client.city}
+              </p>
+            </div>
+            <div className="ml-4">
+              <Image
+                src="/logo.png"
+                alt="Transworld"
+                width={60}
+                height={60}
+                className="object-contain"
+              />
+              {/* <p className="text-xs text-center text-slate-600 mt-1 font-medium">SNS</p> */}
+            </div>
           </div>
-
-          <Image src="/logo.png" alt="Logo" width={60} height={60} />
         </div>
 
-        {/* Divider */}
-        <div className="px-6 mt-4">
-          <div className="h-2 bg-slate-100 rounded-md" />
+        {/* User Detail Section */}
+        <div className="px-6 py-2 bg-blue-50 border-y border-blue-100">
+          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            User Detail
+          </p>
         </div>
-
-        {/* Package */}
-        <div className="px-6 mt-4">
-          <p className="bg-blue-100 text-xs px-3 py-1 rounded">Package Detail</p>
-
-          <div className="flex justify-between text-sm mt-2">
-            <span>Internet Package</span>
-            <span>{client.package?.name}</span>
-          </div>
-        </div>
-
-        {/* PAYMENT */}
-        <div className="px-6 mt-4 space-y-1">
-          <p className="bg-blue-100 text-xs px-3 py-1 rounded">Payment Detail</p>
-
+        <div className="px-6 py-2">
           <div className="flex justify-between text-sm">
-            <span>Total</span>
-            <span>{formatPKR(total)}</span>
+            <span className="text-slate-600">Username</span>
+            <span className="text-slate-800 font-medium">{client.name}</span>
+          </div>
+        </div>
+
+        {/* Package Detail Section */}
+        <div className="px-6 py-2 bg-blue-50 border-y border-blue-100 mt-2">
+          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Package Detail
+          </p>
+        </div>
+        <div className="px-6 py-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600">Internet Package</span>
+            <span className="text-slate-800 font-medium">
+              {client.package?.name}
+            </span>
+          </div>
+        </div>
+
+        {/* One-Time Charges Section - Only for adding/editing */}
+        <div className="px-6 py-2 mt-0.5">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200">
+              🔧 One-Time Charges
+            </p>
+            <button
+              onClick={() => setShowAddCharges(!showAddCharges)}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline"
+            >
+              {showAddCharges ? "Cancel" : "+ Add Charge"}
+            </button>
           </div>
 
-          <div className="flex justify-between text-sm text-green-600">
-            <span>Paid</span>
-            <span>{formatPKR(paid)}</span>
-          </div>
+          {showAddCharges && (
+            <div className="bg-slate-50 rounded-lg p-2 mb-2 space-y-2 border border-slate-200">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Item name"
+                  value={newCharge.name}
+                  onChange={(e) =>
+                    setNewCharge({ ...newCharge, name: e.target.value })
+                  }
+                  className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Amount"
+                  value={newCharge.amount}
+                  onChange={(e) =>
+                    setNewCharge({ ...newCharge, amount: e.target.value })
+                  }
+                  className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleAddCharge}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
 
-          <div className="flex justify-between text-sm text-red-600">
-            <span>Remaining</span>
-            <span>{formatPKR(remaining)}</span>
-          </div>
-
-          {client.latestPaymentDate && (
-            <div className="flex justify-between text-sm text-blue-600">
-              <span>Last Payment</span>
-              <span>{formatDate(client.latestPaymentDate)}</span>
+          {/* Show count of charges if any exist */}
+          {additionalCharges.length > 0 && (
+            <div className="text-xs text-slate-500 italic">
+              {additionalCharges.length} charge
+              {additionalCharges.length > 1 ? "s" : ""} added
             </div>
           )}
         </div>
 
-        {/* STATUS */}
-        <div className="px-6 mt-4 flex justify-between text-sm">
-          <div>
-            <p className="text-xs text-slate-500">Status</p>
-            <span className={`px-2 py-1 rounded text-xs ${statusColor}`}>
-              {client.effectivePaymentStatus || client.paymentStatus || 'UNPAID'}
+        {/* Payment Detail Section - Show ALL charges here */}
+        <div className="px-6 py-2 bg-blue-50 border-y border-blue-100 mt-2">
+          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Payment Detail
+          </p>
+        </div>
+        <div className="px-6 py-3 space-y-2">
+          {/* Internet/Package Charges */}
+          <div className="flex justify-between text-xs">
+            <span className="text-slate-600">Internet Charges</span>
+            <span className="text-slate-800 text-xs leading-tight">
+              {formatPKR(packagePrice)}
             </span>
           </div>
 
-          <div className="text-right">
-            <p className="text-xs text-slate-500">Expiry</p>
-            <p>{formatDate(client.expiryDate || new Date())}</p>
+          {/* One-Time Charges listed individually */}
+          {additionalCharges.map((charge, idx) => (
+            <div key={idx} className="flex justify-between items-center py-0.5">
+              <span className="text-slate-600 text-xs leading-tight">
+                {charge.name}
+              </span>
+              <span className="text-slate-800 font-normal text-xs leading-tight">
+                {formatPKR(charge.amount)}
+              </span>
+            </div>
+          ))}
+
+          {/* Subtotal */}
+          {additionalCharges.length > 0 && (
+            <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+              <span className="text-slate-600">Subtotal</span>
+              <span className="text-slate-800 font-medium">
+                {formatPKR(total)}
+              </span>
+            </div>
+          )}
+
+          {/* Discount */}
+          {/* <div className="flex justify-between text-sm">
+            <span className="text-slate-600">Discount</span>
+            <span className="text-red-600 font-medium">-{formatPKR(0)}</span>
+          </div> */}
+        </div>
+
+        {/* Total Amount Box */}
+        <div className="mx-6 mb-4 mt-1 bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-slate-700">
+              Total Amount
+            </span>
+            <span className="text-2xl font-bold text-indigo-700">
+              {formatPKR(total)}
+            </span>
           </div>
         </div>
 
-        {/* TOTAL PAID BOX */}
-        <div className="px-6 mt-6 mb-10">
-          <div className="bg-blue-100 rounded-xl px-4 py-3 flex justify-between items-center">
-            <span>Total Paid</span>
-            <span className="text-xl font-bold text-indigo-700">
+        {/* Payment Status Section */}
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600">Paid Amount</span>
+            <span className="text-green-600 font-semibold">
               {formatPKR(paid)}
             </span>
           </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600">Remaining Amount</span>
+            <span
+              className={`font-semibold ${remaining > 0 ? "text-red-600" : "text-green-600"}`}
+            >
+              {formatPKR(remaining)}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+            <span className="text-slate-600">Status</span>
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}
+            >
+              {effectiveStatus}
+            </span>
+          </div>
         </div>
 
-        {/* Bottom Cut */}
-        <div className="absolute bottom-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-
+        {/* Decorative Bottom Edge */}
+        <div className="absolute bottom-0 left-0 right-0 h-2 bg-linear-to-r from-indigo-500 via-purple-500 to-blue-500" />
       </div>
 
-      {/* Print */}
+      {/* Payment Modal */}
+      {client && remaining > 0 && showPaymentModal && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          amount={remaining}
+          title={`Invoice #${client.id.slice(0, 6).toUpperCase()}`}
+          description={`Payment for ${client.name}`}
+          metadata={{
+            referenceType: "invoice",
+            referenceId: client.id,
+            clientId: client.id,
+            invoiceId: client.id,
+          }}
+          additionalCharges={
+            additionalCharges.length > 0 ? additionalCharges : undefined
+          }
+        />
+      )}
+
+      {/* Print Styles */}
       <style jsx global>{`
         @media print {
           button {
-            display: none;
+            display: none !important;
+          }
+          body {
+            background: white;
           }
         }
       `}</style>
@@ -231,24 +497,29 @@ Please clear your dues. Thank you!
   );
 }
 
+// "use client";
 
-
-
-
-// 'use client';
-
-// import { useEffect, useState } from 'react';
-// import { useParams, useRouter } from 'next/navigation';
-// import { Client, Package, ServiceProvider } from '@prisma/client';
-// import Image from 'next/image';
+// import { useEffect, useState } from "react";
+// import { useParams, useRouter } from "next/navigation";
+// import { Client, Package, ServiceProvider } from "@prisma/client";
+// import Image from "next/image";
+// import PaymentModal from "@/components/payments/PaymentModal";
 
 // interface ClientWithPackage extends Client {
 //   package: Package & { serviceProvider?: ServiceProvider | null };
 // }
 
-// interface ExtendedClient extends Omit<ClientWithPackage, 'expiryDate' | 'paymentStatus'> {
+// interface ExtendedClient extends Omit<
+//   ClientWithPackage,
+//   "expiryDate" | "paymentStatus"
+// > {
 //   paymentStatus?: string;
 //   expiryDate?: Date;
+//   totalPaid?: number;
+//   remainingAmount?: number;
+//   totalAmount?: number;
+//   effectivePaymentStatus?: "paid" | "partial" | "unpaid";
+//   latestPaymentDate?: Date | null;
 // }
 
 // export default function ClientInvoicePage() {
@@ -257,23 +528,51 @@ Please clear your dues. Thank you!
 
 //   const [client, setClient] = useState<ExtendedClient | null>(null);
 //   const [loading, setLoading] = useState(true);
+//   const [showPaymentModal, setShowPaymentModal] = useState(false);
+//   const [additionalCharges, setAdditionalCharges] = useState<
+//     Array<{ name: string; amount: number }>
+//   >([]);
+//   const [showAddCharges, setShowAddCharges] = useState(false);
+//   const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
 
 //   useEffect(() => {
 //     const fetchClient = async () => {
 //       try {
 //         const res = await fetch(`/api/clients/${id}`, {
-//           credentials: 'include',
-//           cache: 'no-store',
+//           credentials: "include",
+//           cache: "no-store",
 //         });
 
 //         if (res.ok) {
 //           const data = await res.json();
 //           setClient(data);
+
+//           // Load existing additional charges from the first invoice if available
+//           if (
+//             data.invoices &&
+//             data.invoices.length > 0 &&
+//             data.invoices[0].additionalCharges
+//           ) {
+//             try {
+//               const charges =
+//                 typeof data.invoices[0].additionalCharges === "string"
+//                   ? JSON.parse(data.invoices[0].additionalCharges)
+//                   : data.invoices[0].additionalCharges;
+//               if (Array.isArray(charges)) {
+//                 setAdditionalCharges(charges);
+//               }
+//             } catch (error) {
+//               console.error("Error loading additional charges:", error);
+//             }
+//           }
 //         } else if (res.status === 401) {
-//           router.push('/login');
+//           router.push("/login");
+//         } else {
+//           router.push("/login"); // Redirect to login on any error
 //         }
 //       } catch (err) {
 //         console.error(err);
+//         router.push("/login"); // Redirect to login on error
 //       } finally {
 //         setLoading(false);
 //       }
@@ -283,12 +582,12 @@ Please clear your dues. Thank you!
 //   }, [id, router]);
 
 //   const formatDate = (date: Date | string) =>
-//     new Date(date).toLocaleDateString('en-PK');
+//     new Date(date).toLocaleDateString("en-PK");
 
 //   const formatPKR = (amount: number) =>
-//     new Intl.NumberFormat('en-PK', {
-//       style: 'currency',
-//       currency: 'PKR',
+//     new Intl.NumberFormat("en-PK", {
+//       style: "currency",
+//       currency: "PKR",
 //       maximumFractionDigits: 0,
 //     }).format(amount);
 
@@ -300,164 +599,457 @@ Please clear your dues. Thank you!
 //     );
 //   }
 
-//   const internetCharges = client.price || 0;
-//   const discount = 0;
-//   const total = internetCharges - discount;
+//   // ✅ Correct calculation logic
+//   const packagePrice = client.price || 0;
+//   const additionalTotal = additionalCharges.reduce(
+//     (sum, c) => sum + c.amount,
+//     0,
+//   );
+//   const total = packagePrice + additionalTotal;
+//   const paid = client.totalPaid ?? 0;
+//   const remaining = total - paid;
 
-//   // ✅ Payment Status UI Color
-//   const statusColor =
-//     client.paymentStatus === 'PAID'
-//       ? 'text-green-600 bg-green-100'
-//       : client.paymentStatus === 'PARTIAL'
-//       ? 'text-yellow-600 bg-yellow-100'
-//       : 'text-red-600 bg-red-100';
+//   // Add charge to list
+//   const handleAddCharge = async () => {
+//     if (newCharge.name && newCharge.amount) {
+//       const charge = {
+//         name: newCharge.name,
+//         amount: parseFloat(newCharge.amount),
+//       };
+//       const updatedCharges = [...additionalCharges, charge];
+//       setAdditionalCharges(updatedCharges);
+//       setNewCharge({ name: "", amount: "" });
 
-//   // ✅ WhatsApp Function
+//       // Save additional charges to the first invoice for this client
+//       try {
+//         // Find or create an invoice for this client
+//         const invoicesResponse = await fetch(
+//           `/api/invoices?clientId=${client.id}`,
+//           {
+//             credentials: "include",
+//           },
+//         );
+
+//         let invoiceId: string | null = null;
+
+//         if (invoicesResponse.ok) {
+//           const invoices = await invoicesResponse.json();
+//           if (invoices.length > 0) {
+//             // Use the first invoice
+//             invoiceId = invoices[0].id;
+//           }
+//         }
+
+//         if (!invoiceId) {
+//           // Create a new invoice
+//           const createResponse = await fetch("/api/invoices", {
+//             method: "POST",
+//             headers: { "Content-Type": "application/json" },
+//             credentials: "include",
+//             body: JSON.stringify({
+//               clientId: client.id,
+//               amount: client.price,
+//               dueDate: new Date().toISOString().split("T")[0],
+//               description: `Invoice for ${client.name}`,
+//               additionalCharges: updatedCharges,
+//             }),
+//           });
+
+//           if (createResponse.ok) {
+//             const newInvoice = await createResponse.json();
+//             console.log("Created invoice with additional charges:", newInvoice);
+//           }
+//         } else {
+//           // Update existing invoice with additional charges
+//           const updateResponse = await fetch(
+//             `/api/invoices/${invoiceId}/additional-charges`,
+//             {
+//               method: "POST",
+//               headers: { "Content-Type": "application/json" },
+//               credentials: "include",
+//               body: JSON.stringify({
+//                 invoiceId,
+//                 additionalCharges: updatedCharges,
+//               }),
+//             },
+//           );
+
+//           if (!updateResponse.ok) {
+//             console.error("Failed to update invoice with additional charges");
+//           }
+//         }
+//       } catch (error) {
+//         console.error("Error saving additional charges:", error);
+//       }
+//     }
+//   };
+
+//   // Remove charge from list
+//   const handleRemoveCharge = (index: number) => {
+//     setAdditionalCharges(additionalCharges.filter((_, i) => i !== index));
+//   };
+
+//   // ✅ Calculate status directly from amounts based on requested logic
+//   let effectiveStatus: string;
+//   let statusColor: string;
+
+//   if (remaining < -0.01) {
+//     effectiveStatus = "OVERPAID";
+//     statusColor = "text-blue-600 bg-blue-100";
+//   } else if (remaining <= 0.01) {
+//     effectiveStatus = "PAID";
+//     statusColor = "text-green-600 bg-green-100";
+//   } else if (paid > 0) {
+//     effectiveStatus = "PARTIAL";
+//     statusColor = "text-yellow-600 bg-yellow-100";
+//   } else {
+//     effectiveStatus = "UNPAID";
+//     statusColor = "text-red-600 bg-red-100";
+//   }
+
+//   // ✅ WhatsApp Message
 //   const sendWhatsApp = () => {
-//     const phone = client.phone.replace(/\D/g, ''); // clean number
+//     const phone = client.phone.replace(/\D/g, "");
 
 //     const message = `
-// 📄 *Internet Invoice*
+// 📄 *Package Invoice*
+// INV #${client.id.slice(0, 6).toUpperCase()}
+// Date: ${formatDate(new Date())}
 
-// 👤 Name: ${client.name}
-// 📦 Package: ${client.package?.name} (${client.package?.speed} Mbps)
-// 💰 Amount: ${formatPKR(total)}
-// 📅 Expiry: ${formatDate(client.expiryDate || new Date())}
-// 📊 Status: ${client.paymentStatus || 'UNPAID'}
+// 👤 *Client Details*
+// Name: ${client.name}
+// Phone: ${client.phone}
+// Address: ${client.area}, ${client.city}
 
-// Please pay your bill. Thank you!
+// 📦 *Package Detail*
+// Package: ${client.package?.name}
+// Duration: 1 Month
+
+// 💰 *Payment Detail*
+// Package Charges: ${formatPKR(packagePrice)}
+// One-Time Charges: ${formatPKR(additionalTotal)}
+// Subtotal: ${formatPKR(total)}
+// Discount: ${formatPKR(0)}
+// Grand Total: ${formatPKR(total)}
+
+// 💳 *Payment Status*
+// Paid Amount: ${formatPKR(paid)}
+// Remaining Amount: ${formatPKR(remaining)}
+
+// Last Payment: ${client.latestPaymentDate ? formatDate(client.latestPaymentDate) : "N/A"}
+// Expiry Date: ${formatDate(client.expiryDate || new Date())}
+// Status: ${effectiveStatus === "PAID" ? "✅ PAID" : effectiveStatus === "PARTIAL" ? "⏳ PARTIAL" : "❌ UNPAID"}
+
+// Please clear your dues. Thank you!
 // `;
 
-//     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-//     window.open(url, '_blank');
+//     window.open(
+//       `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+//       "_blank",
+//     );
 //   };
 
 //   return (
-//     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 gap-4">
+//     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 gap-3">
+//       {/* Action Buttons */}
+//       <div className="flex gap-2">
+//         <button
+//           onClick={sendWhatsApp}
+//           className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm shadow"
+//         >
+//           📲 Send via WhatsApp
+//         </button>
+//         {additionalCharges.length > 0 && (
+//           <button
+//             onClick={() =>
+//               alert("One-time charges will be saved when you make a payment")
+//             }
+//             className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm shadow"
+//           >
+//             💾 Save One-Time Charges
+//           </button>
+//         )}
+//         {remaining > 0.01 && (
+//           <button
+//             onClick={() => setShowPaymentModal(true)}
+//             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm shadow flex items-center gap-2"
+//           >
+//             💳 Pay Now
+//           </button>
+//         )}
+//       </div>
 
-//       {/* WhatsApp Button */}
-//       <button
-//         onClick={sendWhatsApp}
-//         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm shadow"
-//       >
-//         📲 Send via WhatsApp
-//       </button>
-
-//       {/* Ticket Container */}
-//       <div className="w-full max-w-md bg-white rounded-[30px] shadow-lg border relative overflow-hidden">
-
-//         {/* Top Ticket Cut */}
+//       {/* Ticket UI */}
+//       <div className="w-full max-w-sm bg-white rounded-[30px] shadow-lg border relative overflow-hidden">
+//         {/* Top Cut */}
 //         <div className="absolute top-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
 
 //         {/* Header */}
-//         <div className="text-center pt-10 pb-4 px-6">
-//           <h1 className="text-xl font-semibold text-indigo-600">
+//         <div className="text-center pt-8 pb-3 px-5">
+//           <h1 className="text-lg font-semibold text-indigo-600">
 //             Package Invoice
 //           </h1>
-
-//           <p className="text-sm text-slate-600 mt-1">
+//           <p className="text-xs text-slate-600 mt-1">
 //             INV #{client.id.slice(0, 6).toUpperCase()}
 //           </p>
 
-//           <div className="mt-3 inline-block px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md border border-green-300">
+//           <div className="mt-2 inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-md border border-green-300">
 //             {formatDate(new Date())}
 //           </div>
 //         </div>
 
 //         {/* User + Logo */}
-//         <div className="flex justify-between items-center px-6 mt-4">
+//         <div className="flex justify-between items-center px-5 mt-3">
 //           <div>
-//             <h2 className="text-lg font-semibold text-slate-800">
-//               {client.name}
-//             </h2>
-//             <p className="text-sm text-indigo-500">{client.phone}</p>
-//             <p className="text-xs text-slate-500 mt-1">
+//             <h2 className="text-base font-semibold">{client.name}</h2>
+//             <p className="text-xs text-indigo-500">{client.phone}</p>
+//             <p className="text-[11px] text-slate-500">
 //               {client.area}, {client.city}
 //             </p>
 //           </div>
 
-//           <Image
-//             src="/logo.png"
-//             alt="Company Logo"
-//             width={60}
-//             height={60}
-//           />
+//           <Image src="/logo.png" alt="Logo" width={50} height={50} />
+//         </div>
+
+//         {/* One-Time Charges Section */}
+//         <div className="px-2 mt-1">
+//           <div className="flex justify-between items-center mb-1">
+//             <p className="bg-orange-100 text-orange-700 font-semibold text-xs px-1.5 py-0.5 rounded-md">
+//               🔧 One-Time Charges
+//             </p>
+//             <button
+//               onClick={() => setShowAddCharges(!showAddCharges)}
+//               className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+//             >
+//               {showAddCharges ? "Cancel" : "+ Add Charge"}
+//             </button>
+//           </div>
+
+//           {showAddCharges && (
+//             <div className="bg-slate-50 rounded-lg p-1.5 mb-1 space-y-1">
+//               <div className="flex gap-1">
+//                 <input
+//                   type="text"
+//                   placeholder="Item (e.g., Router)"
+//                   value={newCharge.name}
+//                   onChange={(e) =>
+//                     setNewCharge({ ...newCharge, name: e.target.value })
+//                   }
+//                   className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 />
+//                 <input
+//                   type="number"
+//                   placeholder="Amount"
+//                   value={newCharge.amount}
+//                   onChange={(e) =>
+//                     setNewCharge({ ...newCharge, amount: e.target.value })
+//                   }
+//                   className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 />
+//                 <button
+//                   onClick={handleAddCharge}
+//                   className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+//                 >
+//                   Add
+//                 </button>
+//               </div>
+//             </div>
+//           )}
+
+//           {additionalCharges.length > 0 && (
+//             <div className="space-y-1.5">
+//               {additionalCharges.map((charge, index) => (
+//                 <div
+//                   key={index}
+//                   className="flex justify-between text-xs items-center bg-slate-50 px-2 py-1.5 rounded"
+//                 >
+//                   <span className="text-slate-700">{charge.name}</span>
+//                   <div className="flex items-center gap-1.5">
+//                     <span className="text-slate-800 font-medium">
+//                       {formatPKR(charge.amount)}
+//                     </span>
+//                     <button
+//                       onClick={() => handleRemoveCharge(index)}
+//                       className="text-red-500 hover:text-red-700 text-base font-bold"
+//                     >
+//                       ×
+//                     </button>
+//                   </div>
+//                 </div>
+//               ))}
+//             </div>
+//           )}
 //         </div>
 
 //         {/* Divider */}
-//         <div className="px-6 mt-4">
-//           <div className="h-2 bg-slate-100 rounded-md" />
+//         <div className="px-5 mt-3">
+//           <div className="h-px bg-slate-200" />
 //         </div>
 
-//         {/* USER DETAIL */}
-//         <div className="px-6 mt-4">
-//           <p className="bg-blue-100 text-xs px-3 py-1 rounded">
-//             User Detail
+//         {/* Package Detail Section */}
+//         <div className="px-5 mt-3">
+//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
+//             📦 Package Detail
 //           </p>
 
-//           <div className="flex justify-between text-sm mt-2">
-//             <span>Username</span>
-//             <span>{client.name}</span>
+//           <div className="space-y-0.5">
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Package</span>
+//               <span className="text-slate-800 font-medium">
+//                 {client.package?.name}
+//               </span>
+//             </div>
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Duration</span>
+//               <span className="text-slate-800 font-medium">1 Month</span>
+//             </div>
 //           </div>
 //         </div>
 
-//         {/* PACKAGE DETAIL */}
-//         <div className="px-6 mt-4">
-//           <p className="bg-blue-100 text-xs px-3 py-1 rounded">
-//             Package Detail
+//         {/* Divider */}
+//         <div className="px-5 mt-3">
+//           <div className="h-px bg-slate-200" />
+//         </div>
+
+//         {/* 💰 Payment Detail Section */}
+//         <div className="px-5 mt-3 space-y-0.5">
+//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
+//             💰 Payment Detail
 //           </p>
 
-//           <div className="flex justify-between text-sm mt-2">
-//             <span>Internet Package</span>
-//             <span>
-//               {client.package?.name} ({client.package?.speed} Mbps)
-//             </span>
+//           <div className="space-y-0.5">
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Package Charges</span>
+//               <span className="text-slate-800 font-medium">
+//                 {formatPKR(packagePrice)}
+//               </span>
+//             </div>
+
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">One-Time Charges</span>
+//               <span className="text-slate-800 font-medium">
+//                 {formatPKR(additionalTotal)}
+//               </span>
+//             </div>
+
+//             <div className="h-px bg-slate-300 my-1.5" />
+
+//             <div className="flex justify-between text-xs font-semibold">
+//               <span className="text-slate-700">Subtotal</span>
+//               <span className="text-slate-800">{formatPKR(total)}</span>
+//             </div>
+
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Discount</span>
+//               <span className="text-slate-800 font-medium">{formatPKR(0)}</span>
+//             </div>
+
+//             <div className="h-px bg-slate-300 my-1.5" />
+
+//             <div className="flex justify-between text-sm font-bold bg-indigo-50 px-2 py-1.5 rounded mt-1.5">
+//               <span className="text-indigo-700">Grand Total</span>
+//               <span className="text-indigo-700">{formatPKR(total)}</span>
+//             </div>
 //           </div>
 //         </div>
 
-//         {/* PAYMENT DETAIL */}
-//         <div className="px-6 mt-4 space-y-1">
-//           <p className="bg-blue-100 text-xs px-3 py-1 rounded">
-//             Payment Detail
+//         {/* Divider */}
+//         <div className="px-5 mt-3">
+//           <div className="h-px bg-slate-200" />
+//         </div>
+
+//         {/* 💳 Payment Status Section */}
+//         <div className="px-5 mt-3 space-y-0.5">
+//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
+//             💳 Payment Status
 //           </p>
 
-//           <div className="flex justify-between text-sm">
-//             <span>Internet Charges</span>
-//             <span>{formatPKR(internetCharges)}</span>
+//           <div className="space-y-0.5">
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Paid Amount</span>
+//               <span className="text-green-600 font-semibold">
+//                 {formatPKR(paid)}
+//               </span>
+//             </div>
+
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Remaining Amount</span>
+//               <span
+//                 className={`font-semibold ${remaining > 0.01 ? "text-red-600" : remaining < -0.01 ? "text-blue-600" : "text-green-600"}`}
+//               >
+//                 {formatPKR(remaining)}
+//               </span>
+//             </div>
+
+//             {client.latestPaymentDate && (
+//               <div className="flex justify-between text-xs">
+//                 <span className="text-slate-600">Last Payment</span>
+//                 <span className="text-slate-800 font-medium">
+//                   {formatDate(client.latestPaymentDate)}
+//                 </span>
+//               </div>
+//             )}
+
+//             <div className="flex justify-between text-xs">
+//               <span className="text-slate-600">Expiry Date</span>
+//               <span className="text-slate-800 font-medium">
+//                 {formatDate(client.expiryDate || new Date())}
+//               </span>
+//             </div>
+
+//             <div className="h-px bg-slate-300 my-1.5" />
+
+//             <div className="flex justify-between items-center pt-0.5">
+//               <span className="text-slate-600 text-xs">Status</span>
+//               <span
+//                 className={`px-2 py-1 rounded-md text-xs font-bold ${statusColor}`}
+//               >
+//                 {effectiveStatus === "PAID"
+//                   ? "✅ "
+//                   : effectiveStatus === "PARTIAL"
+//                     ? "⏳ "
+//                     : "❌ "}
+//                 {effectiveStatus}
+//               </span>
+//             </div>
 //           </div>
 //         </div>
 
-//         {/* STATUS + EXPIRY */}
-//         <div className="px-6 mt-4 flex justify-between items-center text-sm">
-//           <div>
-//             <p className="text-slate-500 text-xs">Status</p>
-//             <span className={`px-2 py-1 rounded text-xs ${statusColor}`}>
-//               {client.paymentStatus || 'UNPAID'}
-//             </span>
-//           </div>
-
-//           <div className="text-right">
-//             <p className="text-slate-500 text-xs">Next Expiry</p>
-//             <p>{formatDate(client.expiryDate || new Date())}</p>
-//           </div>
-//         </div>
-
-//         {/* TOTAL */}
-//         <div className="px-6 mt-6 mb-10">
-//           <div className="bg-blue-100 rounded-xl px-4 py-3 flex justify-between items-center">
-//             <span>Total Amount</span>
-//             <span className="text-xl font-bold text-indigo-700">
-//               {formatPKR(total)}
+//         {/* TOTAL PAID BOX - Summary */}
+//         <div className="px-5 mt-4 mb-6">
+//           <div className="bg-linear-to-r from-indigo-500 to-blue-600 rounded-lg px-3 py-2 flex justify-between items-center shadow-md">
+//             <span className="text-white text-xs font-semibold">Total Paid</span>
+//             <span className="text-xl font-bold text-white">
+//               {formatPKR(paid)}
 //             </span>
 //           </div>
 //         </div>
 
 //         {/* Bottom Cut */}
 //         <div className="absolute bottom-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-
 //       </div>
 
-//       {/* PRINT */}
+//       {/* Payment Modal */}
+//       {client && remaining > 0 && showPaymentModal && (
+//         <PaymentModal
+//           isOpen={showPaymentModal}
+//           onClose={() => setShowPaymentModal(false)}
+//           amount={remaining}
+//           title={`Invoice #${client.id.slice(0, 6).toUpperCase()}`}
+//           description={`Payment for ${client.name}`}
+//           metadata={{
+//             referenceType: "invoice",
+//             referenceId: client.id,
+//             clientId: client.id,
+//             invoiceId: client.id,
+//           }}
+//           additionalCharges={
+//             additionalCharges.length > 0 ? additionalCharges : undefined
+//           }
+//         />
+//       )}
+
+//       {/* Print */}
 //       <style jsx global>{`
 //         @media print {
 //           button {
@@ -465,495 +1057,6 @@ Please clear your dues. Thank you!
 //           }
 //         }
 //       `}</style>
-//     </div>
-//   );
-// }
-
-
-
-
-
-// 'use client';
-
-// import { useEffect, useState } from 'react';
-// import { useParams, useRouter } from 'next/navigation';
-// import { Client, Package, ServiceProvider } from '@prisma/client';
-// import Image from 'next/image';
-
-// interface ClientWithPackage extends Client {
-//   package: Package & { serviceProvider?: ServiceProvider | null };
-// }
-
-// interface ExtendedClient extends ClientWithPackage {}
-
-// export default function ClientInvoicePage() {
-//   const { id } = useParams();
-//   const router = useRouter();
-
-//   const [client, setClient] = useState<ExtendedClient | null>(null);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     const fetchClient = async () => {
-//       try {
-//         const res = await fetch(`/api/clients/${id}`, {
-//           credentials: 'include',
-//           cache: 'no-store',
-//         });
-
-//         if (res.ok) {
-//           const data = await res.json();
-//           setClient(data);
-//         } else if (res.status === 401) {
-//           router.push('/login');
-//         }
-//       } catch (err) {
-//         console.error(err);
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     if (id) fetchClient();
-//   }, [id, router]);
-
-//   const formatDate = (date: Date | string) =>
-//     new Date(date).toLocaleString('en-PK');
-
-//   const formatPKR = (amount: number) =>
-//     new Intl.NumberFormat('en-PK', {
-//       style: 'currency',
-//       currency: 'PKR',
-//       maximumFractionDigits: 0,
-//     }).format(amount);
-
-//   if (loading || !client) {
-//     return (
-//       <div className="min-h-screen flex items-center justify-center">
-//         Loading...
-//       </div>
-//     );
-//   }
-
-//   // 🔹 Charges (you can later make dynamic)
-//   const internetCharges = client.price || 0;
-//   const discount = 0;
-//   const total = internetCharges - discount;
-
-//   return (
-//     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-
-//       {/* Ticket Container */}
-//       <div className="w-full max-w-md bg-white rounded-[30px] shadow-lg border relative overflow-hidden">
-
-//         {/* Top Ticket Cut Design */}
-//         <div className="absolute top-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-
-//         {/* Header */}
-//         <div className="text-center pt-10 pb-4 px-6">
-//           <h1 className="text-xl font-semibold text-indigo-600">
-//             Package Invoice
-//           </h1>
-
-//           <p className="text-sm text-slate-600 mt-1">
-//             INV #{client.id.slice(0, 6).toUpperCase()}
-//           </p>
-
-//           <div className="mt-3 inline-block px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md border border-green-300">
-//             {formatDate(new Date())}
-//           </div>
-//         </div>
-
-//         {/* User + Logo */}
-//         <div className="flex justify-between items-center px-6 mt-4">
-//           <div>
-//             <h2 className="text-lg font-semibold text-slate-800">
-//               {client.name}
-//             </h2>
-//             <p className="text-sm text-indigo-500">{client.phone}</p>
-//             <p className="text-xs text-slate-500 mt-1">
-//               {client.area}, {client.city}
-//             </p>
-//           </div>
-
-//           <Image
-//             src="/logo.png"
-//             alt="Company Logo"
-//             width={60}
-//             height={60}
-//             className="object-contain"
-//           />
-//         </div>
-
-//         {/* Divider */}
-//         <div className="px-6 mt-4">
-//           <div className="h-2 bg-slate-100 rounded-md" />
-//         </div>
-
-//         {/* USER DETAIL */}
-//         <div className="px-6 mt-4">
-//           <p className="bg-blue-100 text-slate-600 text-xs px-3 py-1 rounded">
-//             User Detail
-//           </p>
-
-//           <div className="flex justify-between text-sm mt-2">
-//             <span className="text-indigo-600">Username</span>
-//             <span>{client.name}</span>
-//           </div>
-//         </div>
-
-//         {/* PACKAGE DETAIL */}
-//         <div className="px-6 mt-4">
-//           <p className="bg-blue-100 text-slate-600 text-xs px-3 py-1 rounded">
-//             Package Detail
-//           </p>
-
-//           <div className="flex justify-between text-sm mt-2">
-//             <span className="text-indigo-600">Internet Package</span>
-//             <span>
-//               {client.package?.name} ({client.package?.speed} Mbps)
-//             </span>
-//           </div>
-//         </div>
-
-//         {/* PAYMENT DETAIL */}
-//         <div className="px-6 mt-4 space-y-1">
-//           <p className="bg-blue-100 text-slate-600 text-xs px-3 py-1 rounded">
-//             Payment Detail
-//           </p>
-
-//           <div className="flex justify-between text-sm">
-//             <span className="text-indigo-600">Internet Charges</span>
-//             <span>{formatPKR(internetCharges)}</span>
-//           </div>
-//         </div>
-
-//         {/* TOTAL */}
-//         <div className="px-6 mt-6 mb-10">
-//           <div className="bg-blue-100 rounded-xl px-4 py-3 flex justify-between items-center">
-//             <span className="text-slate-600 text-sm">Total Amount</span>
-//             <span className="text-xl font-bold text-indigo-700">
-//               {formatPKR(total)}
-//             </span>
-//           </div>
-//         </div>
-
-//         {/* Bottom Ticket Cut */}
-//         <div className="absolute bottom-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-
-//       </div>
-
-//       {/* PRINT STYLES */}
-//       <style jsx global>{`
-//         @media print {
-//           body {
-//             background: white;
-//           }
-//         }
-//       `}</style>
-//     </div>
-//   );
-// }
-
-
-
-// 'use client';
-
-// import { useEffect, useState } from 'react';
-// import { useParams, useRouter } from 'next/navigation';
-// import { Client, Package, ServiceProvider } from '@prisma/client';
-// import {
-//   User, Phone, MapPin, Calendar, CreditCard, IndianRupee,
-//   Building, Factory, Wifi, Clock, Mail, Hash, Download, ArrowLeft
-// } from 'lucide-react';
-// import Link from 'next/link';
-
-// interface ClientWithPackage extends Client {
-//   package: Package & { serviceProvider?: ServiceProvider | null };
-// }
-
-// interface ExtendedClient extends ClientWithPackage {
-//   email: any;
-//   _count?: { payments: number };
-//   totalPaid?: number;
-//   remainingAmount?: number;
-//   effectivePaymentStatus?: string;
-// }
-
-// export default function ClientInvoicePage() {
-//   const { id } = useParams();
-//   const router = useRouter();
-//   const [client, setClient] = useState<ExtendedClient | null>(null);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState<string | null>(null);
-
-//   useEffect(() => {
-//     const fetchClient = async () => {
-//       try {
-//         const res = await fetch(`/api/clients/${id}`, {
-//           credentials: 'include',
-//           cache: 'no-store'
-//         });
-
-//         if (res.ok) {
-//           const data: ExtendedClient = await res.json();
-//           setClient(data);
-//         } else if (res.status === 401) {
-//           router.push('/login');
-//         } else {
-//           setError('Failed to fetch client data');
-//         }
-//       } catch (err) {
-//         console.error('Error fetching client:', err);
-//         setError('An error occurred while fetching client data');
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     if (id) {
-//       fetchClient();
-//     }
-//   }, [id, router]);
-
-//   if (loading) {
-//     return (
-//       <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-//         <div className="max-w-4xl mx-auto px-4">
-//           <div className="animate-pulse space-y-6">
-//             <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
-//             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-//               <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/4 mb-4"></div>
-//               <div className="space-y-3">
-//                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-full"></div>
-//                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-3/4"></div>
-//                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/2"></div>
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   if (error || !client) {
-//     return (
-//       <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-//         <div className="max-w-4xl mx-auto px-4">
-//           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-//             <h1 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">Error Loading Client</h1>
-//             <p className="text-slate-600 dark:text-slate-300">{error || 'Client not found'}</p>
-//             <Link href="/dashboard/clients" className="inline-flex items-center gap-2 mt-4 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-//               <ArrowLeft className="w-4 h-4" />
-//               Back to Clients
-//             </Link>
-//           </div>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   const formatDate = (date: Date | string) => {
-//     return new Date(date).toLocaleDateString('en-PK', {
-//       year: 'numeric',
-//       month: 'short',
-//       day: 'numeric'
-//     });
-//   };
-
-//   const formatPKR = (amount: number) => {
-//     return new Intl.NumberFormat('en-PK', {
-//       style: 'currency',
-//       currency: 'PKR',
-//       minimumFractionDigits: 0,
-//       maximumFractionDigits: 0
-//     }).format(amount);
-//   };
-
-//   // Generate invoice data
-//   const invoiceDate = new Date();
-//   const dueDate = new Date();
-//   dueDate.setDate(dueDate.getDate() + 30); // 30 days from now
-//   const invoiceNumber = `INV-${client.id.substring(0, 8).toUpperCase()}-${Date.now()}`;
-
-//   return (
-//     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-//       <div className="max-w-4xl mx-auto px-4">
-//         {/* Header */}
-//         <div className="mb-8">
-//           <div className="flex items-center justify-between">
-//             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Invoice</h1>
-//             <button
-//               onClick={() => window.print()}
-//               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-//             >
-//               <Download className="w-4 h-4" />
-//               Print Invoice
-//             </button>
-//           </div>
-//           <p className="text-slate-500 dark:text-slate-400 mt-1">Detailed invoice for client services</p>
-//         </div>
-
-//         {/* Invoice Card */}
-//         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 overflow-hidden">
-//           {/* Invoice Header */}
-//           <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-//             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-//               <div>
-//                 <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Internet Service Provider</h2>
-//                 <p className="text-slate-600 dark:text-slate-300 text-sm">Monthly Service Invoice</p>
-//               </div>
-//               <div className="text-right">
-//                 <p className="text-slate-800 dark:text-white font-medium">Invoice #{invoiceNumber}</p>
-//                 <p className="text-slate-600 dark:text-slate-300 text-sm">Date: {formatDate(invoiceDate)}</p>
-//                 <p className="text-slate-600 dark:text-slate-300 text-sm">Due: {formatDate(dueDate)}</p>
-//               </div>
-//             </div>
-//           </div>
-
-//           {/* Billing Information */}
-//           <div className="p-6">
-//             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-//               {/* Bill From */}
-//               <div>
-//                 <h3 className="font-semibold text-slate-800 dark:text-white mb-3">Bill From</h3>
-//                 <div className="space-y-1 text-sm">
-//                   <p className="font-medium text-slate-800 dark:text-white">Internet Service Provider</p>
-//                   <p className="text-slate-600 dark:text-slate-300">123 Network Street</p>
-//                   <p className="text-slate-600 dark:text-slate-300">Karachi, Pakistan</p>
-//                   <p className="text-slate-600 dark:text-slate-300">contact@isp.com</p>
-//                   <p className="text-slate-600 dark:text-slate-300">+92 300 1234567</p>
-//                 </div>
-//               </div>
-
-//               {/* Bill To */}
-//               <div>
-//                 <h3 className="font-semibold text-slate-800 dark:text-white mb-3">Bill To</h3>
-//                 <div className="space-y-1 text-sm">
-//                   <p className="font-medium text-slate-800 dark:text-white">{client.name}</p>
-//                   <p className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-//                     <Hash className="w-3 h-3" />
-//                     {client.cnic}
-//                   </p>
-//                   <p className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-//                     <Phone className="w-3 h-3" />
-//                     {client.phone}
-//                   </p>
-//                   {client.email && (
-//                     <p className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-//                       <Mail className="w-3 h-3" />
-//                       {client.email}
-//                     </p>
-//                   )}
-//                   <p className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-//                     <MapPin className="w-3 h-3" />
-//                     {client.area}, {client.city}
-//                   </p>
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* Service Details */}
-//             <div className="mb-8">
-//               <h3 className="font-semibold text-slate-800 dark:text-white mb-4">Service Details</h3>
-//               <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-//                 <table className="w-full">
-//                   <thead className="bg-slate-50/80 dark:bg-slate-900/50">
-//                     <tr>
-//                       <th className="text-left py-3 px-4 text-slate-600 dark:text-slate-300 font-medium text-sm">Description</th>
-//                       <th className="text-right py-3 px-4 text-slate-600 dark:text-slate-300 font-medium text-sm">Amount</th>
-//                     </tr>
-//                   </thead>
-//                   <tbody>
-//                     <tr className="border-t border-slate-100 dark:border-slate-700">
-//                       <td className="py-3 px-4">
-//                         <div className="font-medium text-slate-800 dark:text-white">{client.package?.name || 'Internet Package'}</div>
-//                         <div className="text-sm text-slate-600 dark:text-slate-300">
-//                           {client.package?.speed} Mbps • {client.package?.serviceProvider?.name || 'Service Provider'}
-//                         </div>
-//                       </td>
-//                       <td className="py-3 px-4 text-right text-slate-800 dark:text-white">
-//                         {formatPKR(client.price || 0)}
-//                       </td>
-//                     </tr>
-//                     <tr className="border-t border-slate-100 dark:border-slate-700">
-//                       <td className="py-3 px-4">
-//                         <div className="font-medium text-slate-800 dark:text-white">Additional Charges</div>
-//                         <div className="text-sm text-slate-600 dark:text-slate-300">Late fees, taxes, etc.</div>
-//                       </td>
-//                       <td className="py-3 px-4 text-right text-slate-800 dark:text-white">
-//                         {formatPKR(0)}
-//                       </td>
-//                     </tr>
-//                   </tbody>
-//                   <tfoot className="bg-slate-50/80 dark:bg-slate-900/50 font-semibold">
-//                     <tr>
-//                       <td className="py-3 px-4 text-slate-800 dark:text-white">Total</td>
-//                       <td className="py-3 px-4 text-right text-slate-800 dark:text-white">
-//                         {formatPKR(client.price || 0)}
-//                       </td>
-//                     </tr>
-//                   </tfoot>
-//                 </table>
-//               </div>
-//             </div>
-
-//             {/* Additional Information */}
-//             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-//               <div>
-//                 <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Package Info</h4>
-//                 <div className="space-y-1 text-sm">
-//                   <p className="text-slate-800 dark:text-white">{client.package?.name || 'N/A'}</p>
-//                   <p className="text-slate-600 dark:text-slate-300">{client.package?.speed} Mbps</p>
-//                 </div>
-//               </div>
-//               <div>
-//                 <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Expiry Date</h4>
-//                 <div className="space-y-1 text-sm">
-//                   <p className="text-slate-800 dark:text-white">{formatDate(client.expiryDate)}</p>
-//                   <p className="text-slate-600 dark:text-slate-300">Renewal required</p>
-//                 </div>
-//               </div>
-//               <div>
-//                 <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Status</h4>
-//                 <div className="space-y-1 text-sm">
-//                   <p className="text-slate-800 dark:text-white">{client.status}</p>
-//                   <p className="text-slate-600 dark:text-slate-300">{client.paymentStatus}</p>
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* Payment Instructions */}
-//             <div className="bg-slate-50/50 dark:bg-slate-900/20 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
-//               <h4 className="font-medium text-slate-800 dark:text-white mb-2">Payment Instructions</h4>
-//               <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-//                 <li>• Payment is due within 30 days of invoice date</li>
-//                 <li>• Pay online through our portal or visit our office</li>
-//                 <li>• Late payments may incur additional charges</li>
-//                 <li>• Contact us if you have any questions about this invoice</li>
-//               </ul>
-//             </div>
-//           </div>
-
-//           {/* Invoice Footer */}
-//           <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
-//             <p className="text-center text-slate-500 dark:text-slate-400 text-sm">
-//               Thank you for your business! If you have any questions about this invoice, please contact us.
-//             </p>
-//           </div>
-//         </div>
-
-//         {/* Back Button */}
-//         <div className="mt-6">
-//           <Link
-//             href={`/dashboard/clients/${client.id}`}
-//             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition-colors font-medium"
-//           >
-//             <ArrowLeft className="w-4 h-4" />
-//             Back to Client Details
-//           </Link>
-//         </div>
-//       </div>
 //     </div>
 //   );
 // }

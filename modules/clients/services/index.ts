@@ -73,6 +73,7 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
 
     // Group payments by client ID
     const paymentGroups = allPayments.reduce((acc, payment) => {
+      if (!payment.clientId) return acc; // Skip payments without clientId
       if (!acc[payment.clientId]) {
         acc[payment.clientId] = [];
       }

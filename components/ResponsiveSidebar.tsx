@@ -9,6 +9,7 @@ import {
   Package,
   LogOut,
   ChevronRight,
+  ChevronDown,
   Wifi,
   Factory,
   DollarSign,
@@ -18,7 +19,8 @@ import {
   ShoppingCart,
   BadgePercent,
   Menu,
-  X
+  X,
+  CreditCard as CreditCardIcon
 } from 'lucide-react'
 
 export default function ResponsiveSidebar() {
@@ -27,6 +29,7 @@ export default function ResponsiveSidebar() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [showToggle, setShowToggle] = useState(false)
+  const [packagesExpanded, setPackagesExpanded] = useState(false)
 
   // Check if mobile screen
   useEffect(() => {
@@ -46,6 +49,13 @@ export default function ResponsiveSidebar() {
 
     return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
+
+  // Auto-expand Packages when on service-providers page
+  useEffect(() => {
+    if (pathname === '/dashboard/service-providers') {
+      setPackagesExpanded(true)
+    }
+  }, [pathname])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -68,7 +78,20 @@ export default function ResponsiveSidebar() {
     {
       href: '/dashboard/packages',
       label: 'Packages',
-      icon: Package
+      icon: Package,
+      hasSubmenu: true,
+      submenu: [
+        {
+          href: '/dashboard/packages',
+          label: 'All Packages',
+          icon: Package
+        },
+        {
+          href: '/dashboard/service-providers',
+          label: 'Service Providers',
+          icon: Factory
+        }
+      ]
     },
     {
       href: '/dashboard/payments',
@@ -91,11 +114,6 @@ export default function ResponsiveSidebar() {
       icon: Users
     },
     {
-      href: '/dashboard/service-providers',
-      label: 'Service Providers',
-      icon: Factory
-    },
-    {
       href: '/dashboard/inventory',
       label: 'Inventory',
       icon: PackageIcon
@@ -104,6 +122,11 @@ export default function ResponsiveSidebar() {
       href: '/dashboard/employees',
       label: 'Employees',
       icon: Users
+    },
+    {
+      href: '/dashboard/subscription',
+      label: 'Subscription',
+      icon: CreditCardIcon
     },
   ]
 
@@ -159,28 +182,78 @@ export default function ResponsiveSidebar() {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
+            const hasSubmenu = item.hasSubmenu && item.submenu
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`
-                  group flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 ease-in-out
-                  ${isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                    : 'text-gray-300 hover:bg-gray-700/60 hover:text-white'
-                  }
-                  ${sidebarOpen ? 'mx-2' : 'justify-center'}
-                `}
-                onClick={() => isMobile && setSidebarOpen(false)} // Close sidebar on mobile after clicking
-              >
-                <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'} ${sidebarOpen ? '' : 'mx-auto'}`} />
-                <span className={`font-medium ${sidebarOpen ? '' : 'hidden'}`}>{item.label}</span>
-                {sidebarOpen && isActive && (
-                  <ChevronRight className="w-4 h-4 ml-auto opacity-70" />
+              <div key={item.href}>
+                <div
+                  onClick={() => hasSubmenu && sidebarOpen ? setPackagesExpanded(!packagesExpanded) : undefined}
+                  className={`
+                    group flex items-center gap-3 px-3 py-2.5 rounded-xl
+                    transition-all duration-200 ease-in-out cursor-pointer
+                    ${isActive && !hasSubmenu
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                      : 'text-gray-300 hover:bg-gray-700/60 hover:text-white'
+                    }
+                    ${sidebarOpen ? 'mx-2' : 'justify-center'}
+                  `}
+                >
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-3 flex-1"
+                    onClick={() => isMobile && setSidebarOpen(false)}
+                  >
+                    <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'} ${sidebarOpen ? '' : 'mx-auto'}`} />
+                    {sidebarOpen && (
+                      <>
+                        <span className="font-medium flex-1">{item.label}</span>
+                        {hasSubmenu && (
+                          packagesExpanded ? (
+                            <ChevronDown className="w-4 h-4 opacity-70" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 opacity-70" />
+                          )
+                        )}
+                        {!hasSubmenu && isActive && (
+                          <ChevronRight className="w-4 h-4 ml-auto opacity-70" />
+                        )}
+                      </>
+                    )}
+                  </Link>
+                </div>
+
+                {/* Submenu items */}
+                {hasSubmenu && packagesExpanded && sidebarOpen && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.submenu.map((subItem) => {
+                      const SubIcon = subItem.icon
+                      const isSubActive = pathname === subItem.href
+                      return (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className={`
+                            group flex items-center gap-3 px-3 py-2 rounded-xl
+                            transition-all duration-200 ease-in-out
+                            ${isSubActive
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                              : 'text-gray-400 hover:bg-gray-700/60 hover:text-white'
+                            }
+                            mx-2
+                          `}
+                          onClick={() => isMobile && setSidebarOpen(false)}
+                        >
+                          <SubIcon className="w-4 h-4" />
+                          <span className="text-sm font-medium">{subItem.label}</span>
+                          {isSubActive && (
+                            <ChevronRight className="w-3 h-3 ml-auto opacity-70" />
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
                 )}
-              </Link>
+              </div>
             )
           })}
         </nav>

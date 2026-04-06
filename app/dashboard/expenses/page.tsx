@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { DollarSign, Plus, Search, Calendar, FileText, Edit, Trash2, Download, Filter } from 'lucide-react';
+import { DollarSign, Plus, Search, Calendar, FileText, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Expense {
   id: string;
@@ -14,6 +14,8 @@ interface Expense {
   receipt?: string;
 }
 
+const ITEMS_PER_PAGE = 15;
+
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [currentPage, setCurrentPage] = useState(1);
 
   const router = useRouter();
 
@@ -33,10 +35,9 @@ export default function ExpensesPage() {
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
-        // Check if user is authenticated by making a simple API call
         const authCheck = await fetch('/api/auth/check', {
           method: 'GET',
-          credentials: 'include' // This ensures cookies are sent with the request
+          credentials: 'include'
         });
 
         if (authCheck.status === 401) {
@@ -45,7 +46,7 @@ export default function ExpensesPage() {
         }
 
         const response = await fetch('/api/expenses', {
-          credentials: 'include', // This ensures cookies are sent with the request
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -77,7 +78,13 @@ export default function ExpensesPage() {
     return matchesSearch && matchesCategory;
   });
 
-  const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  // Pagination logic
+  const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedExpenses = filteredExpenses.slice(startIndex, endIndex);
+
+  const totalExpenses = paginatedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   const handleAddExpense = () => {
     setEditingExpense(null);
@@ -92,20 +99,9 @@ export default function ExpensesPage() {
   const handleDeleteExpense = async (id: string) => {
     if (confirm('Are you sure you want to delete this expense?')) {
       try {
-        // Check if user is authenticated by making a simple API call
-        const authCheck = await fetch('/api/auth/check', {
-          method: 'GET',
-          credentials: 'include' // This ensures cookies are sent with the request
-        });
-
-        if (authCheck.status === 401) {
-          router.push('/login');
-          return;
-        }
-
         const response = await fetch(`/api/expenses/${id}`, {
           method: 'DELETE',
-          credentials: 'include', // This ensures cookies are sent with the request
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -127,22 +123,10 @@ export default function ExpensesPage() {
 
   const handleSaveExpense = async (expenseData: Partial<Expense>) => {
     try {
-      // Check if user is authenticated by making a simple API call
-      const authCheck = await fetch('/api/auth/check', {
-        method: 'GET',
-        credentials: 'include' // This ensures cookies are sent with the request
-      });
-
-      if (authCheck.status === 401) {
-        router.push('/login');
-        return;
-      }
-
       if (editingExpense) {
-        // Update existing expense
         const response = await fetch(`/api/expenses/${editingExpense.id}`, {
           method: 'PUT',
-          credentials: 'include', // This ensures cookies are sent with the request
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -161,10 +145,9 @@ export default function ExpensesPage() {
           alert('Failed to update expense');
         }
       } else {
-        // Add new expense
         const response = await fetch('/api/expenses', {
           method: 'POST',
-          credentials: 'include', // This ensures cookies are sent with the request
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -187,95 +170,113 @@ export default function ExpensesPage() {
     }
   };
 
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
   if (loading) {
     return <ExpensesSkeleton />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Notification Toast */}
-      {/* Note: This is a placeholder - you may want to implement a proper notification system */}
-
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:text-slate-800 dark:to-gray-300 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold bg-linear-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
             Expenses
           </h1>
-          <p className="text-slate-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-slate-500 mt-0.5">
             Track and manage your business expenses
           </p>
         </div>
         <button
           onClick={handleAddExpense}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
         >
-          <Plus className="w-5 h-5" />
-          Add New Expense
+          <Plus className="w-4 h-4" />
+          Add Expense
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-3 gap-5">
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Total Expenses</p>
-            <div className="p-2 rounded-lg bg-rose-50 text-rose-600">
-              <DollarSign className="w-5 h-5" />
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="p-4 bg-white rounded-xl border shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs text-slate-500">Page Total</p>
+            <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
+          <div className="text-xl font-bold">
             Rs {totalExpenses.toLocaleString("en-PK")}
           </div>
+          <p className="text-xs text-slate-400 mt-1">{paginatedExpenses.length} items</p>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Total Records</p>
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-              <FileText className="w-5 h-5" />
+        <div className="p-4 bg-white rounded-xl border shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs text-slate-500">Total Records</p>
+            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+              <FileText className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
+          <div className="text-xl font-bold">
             {filteredExpenses.length}
           </div>
+          <p className="text-xs text-slate-400 mt-1">Page {currentPage} of {totalPages || 1}</p>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Avg. Expense</p>
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-              <Calendar className="w-5 h-5" />
+        <div className="p-4 bg-white rounded-xl border shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs text-slate-500">Avg. Expense</p>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+              <Calendar className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
-            Rs {filteredExpenses.length ? Math.round(totalExpenses / filteredExpenses.length).toLocaleString("en-PK") : '0'}
+          <div className="text-xl font-bold">
+            Rs {paginatedExpenses.length ? Math.round(totalExpenses / paginatedExpenses.length).toLocaleString("en-PK") : '0'}
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search expenses..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
             />
           </div>
 
-          {/* Category Filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="relative sm:w-48">
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white appearance-none cursor-pointer"
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm appearance-none cursor-pointer"
             >
               <option value="all">All Categories</option>
               {categories.map(category => (
@@ -283,107 +284,82 @@ export default function ExpensesPage() {
               ))}
             </select>
           </div>
-
-          {/* Date Range */}
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
-              placeholder="Start date"
-            />
-          </div>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
-              placeholder="End date"
-            />
-          </div>
         </div>
       </div>
 
       {/* Expenses Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 overflow-hidden">
-        {/* Table Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-purple-50/50 to-transparent dark:from-purple-900/10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-linear-to-r from-purple-50/50 to-transparent">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-100 rounded-lg">
+              <DollarSign className="w-4 h-4 text-purple-600" />
             </div>
             <div>
-              <h2 className="font-semibold text-slate-800 dark:text-white">All Expenses</h2>
-              <p className="text-sm text-slate-500 dark:text-gray-400">
-                {filteredExpenses.length} expense{filteredExpenses.length !== 1 ? 's' : ''} found
+              <h2 className="font-semibold text-slate-800 text-sm">All Expenses</h2>
+              <p className="text-xs text-slate-500">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredExpenses.length)} of {filteredExpenses.length}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Table Content */}
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50/80 dark:bg-gray-900/50">
-              <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
-                <th className="px-6 py-4">Title</th>
-                <th className="px-6 py-4">Category</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Description</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+            <thead className="bg-slate-50/80">
+              <tr className="text-left text-xs font-medium text-slate-500">
+                <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3 hidden lg:table-cell">Description</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
-              {filteredExpenses.length > 0 ? (
-                filteredExpenses.map((expense, index) => (
+            <tbody className="divide-y divide-slate-100">
+              {paginatedExpenses.length > 0 ? (
+                paginatedExpenses.map((expense) => (
                   <tr
                     key={expense.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group"
-                    style={{ animationDelay: `${index * 50}ms` }}
+                    className="hover:bg-slate-50/80 transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800 dark:text-white">{expense.title}</div>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-800 text-sm">{expense.title}</div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-full font-medium">
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
                         {expense.category}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-gray-300">
+                    <td className="px-4 py-3 text-slate-600 text-sm">
                       {new Date(expense.date).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
                       })}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-rose-600 dark:text-rose-400">
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-rose-600 text-sm">
                         Rs {expense.amount.toLocaleString("en-PK")}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-gray-400">
+                    <td className="px-4 py-3 text-slate-600 text-sm hidden lg:table-cell">
                       {expense.description || '-'}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleEditExpense(expense)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors group/btn"
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit expense"
                         >
-                          <Edit className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteExpense(expense.id)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors group/btn"
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                           title="Delete expense"
                         >
-                          <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -391,23 +367,23 @@ export default function ExpensesPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
-                      <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
-                        <DollarSign className="w-12 h-12 opacity-50" />
+                  <td colSpan={6} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3 text-slate-400">
+                      <div className="p-3 bg-slate-100 rounded-full">
+                        <DollarSign className="w-10 h-10 opacity-50" />
                       </div>
                       <div>
-                        <p className="font-semibold text-lg">No expenses found</p>
-                        <p className="text-sm mt-1">
-                          {searchTerm ? `No results for "${searchTerm}"` : 'Get started by adding your first expense'}
+                        <p className="font-semibold">No expenses found</p>
+                        <p className="text-sm mt-0.5">
+                          {searchTerm ? `No results for "${searchTerm}"` : 'Add your first expense'}
                         </p>
                       </div>
                       {!searchTerm && (
                         <button
                           onClick={handleAddExpense}
-                          className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                          className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3.5 h-3.5" />
                           Add Expense
                         </button>
                       )}
@@ -418,6 +394,68 @@ export default function ExpensesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div className="text-xs text-slate-500">
+              Page {currentPage} of {totalPages}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Previous page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => goToPage(pageNum)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Next page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              {filteredExpenses.length} total
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Expense Modal */}

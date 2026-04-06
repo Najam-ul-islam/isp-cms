@@ -81,6 +81,7 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
     });
 
     // Recalculate payment status and update client
+    if (!updatedPayment.clientId) throw new Error("Payment must have a clientId");
     const updatedSummary = await getClientPaymentSummary(updatedPayment.clientId);
 
     // Update client's payment status
@@ -92,7 +93,7 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
     });
 
     // If payment status is now 'paid', extend expiry date by package duration
-    if (updatedSummary.effectivePaymentStatus === 'paid') {
+    if (updatedSummary.effectivePaymentStatus === 'paid' && updatedPayment.client) {
       const packageInfo = await tx.package.findUnique({
         where: { id: updatedPayment.client.packageId }
       });
@@ -114,7 +115,7 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
   });
 
   // Calculate totals for response
-  const clientPayments = await getPaymentsRepo({ clientId: updatedPayment.clientId }, updatedPayment.companyId);
+  const clientPayments = await getPaymentsRepo({ clientId: updatedPayment.clientId || undefined }, updatedPayment.companyId);
   const totalPaid = clientPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
   const totalDue = updatedPayment.client?.price || 0; // Client's package price is what they owe
   const remainingAmount = totalDue - totalPaid;
