@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { stripeService } from "./stripeService";
-import { jazzcashService } from "./jazzcashService";
-import { easypaisaService } from "./easypaisaService";
+
+// Lazy imports to avoid build-time errors when env vars are missing
+import type { StripeService } from "./stripeService";
+import type { JazzCashService } from "./jazzcashService";
+import type { EasyPaisaService } from "./easypaisaService";
 
 export type PaymentGateway = "stripe" | "jazzcash" | "easypaisa";
 
@@ -34,6 +36,17 @@ export interface VerifyPaymentOutput {
 }
 
 export class PaymentService {
+  // Lazy-loaded services to avoid import-time initialization errors
+  private get stripeService() {
+    return require("./stripeService").stripeService as StripeService;
+  }
+  private get jazzcashService() {
+    return require("./jazzcashService").jazzcashService as JazzCashService;
+  }
+  private get easypaisaService() {
+    return require("./easypaisaService").easypaisaService as EasyPaisaService;
+  }
+
   async createCheckoutSession(
     input: CheckoutSessionInput
   ): Promise<CheckoutSessionOutput> {
@@ -58,7 +71,7 @@ export class PaymentService {
 
     switch (gateway) {
       case "stripe":
-        session = await stripeService.createCheckoutSession({
+        session = await this.stripeService.createCheckoutSession({
           amount,
           currency,
           description,
@@ -72,7 +85,7 @@ export class PaymentService {
         break;
 
       case "jazzcash":
-        session = await jazzcashService.initiatePayment({
+        session = await this.jazzcashService.initiatePayment({
           amount,
           currency,
           description,
@@ -83,7 +96,7 @@ export class PaymentService {
         break;
 
       case "easypaisa":
-        session = await easypaisaService.initiatePayment({
+        session = await this.easypaisaService.initiatePayment({
           amount,
           currency,
           description,
@@ -116,13 +129,13 @@ export class PaymentService {
 
     switch (gateway) {
       case "stripe":
-        return stripeService.verifyPayment(payload);
+        return this.stripeService.verifyPayment(payload);
 
       case "jazzcash":
-        return jazzcashService.verifyPayment(payload);
+        return this.jazzcashService.verifyPayment(payload);
 
       case "easypaisa":
-        return easypaisaService.verifyPayment(payload);
+        return this.easypaisaService.verifyPayment(payload);
 
       default:
         throw new Error(`Unsupported payment gateway: ${gateway}`);
@@ -132,13 +145,13 @@ export class PaymentService {
   async handleWebhook(gateway: PaymentGateway, req: Request) {
     switch (gateway) {
       case "stripe":
-        return stripeService.handleWebhook(req);
+        return this.stripeService.handleWebhook(req);
 
       case "jazzcash":
-        return jazzcashService.handleWebhook(req);
+        return this.jazzcashService.handleWebhook(req);
 
       case "easypaisa":
-        return easypaisaService.handleWebhook(req);
+        return this.easypaisaService.handleWebhook(req);
 
       default:
         throw new Error(`Unsupported payment gateway: ${gateway}`);

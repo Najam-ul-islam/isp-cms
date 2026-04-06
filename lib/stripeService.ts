@@ -1,8 +1,19 @@
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-12-18.acacia",
-});
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error("Stripe API key not configured. Set STRIPE_SECRET_KEY in environment.");
+    }
+    stripeInstance = new Stripe(key, {
+      apiVersion: "2024-12-18.acacia",
+    });
+  }
+  return stripeInstance;
+}
 
 export interface StripeCheckoutInput {
   amount: number; // In cents/smallest unit
@@ -19,7 +30,7 @@ export interface StripeVerifyInput {
 
 export class StripeService {
   async createCheckoutSession(input: StripeCheckoutInput) {
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
         {
@@ -46,7 +57,7 @@ export class StripeService {
   }
 
   async verifyPayment(payload: StripeVerifyInput) {
-    const session = await stripe.checkout.sessions.retrieve(payload.sessionId);
+    const session = await getStripe().checkout.sessions.retrieve(payload.sessionId);
 
     if (session.payment_status !== "paid") {
       throw new Error("Payment not completed");
@@ -70,7 +81,7 @@ export class StripeService {
     const body = await req.text();
 
     try {
-      const event = stripe.webhooks.constructEvent(
+      const event = getStripe().webhooks.constructEvent(
         body,
         signature,
         process.env.STRIPE_WEBHOOK_SECRET || ""
@@ -83,7 +94,7 @@ export class StripeService {
   }
 
   async createRefund(paymentIntentId: string, amount?: number) {
-    const refund = await stripe.refunds.create({
+    const refund = await getStripe().refunds.create({
       payment_intent: paymentIntentId,
       amount,
     });
