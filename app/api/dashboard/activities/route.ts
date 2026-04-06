@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         id: payment.id,
         type: 'payment' as const,
         title: `Payment received`,
-        description: `Rs ${payment.amount} from ${payment.client.name}`,
+        description: `Rs ${payment.amount} from ${payment.client?.name || "Unknown Client"}`,
         timestamp: new Date(payment.paymentDate),
         status: payment.method || undefined
       })),

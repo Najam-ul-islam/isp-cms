@@ -20,7 +20,7 @@ async function verifyCodebase() {
     'app/dashboard/packages/new/page.tsx',
     'components/Sidebar.tsx',
     'components/Navbar.tsx',
-    'middleware.ts',
+    'proxy.ts',
     'app/api/auth/signup/route.ts',
     'app/api/auth/signin/route.ts',
     'app/api/auth/logout/route.ts',
@@ -116,7 +116,7 @@ async function verifyCodebase() {
 
   console.log(`\n5. Verifying authentication middleware...`);
   try {
-    const middleware = await fs.readFile('middleware.ts', 'utf-8');
+    const middleware = await fs.readFile('proxy.ts', 'utf-8');
     const hasAuthProtection = middleware.includes('token') && middleware.includes('redirect');
     console.log(`   ✓ Authentication middleware: ${hasAuthProtection}`);
   } catch (error) {

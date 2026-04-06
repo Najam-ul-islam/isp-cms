@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npx *)",
       "Bash(npm run *)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(findstr *)",
+      "Bash(ren *)",
+      "Bash(dir *)",
+      "Bash(tasklist)",
+      "Bash(taskkill *)",
+      "Bash(select-object *)"
     ]
   },
   "$version": 3
