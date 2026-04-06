@@ -50,19 +50,7 @@ export async function GET(
     });
 
     // Get all invoices with payment details for this client
-    const clientInvoices = await prisma.invoice.findMany({
-      where: { clientId: clientId },
-      include: {
-        payments: {
-          orderBy: {
-            paymentDate: 'desc'
-          }
-        }
-      },
-      orderBy: {
-        issuedDate: 'desc'
-      }
-    });
+    const clientInvoices = await getClientInvoicesWithPayments(clientId);
 
     // Get the latest payment date if payments exist
     const latestPaymentDate = allClientPayments.length > 0 ? allClientPayments[0].paymentDate : null;

@@ -57,35 +57,14 @@ export async function GET(request: Request) {
 
         if (!invoiceWithPayments) return invoice;
 
-        // Calculate one-time charges (part of total, not payments)
-        let oneTimeChargesTotal = 0;
-        if (invoiceWithPayments.additionalCharges) {
-          try {
-            const charges = typeof invoiceWithPayments.additionalCharges === 'string'
-              ? JSON.parse(invoiceWithPayments.additionalCharges)
-              : invoiceWithPayments.additionalCharges;
-            if (Array.isArray(charges)) {
-              oneTimeChargesTotal = charges.reduce((sum: number, charge: any) =>
-                sum + (charge.amount || 0), 0
-              );
-            }
-          } catch (error) {
-            console.error('Error parsing additional charges:', error);
-          }
-        }
-
-        // Total = base amount + one-time charges
-        const totalAmount = invoiceWithPayments.amount + oneTimeChargesTotal;
-
-        // Calculate payment summary (ONLY actual payments)
+        // Calculate payment summary
         const payments = invoiceWithPayments.payments;
         const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
-        
-        const remaining = Math.max(totalAmount - totalPaid, 0);
-        const overpaid = Math.max(totalPaid - totalAmount, 0);
+        const remaining = Math.max(invoice.amount - totalPaid, 0);
+        const overpaid = Math.max(totalPaid - invoice.amount, 0);
 
         let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
-        if (totalPaid >= totalAmount) {
+        if (totalPaid >= invoice.amount) {
           effectivePaymentStatus = 'paid';
         } else if (totalPaid > 0) {
           effectivePaymentStatus = 'partial';
@@ -95,7 +74,6 @@ export async function GET(request: Request) {
 
         return {
           ...invoiceWithPayments,
-          totalAmount,
           totalPaid,
           remainingAmount: remaining,
           overpaidAmount: overpaid,
@@ -125,7 +103,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clientId, amount, dueDate, description, additionalCharges } = body;
+    const { clientId, amount, dueDate, description } = body;
 
     if (!clientId || !amount) {
       return NextResponse.json({ error: 'Client ID and amount are required' }, { status: 400 });
@@ -156,17 +134,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Client not found or does not belong to company' }, { status: 404 });
     }
 
-    // Create invoice with additional charges
-    const invoice = await prisma.invoice.create({
-      data: {
-        clientId,
-        amount,
-        dueDate: parsedDueDate,
-        description: description || `Invoice for ${client.name}`,
-        additionalCharges: additionalCharges || null,
-        companyId: admin.companyId
-      }
-    });
+    // Create the invoice
+    const invoice = await generateInvoiceFromClient(
+      clientId,
+      admin.companyId,
+      description
+    );
 
     return NextResponse.json(invoice);
   } catch (error: any) {

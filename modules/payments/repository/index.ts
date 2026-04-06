@@ -65,7 +65,7 @@ export const getPayments = async (filters?: PaymentFilters, companyId?: string) 
     ...(companyId && { client: { companyId } })
   };
 
-  if (filters?.clientId && typeof filters.clientId === 'string') {
+  if (filters?.clientId) {
     whereClause.clientId = filters.clientId;
   }
 

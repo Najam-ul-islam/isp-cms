@@ -12,8 +12,6 @@ datasource db {
 model Company {
   id                    String                 @id @default(cuid())
   name                  String
-  isActive              Boolean                @default(true)
-  modulesEnabled        Json                   @default("{\"billing\":true,\"inventory\":false,\"employees\":true}")
   createdAt             DateTime               @default(now())
   ledgers               AccountLedger[]
   AccountTransaction    AccountTransaction[]
@@ -31,7 +29,6 @@ model Company {
   packages              Package[]
   payments              Payment[]
   providers             ServiceProvider[]
-  subscription          Subscription?
 
   @@map("companies")
 }
@@ -159,7 +156,6 @@ model Invoice {
   dueDate     DateTime
   status      InvoiceStatus @default(unpaid)
   description String?
-  additionalCharges Json? // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   companyId   String
@@ -177,24 +173,19 @@ model Invoice {
 }
 
 model Payment {
-  id            String   @id @default(cuid())
-  clientId      String?  // Optional - not all payments need a client
-  invoiceId     String?  // Optional link to invoice
-  amount        Float
-  paymentDate   DateTime @default(now())
-  method        String?  // Legacy field, use gateway
-  notes         String?
-  gateway       String?  // stripe, jazzcash, easypaisa
-  transactionId String?  // Gateway transaction ID
-  status        String   @default("pending") // pending, success, failed, refunded
-  referenceType String?  // subscription, invoice
-  referenceId   String?  // subscriptionId or invoiceId
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  companyId     String
-  client        Client?  @relation(fields: [clientId], references: [id])
-  invoice       Invoice? @relation(fields: [invoiceId], references: [id]) // Optional relation to invoice
-  company       Company  @relation(fields: [companyId], references: [id])
+  id          String   @id @default(cuid())
+  clientId    String
+  invoiceId   String?  // Optional link to invoice
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companyId   String
+  client      Client   @relation(fields: [clientId], references: [id])
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id]) // Optional relation to invoice
+  company     Company  @relation(fields: [companyId], references: [id])
 
   @@map("payments")
   @@index([clientId])
@@ -203,9 +194,6 @@ model Payment {
   @@index([paymentDate])
   @@index([clientId, paymentDate])
   @@index([companyId, paymentDate])
-  @@index([gateway])
-  @@index([status])
-  @@index([transactionId])
 }
 
 model Expense {
@@ -273,7 +261,6 @@ model AccountLedger {
   company      Company              @relation(fields: [companyId], references: [id])
   transactions AccountTransaction[]
 
-  @@unique([companyId, name])
   @@map("account_ledgers")
 }
 
@@ -283,7 +270,6 @@ model AccountTransaction {
   amount          Float
   description     String
   reference       String?
-  referenceType   String?         // Payment, Invoice, Expense, Refund
   date            DateTime        @default(now())
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -293,10 +279,6 @@ model AccountTransaction {
   company         Company         @relation(fields: [companyId], references: [id])
 
   @@map("account_transactions")
-  @@index([companyId])
-  @@index([referenceType])
-  @@index([date])
-  @@index([companyId, date])
 }
 
 model InventoryItem {
@@ -391,41 +373,6 @@ enum Role {
   EMPLOYEE
   ADMIN
   SUPER_ADMIN
-}
-
-model Plan {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  price       Float
-  duration    Int      // Duration in days
-  description String?
-  features    Json     // { billing: true, inventory: true, employees: true, maxClients: 100 }
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  subscriptions Subscription[]
-
-  @@map("plans")
-}
-
-model Subscription {
-  id          String   @id @default(cuid())
-  companyId   String   @unique
-  planId      String
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("active") // active, expired, cancelled
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan        Plan     @relation(fields: [planId], references: [id])
-
-  @@index([companyId])
-  @@index([planId])
-  @@index([status])
-  @@index([endDate])
-  @@map("subscriptions")
 }
 
 enum InvoiceStatus {

@@ -49,7 +49,7 @@ async function diagnoseIssues() {
     './app/api/auth/signup/route.ts',
     './app/api/auth/logout/route.ts',
     './app/api/dashboard/overview/route.ts',
-    './proxy.ts'
+    './middleware.ts'
   ];
 
   for (const filePath of apiFiles) {

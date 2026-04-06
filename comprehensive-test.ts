@@ -26,7 +26,7 @@ async function testMiddleware() {
   console.log('\n🛡️  Testing Middleware...\n');
 
   try {
-    const middlewareModule = await import('./proxy');
+    const middlewareModule = await import('./middleware');
     console.log('✅ Middleware module loaded successfully');
 
     // Test the middleware function with a mock request

@@ -93,22 +93,32 @@ export default function PaymentsPage() {
           const data = await response.json();
           // Since the API returns payment with client details, we need to map it to our Payment interface
           const mappedPayments = data.map((p: any) => {
-            // Client name without area
-            const clientName = p.client?.name || "Unknown Client";
+            // Determine contact information with priority: phone first, then email, else show name only
+            const contactInfo = p.client?.phone || p.client?.email || "";
+
+            // Format client name as "Name (contact)" if contact exists, otherwise just the name
+            const clientName = contactInfo
+              ? `${p.client?.name || "Unknown Client"} (${contactInfo})`
+              : p.client?.name || "Unknown Client";
 
             // Total amount is based on the client's package price
             const totalAmount = p.client?.price || 0;
 
+            // Format client name as "Name (area)" if area exists, otherwise just the name
+            const clientNameWithArea = p.client?.area
+              ? `${p.client?.name || "Unknown Client"} (${p.client?.area})`
+              : p.client?.name || "Unknown Client";
+
             return {
               id: p.id,
-              clientName,
+              clientName: clientNameWithArea,
               clientId: p.clientId,
-              area: p.client?.area || "-",
+              area: p.client?.area || "-", // Keep separate for filtering/search if needed
               amount: p.amount,
               date: p.paymentDate,
               method: p.method || "Cash",
               notes: p.notes || "",
-              totalAmount,
+              totalAmount: totalAmount,
               totalPaid: p.totalPaid || 0,
               remainingAmount: p.remainingAmount || 0,
             };
@@ -213,40 +223,38 @@ export default function PaymentsPage() {
         if (response.ok) {
           const updatedPayment = await response.json();
 
-          // Client name without area
-          const clientName = updatedPayment.client?.name || "Unknown Client";
+          // Determine contact information with priority: phone first, then email, else show name only
+          const contactInfo = updatedPayment.client?.phone || updatedPayment.client?.email || "";
+
+          // Format client name as "Name (contact)" if contact exists, otherwise just the name
+          const clientName = contactInfo
+            ? `${updatedPayment.client?.name || "Unknown Client"} (${contactInfo})`
+            : updatedPayment.client?.name || "Unknown Client";
 
           // Total amount is based on the client's package price
           const totalAmount = updatedPayment.client?.price || 0;
 
+          // Format client name as "Name (area)" if area exists, otherwise just the name
+          const clientNameWithArea = updatedPayment.client?.area
+            ? `${updatedPayment.client?.name || "Unknown Client"} (${updatedPayment.client?.area})`
+            : updatedPayment.client?.name || "Unknown Client";
+
           const mappedPayment = {
             id: updatedPayment.id,
-            clientName,
+            clientName: clientNameWithArea,
             clientId: updatedPayment.clientId,
-            area: updatedPayment.client?.area || "-",
+            area: updatedPayment.client?.area || "-", // Keep separate for filtering/search
             amount: updatedPayment.amount,
             date: updatedPayment.paymentDate,
             method: updatedPayment.method || "Cash",
             notes: updatedPayment.notes || "",
-            totalAmount,
+            totalAmount: totalAmount,
             totalPaid: updatedPayment.totalPaid || 0,
             remainingAmount: updatedPayment.remainingAmount || 0,
           };
 
-          // Update all payments for this client with the new totalPaid values
-          const updatedPayments = payments.map((pay) => {
-            if (pay.clientId === updatedPayment.clientId) {
-              return {
-                ...pay,
-                totalPaid: updatedPayment.totalPaid || 0,
-                remainingAmount: updatedPayment.remainingAmount || 0,
-              };
-            }
-            return pay;
-          });
-
           setPayments(
-            updatedPayments.map((pay) =>
+            payments.map((pay) =>
               pay.id === editingPayment.id ? mappedPayment : pay,
             ),
           );
@@ -270,42 +278,37 @@ export default function PaymentsPage() {
         if (response.ok) {
           const newPayment = await response.json();
 
-          // Client name without area
-          const clientName = newPayment.client?.name || "Unknown Client";
+          // Determine contact information with priority: phone first, then email, else show name only
+          const contactInfo = newPayment.client?.phone || newPayment.client?.email || "";
+
+          // Format client name as "Name (contact)" if contact exists, otherwise just the name
+          const clientName = contactInfo
+            ? `${newPayment.client?.name || "Unknown Client"} (${contactInfo})`
+            : newPayment.client?.name || "Unknown Client";
 
           // Total amount is based on the client's package price
           const totalAmount = newPayment.client?.price || 0;
 
+          // Format client name as "Name (area)" if area exists, otherwise just the name
+          const clientNameWithArea = newPayment.client?.area
+            ? `${newPayment.client?.name || "Unknown Client"} (${newPayment.client?.area})`
+            : newPayment.client?.name || "Unknown Client";
+
           const mappedNewPayment = {
             id: newPayment.id,
-            clientName,
+            clientName: clientNameWithArea,
             clientId: newPayment.clientId,
-            area: newPayment.client?.area || "-",
+            area: newPayment.client?.area || "-", // Keep separate for filtering/search
             amount: newPayment.amount,
             date: newPayment.paymentDate,
             method: newPayment.method || "Cash",
             notes: newPayment.notes || "",
-            totalAmount,
+            totalAmount: totalAmount,
             totalPaid: newPayment.totalPaid || 0,
             remainingAmount: newPayment.remainingAmount || 0,
           };
 
-          // Update all payments for this client with the new totalPaid values
-          // This ensures all existing payments for the client show the correct cumulative total
-          const updatedPayments = payments.map((pay) => {
-            if (pay.clientId === newPayment.clientId) {
-              // Update this payment with the new totals from the response
-              return {
-                ...pay,
-                totalPaid: newPayment.totalPaid || 0,
-                remainingAmount: newPayment.remainingAmount || 0,
-              };
-            }
-            return pay;
-          });
-
-          // Add the new payment to the list
-          setPayments([...updatedPayments, mappedNewPayment]);
+          setPayments([...payments, mappedNewPayment]);
           setShowForm(false);
         } else if (response.status === 401) {
           router.push("/login");
@@ -504,7 +507,6 @@ export default function PaymentsPage() {
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
                 <th className="px-3 py-4">Client</th>
-                <th className="px-3 py-4">Area</th>
                 <th className="px-3 py-4">Total Amount</th>
                 <th className="px-3 py-4">Total Paid</th>
                 <th className="px-3 py-4">Remaining</th>
@@ -530,13 +532,6 @@ export default function PaymentsPage() {
                       >
                         {payment.clientName}
                       </div>
-                    </td>
-
-                    {/* Area Column */}
-                    <td className="px-3 py-4">
-                      <span className="text-slate-600 dark:text-gray-300">
-                        {payment.area || "-"}
-                      </span>
                     </td>
 
                     {/* Total Amount Column */}
@@ -604,7 +599,7 @@ export default function PaymentsPage() {
               ) : (
                 <tr>
                   {/* TOTAL COLUMNS  */}
-                  <td colSpan={9} className="px-3 py-16 text-center">
+                  <td colSpan={8} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
                       <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
                         <CreditCard className="w-12 h-12 opacity-50" />
@@ -768,10 +763,15 @@ function PaymentFormModal({
 
         if (response.ok) {
           const data = await response.json();
-          // Map clients to id/name pairs with package details
+          // Map clients to id/name pairs with contact info and package details
           const clientOptions = data.map((client: any) => {
-            // Use plain client name without contact info
-            const displayName = client.name;
+            // Determine contact information with priority: phone first, then email
+            const contactInfo = client.phone || client.email || "";
+
+            // Format client name as "Name (contact)" if contact exists, otherwise just the name
+            const displayName = contactInfo
+              ? `${client.name} (${contactInfo})`
+              : client.name;
 
             // Include package information in the display
             const packageName = client.package?.name || 'No Package';
@@ -780,6 +780,7 @@ function PaymentFormModal({
             return {
               id: client.id,
               name: displayName,
+              originalName: client.name, // Keep original name for reference
               phone: client.phone,
               email: client.email,
               packageName: packageName,
@@ -829,8 +830,6 @@ function PaymentFormModal({
         ...prev,
         [name]: value,
         clientId: selectedClient ? selectedClient.id : "",
-        // Auto-fill amount based on client's package price
-        amount: selectedClient ? selectedClient.packagePrice : prev.amount,
       }));
     } else {
       setFormData((prev) => ({

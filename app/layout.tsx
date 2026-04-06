@@ -20,13 +20,8 @@ import type { Metadata } from 'next'
   }>) {
     return (
       <html lang="en">
-        <body 
-          style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-          className={inter.className}
-          suppressHydrationWarning
-        >
-          {children}
-        </body>
+        <body style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }} 
+        className={inter.className}>{children}</body>
       </html>
     )
   }

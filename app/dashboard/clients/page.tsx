@@ -46,7 +46,7 @@ export default function ClientsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(5)
   const router = useRouter()
 
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
@@ -103,7 +103,7 @@ export default function ClientsPage() {
     checkAuth()
   }, [router])
 
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterPayment, expiringFilter, itemsPerPage])
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterPayment, expiringFilter])
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -296,16 +296,6 @@ export default function ClientsPage() {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-          <div className="relative">
-            <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer min-w-24">
-              <option value={10}>10 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-              <option value={500}>500 / page</option>
-              <option value={1000}>1000 / page</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
         </div>
       </div>
 
@@ -327,9 +317,6 @@ export default function ClientsPage() {
                 return (
                   <div key={client.id} className="p-3 hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group cursor-pointer" style={{ animationDelay: `${index * 50}ms` }} onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
                     <div className="flex items-start gap-2 mb-2">
-                      <div className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-bold shrink-0">
-                        {indexOfFirstItem + index + 1}
-                      </div>
                       <div className="p-2 bg-linear-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg shadow-indigo-500/20 shrink-0"><User className="w-4 h-4 text-white" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-slate-800 dark:text-white truncate text-sm">{client.name}</p>
@@ -394,7 +381,6 @@ export default function ClientsPage() {
           <table className="w-full">
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-xs font-medium text-slate-500 dark:text-gray-400">
-                <th className="px-4 py-2.5">#</th>
                 <th className="px-4 py-2.5">Client</th>
                 <th className="px-4 py-2.5">Contact</th>
                 <th className="px-4 py-2.5">Area</th>
@@ -413,9 +399,6 @@ export default function ClientsPage() {
                   const clientExpired = isExpired(client.expiryDate)
                   return (
                     <tr key={client.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group cursor-pointer" style={{ animationDelay: `${index * 50}ms` }} onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
-                      <td className="px-4 py-2.5">
-                        <span className="text-sm font-medium text-slate-600 dark:text-gray-300">{indexOfFirstItem + index + 1}</span>
-                      </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <div><p className="text-sm text-slate-800 dark:text-white font-medium">{client.name}</p><p className="text-[10px] text-slate-500 dark:text-gray-400 flex items-center gap-0.5"><Hash className="w-2.5 h-2.5" />{client.cnic}</p></div>
@@ -454,7 +437,7 @@ export default function ClientsPage() {
                   )
                 })
               ) : (
-                <tr><td colSpan={11} className="px-4 py-12 text-center"><div className="flex flex-col items-center gap-3 text-slate-400 dark:text-gray-500"><div className="p-3 bg-slate-100 dark:bg-gray-800 rounded-full"><User className="w-10 h-10 opacity-50" /></div><div><p className="font-semibold">No clients found</p><p className="text-sm mt-0.5">{searchTerm || filterStatus !== 'all' || filterPayment !== 'all' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>{(!searchTerm && filterStatus === 'all' && filterPayment === 'all') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}</div></td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center"><div className="flex flex-col items-center gap-3 text-slate-400 dark:text-gray-500"><div className="p-3 bg-slate-100 dark:bg-gray-800 rounded-full"><User className="w-10 h-10 opacity-50" /></div><div><p className="font-semibold">No clients found</p><p className="text-sm mt-0.5">{searchTerm || filterStatus !== 'all' || filterPayment !== 'all' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>{(!searchTerm && filterStatus === 'all' && filterPayment === 'all') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}</div></td></tr>
               )}
             </tbody>
           </table>

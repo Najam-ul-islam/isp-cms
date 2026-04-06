@@ -14,9 +14,7 @@
     "test:db": "tsx test-db.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "test:final": "node --loader ts-node/esm final-test.ts",
-    "seed:saas": "tsx seed-saas.ts",
-    "seed": "tsx test_seed.ts"
+    "test:final": "node --loader ts-node/esm final-test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -33,8 +31,7 @@
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.3",
     "recharts": "^3.8.1",
-    "server-only": "^0.0.1",
-    "stripe": "^22.0.0"
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

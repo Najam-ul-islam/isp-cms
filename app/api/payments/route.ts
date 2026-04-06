@@ -1,39 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAdminFromToken } from "@/lib/jwt";
-import { prisma } from "@/lib/prisma";
-import {
-  getClientPaymentSummary,
-  getInvoicePaymentSummary,
-} from "@/lib/payment-calculator";
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminFromToken } from '@/lib/jwt';
+import { prisma } from '@/lib/prisma';
+import { getClientPaymentSummary, getInvoicePaymentSummary } from '@/lib/payment-calculator';
 
 export async function GET(request: Request) {
   try {
     const admin = await getAdminFromToken(request);
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if user has permission to read payments
-    if (
-      admin.role !== "SUPER_ADMIN" &&
-      admin.role !== "ADMIN" &&
-      admin.role !== "EMPLOYEE"
-    ) {
-      return NextResponse.json(
-        { error: "Insufficient permissions" },
-        { status: 403 },
-      );
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get("clientId");
-    const startDate = searchParams.get("startDate")
-      ? new Date(searchParams.get("startDate")!)
-      : undefined;
-    const endDate = searchParams.get("endDate")
-      ? new Date(searchParams.get("endDate")!)
-      : undefined;
-    const method = searchParams.get("method");
+    const clientId = searchParams.get('clientId');
+    const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined;
+    const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined;
+    const method = searchParams.get('method');
 
     const filters = {
       clientId: clientId || undefined,
@@ -47,13 +33,13 @@ export async function GET(request: Request) {
       where: {
         ...(clientId && { clientId }),
         ...(admin.companyId && { companyId: admin.companyId }),
-        ...((startDate || endDate) && {
+        ...(startDate || endDate) && {
           paymentDate: {
             ...(startDate && { gte: startDate }),
             ...(endDate && { lte: endDate }),
-          },
-        }),
-        ...(method && { method }),
+          }
+        },
+        ...(method && { method })
       },
       include: {
         client: {
@@ -70,37 +56,23 @@ export async function GET(request: Request) {
                 id: true,
                 name: true,
                 price: true, // This is the actual package price
-              },
-            },
-          },
-        },
+              }
+            }
+          }
+        }
       },
       orderBy: {
-        paymentDate: "desc",
-      },
+        paymentDate: 'desc'
+      }
     });
 
     // Enhance payments with invoice and payment summary data
     const paymentsWithSummary = await Promise.all(
       payments.map(async (payment) => {
-        // Skip client summary if clientId is null
-        if (!payment.clientId) {
-          return {
-            ...payment,
-            totalAmount: 0,
-            totalPaid: 0,
-            remainingAmount: 0,
-            overpaidAmount: 0,
-            effectivePaymentStatus: "unpaid" as const,
-          };
-        }
-
         // If the payment has an associated invoice, get its summary
         if (payment.invoiceId) {
           try {
-            const invoiceSummary = await getInvoicePaymentSummary(
-              payment.invoiceId,
-            );
+            const invoiceSummary = await getInvoicePaymentSummary(payment.invoiceId);
             return {
               ...payment,
               totalAmount: invoiceSummary.total,
@@ -110,25 +82,20 @@ export async function GET(request: Request) {
               effectivePaymentStatus: invoiceSummary.effectivePaymentStatus,
               invoice: {
                 id: payment.invoiceId,
-                ...invoiceSummary,
-              },
+                ...invoiceSummary
+              }
             };
           } catch (error) {
-            console.error(
-              `Error getting invoice summary for invoice ${payment.invoiceId}:`,
-              error,
-            );
+            console.error(`Error getting invoice summary for invoice ${payment.invoiceId}:`, error);
             // If invoice summary fails, fall back to client summary
-            const clientSummary = await getClientPaymentSummary(
-              payment.clientId,
-            );
+            const clientSummary = await getClientPaymentSummary(payment.clientId);
             return {
               ...payment,
               totalAmount: clientSummary.total,
               totalPaid: clientSummary.totalPaid,
               remainingAmount: clientSummary.remainingAmount,
               overpaidAmount: clientSummary.overpaidAmount,
-              effectivePaymentStatus: clientSummary.effectivePaymentStatus,
+              effectivePaymentStatus: clientSummary.effectivePaymentStatus
             };
           }
         } else {
@@ -140,19 +107,16 @@ export async function GET(request: Request) {
             totalPaid: clientSummary.totalPaid,
             remainingAmount: clientSummary.remainingAmount,
             overpaidAmount: clientSummary.overpaidAmount,
-            effectivePaymentStatus: clientSummary.effectivePaymentStatus,
+            effectivePaymentStatus: clientSummary.effectivePaymentStatus
           };
         }
-      }),
+      })
     );
 
     return NextResponse.json(paymentsWithSummary);
   } catch (error) {
-    console.error("Error fetching payments:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch payments" },
-      { status: 500 },
-    );
+    console.error('Error fetching payments:', error);
+    return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 });
   }
 }
 
@@ -160,324 +124,254 @@ export async function POST(request: Request) {
   try {
     const admin = await getAdminFromToken(request);
     if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if user has permission to create payments
-    if (
-      admin.role !== "SUPER_ADMIN" &&
-      admin.role !== "ADMIN" &&
-      admin.role !== "EMPLOYEE"
-    ) {
-      return NextResponse.json(
-        { error: "Insufficient permissions" },
-        { status: 403 },
-      );
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await request.json();
     const { clientId, amount, method, notes, invoiceId } = body; // Added invoiceId
 
     if (!clientId || !amount) {
-      return NextResponse.json(
-        { error: "Client ID and amount are required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Client ID and amount are required' }, { status: 400 });
     }
 
     if (parseFloat(amount) <= 0) {
-      return NextResponse.json(
-        { error: "Amount must be greater than 0" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
     }
 
-    // Start a transaction for critical operations only
-    const { payment, targetInvoiceId, totalPaid, invoiceAmount } =
-      await prisma.$transaction(
-        async (tx) => {
-          // First, get the client to check their details
-          const client = await tx.client.findUnique({
-            where: { id: clientId },
-          });
-
-          if (!client) {
-            throw new Error("Client not found");
-          }
-
-          let targetInvoiceId: string | null = null;
-          let invoiceAmount = 0;
-          let invoiceAdditionalCharges = 0;
-
-          // If invoiceId is provided, use that invoice
-          if (invoiceId) {
-            const invoice = await tx.invoice.findUnique({
-              where: { id: invoiceId, clientId },
-            });
-
-            if (!invoice) {
-              throw new Error("Invoice not found or does not belong to client");
-            }
-
-            targetInvoiceId = invoice.id;
-            // Get additional charges (part of total bill)
-            if (invoice.additionalCharges) {
-              try {
-                const charges =
-                  typeof invoice.additionalCharges === "string"
-                    ? JSON.parse(invoice.additionalCharges)
-                    : invoice.additionalCharges;
-                if (Array.isArray(charges)) {
-                  invoiceAdditionalCharges = charges.reduce(
-                    (sum: number, charge: any) => sum + (charge.amount || 0),
-                    0,
-                  );
-                }
-              } catch (error) {
-                console.error("Error parsing additional charges:", error);
-              }
-            }
-            invoiceAmount = invoice.amount + invoiceAdditionalCharges;
-          } else {
-            // If no invoiceId is provided, find the latest unpaid or partially paid invoice
-            const latestUnpaidInvoice = await tx.invoice.findFirst({
-              where: {
-                clientId,
-                status: { in: ["unpaid", "partial"] },
-              },
-              orderBy: {
-                issuedDate: "desc",
-              },
-            });
-
-            if (latestUnpaidInvoice) {
-              targetInvoiceId = latestUnpaidInvoice.id;
-              // Get additional charges (treated as credits)
-              if (latestUnpaidInvoice.additionalCharges) {
-                try {
-                  const charges =
-                    typeof latestUnpaidInvoice.additionalCharges === "string"
-                      ? JSON.parse(latestUnpaidInvoice.additionalCharges)
-                      : latestUnpaidInvoice.additionalCharges;
-                  if (Array.isArray(charges)) {
-                    invoiceAdditionalCharges = charges.reduce(
-                      (sum: number, charge: any) => sum + (charge.amount || 0),
-                      0,
-                    );
-                  }
-                } catch (error) {
-                  console.error("Error parsing additional charges:", error);
-                }
-              }
-              invoiceAmount =
-                latestUnpaidInvoice.amount + invoiceAdditionalCharges;
-            } else {
-              // If no unpaid/partial invoices exist, create a new one based on client price
-              const newInvoice = await tx.invoice.create({
-                data: {
-                  clientId,
-                  amount: client.price, // Use client price as invoice amount
-                  dueDate: new Date(), // Set due date to current date initially
-                  description: `Automatic invoice for client package`,
-                  companyId: admin.companyId,
-                },
-              });
-              targetInvoiceId = newInvoice.id;
-              invoiceAmount = newInvoice.amount;
-            }
-          }
-
-          // Create the payment
-          const newPayment = await tx.payment.create({
-            data: {
-              clientId,
-              invoiceId: targetInvoiceId,
-              amount: parseFloat(amount),
-              method: method || "CASH",
-              notes: notes || "",
-              companyId: admin.companyId,
-            },
-            include: {
-              client: {
-                select: {
-                  id: true,
-                  name: true,
-                  phone: true,
-                  email: true,
-                  area: true,
-                  packageId: true,
-                  price: true,
-                  package: {
-                    select: {
-                      id: true,
-                      name: true,
-                      price: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-
-          // Get all payments for this invoice to calculate status
-          const payments = await tx.payment.findMany({
-            where: { invoiceId: targetInvoiceId },
-            select: { amount: true },
-          });
-
-          const actualPaymentsTotal = payments.reduce(
-            (sum, p) => sum + p.amount,
-            0,
-          );
-
-          // ✅ ONLY real payments count
-          const totalPaidAmount = actualPaymentsTotal;
-
-          // ✅ Correct status logic
-          let status: "unpaid" | "partial" | "paid";
-
-          if (totalPaidAmount >= invoiceAmount) {
-            status = "paid";
-          } else if (totalPaidAmount > 0) {
-            status = "partial";
-          } else {
-            status = "unpaid";
-          }
-
-          await tx.invoice.update({
-            where: { id: targetInvoiceId },
-            data: { status },
-          });
-
-          return {
-            payment: newPayment,
-            targetInvoiceId,
-            totalPaid: totalPaidAmount,
-            invoiceAmount,
-          };
-        },
-        {
-          timeout: 10000, // 10 seconds timeout
-        },
-      );
-
-    // Post-transaction operations (outside transaction to avoid timeout)
-    try {
-      // Update client's payment status
-      const updatedSummary = await getClientPaymentSummary(clientId);
-      await prisma.client.update({
-        where: { id: clientId },
-        data: {
-          paymentStatus: updatedSummary.effectivePaymentStatus,
-        },
+    // Start a transaction to ensure consistency of core operations
+    const { payment, targetInvoiceId } = await prisma.$transaction(async (tx) => {
+      // First, get the client to check their details
+      const client = await tx.client.findUnique({
+        where: { id: clientId }
       });
 
-      // If the invoice is now fully paid, extend expiry date
-      if (targetInvoiceId && totalPaid >= invoiceAmount) {
-        const client = await prisma.client.findUnique({
-          where: { id: clientId },
+      if (!client) {
+        throw new Error('Client not found');
+      }
+
+      let targetInvoiceId: string | null = null;
+
+      // If invoiceId is provided, use that invoice
+      if (invoiceId) {
+        const invoice = await tx.invoice.findUnique({
+          where: { id: invoiceId, clientId }
         });
 
-        if (client) {
-          const packageInfo = await prisma.package.findUnique({
-            where: { id: client.packageId },
-          });
+        if (!invoice) {
+          throw new Error('Invoice not found or does not belong to client');
+        }
 
-          if (packageInfo) {
-            const baseDate =
-              client.expiryDate > new Date() ? client.expiryDate : new Date();
-            const newExpiryDate = new Date(baseDate);
-            newExpiryDate.setDate(
-              newExpiryDate.getDate() + packageInfo.durationDays,
-            );
-
-            await prisma.client.update({
-              where: { id: clientId },
-              data: {
-                expiryDate: newExpiryDate,
-              },
-            });
+        targetInvoiceId = invoice.id;
+      } else {
+        // If no invoiceId is provided, find the latest unpaid or partially paid invoice
+        const latestUnpaidInvoice = await tx.invoice.findFirst({
+          where: {
+            clientId,
+            status: { in: ['unpaid', 'partial'] }
+          },
+          orderBy: {
+            issuedDate: 'desc'
           }
+        });
+
+        if (latestUnpaidInvoice) {
+          targetInvoiceId = latestUnpaidInvoice.id;
+        } else {
+          // If no unpaid/partial invoices exist, create a new one based on client price
+          const newInvoice = await tx.invoice.create({
+            data: {
+              clientId,
+              amount: client.price, // Use client price as invoice amount
+              dueDate: new Date(), // Set due date to current date initially
+              description: `Automatic invoice for client package`,
+              companyId: admin.companyId
+            }
+          });
+          targetInvoiceId = newInvoice.id;
         }
       }
 
-      // Create accounting entries (outside transaction, using fresh prisma instance)
-      const { recordPayment } =
-        await import("@/lib/accounting/accountingService");
-      const { initializeLedgers } =
-        await import("@/lib/accounting/ledgerService");
-
-      // Only create accounting entries if we have valid clientId
-      if (clientId) {
-        // Auto-initialize ledgers if they don't exist
-        await initializeLedgers(admin.companyId);
-
-        await recordPayment({
-          companyId: admin.companyId,
-          amount: parseFloat(amount),
+      // Create the payment associated with the invoice
+      const newPayment = await tx.payment.create({
+        data: {
           clientId,
-          invoiceId: targetInvoiceId || undefined,
-          paymentId: payment.id,
-          method: method || "CASH",
-          useBank: method === "BANK_TRANSFER",
+          invoiceId: targetInvoiceId,
+          amount: parseFloat(amount),
+          method: method || 'CASH',
+          notes: notes || '',
+          companyId: admin.companyId
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+              area: true,
+              packageId: true,
+              price: true,
+              package: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Calculate and update invoice status based on the new payment
+      // First get the invoice amount
+      const invoice = await tx.invoice.findUnique({
+        where: { id: targetInvoiceId },
+        select: { amount: true }
+      });
+
+      let totalPaid = 0;
+      if (invoice) {
+        // Get all payments for this invoice to calculate status
+        const payments = await tx.payment.findMany({
+          where: { invoiceId: targetInvoiceId },
+          select: { amount: true }
+        });
+
+        totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+        // Determine status based on payment amounts
+        let status: 'unpaid' | 'partial' | 'paid';
+        if (totalPaid >= invoice.amount) {
+          status = 'paid';
+        } else if (totalPaid > 0 && totalPaid < invoice.amount) {
+          status = 'partial';
+        } else {
+          status = 'unpaid';
+        }
+
+        // Update the invoice status
+        await tx.invoice.update({
+          where: { id: targetInvoiceId },
+          data: {
+            status
+          }
         });
       }
-    } catch (postError) {
-      console.error("Post-payment operations error:", postError);
-      // Don't fail the payment if post-operations fail
-    }
 
-    // Fetch the payment with full summary data to return
-    const paymentWithSummary = await prisma.payment.findUnique({
-      where: { id: payment.id },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            email: true,
-            area: true,
-            packageId: true,
-            price: true,
-            package: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
-              },
-            },
-          },
-        },
-      },
+      // Recalculate client's overall payment status
+      const updatedSummary = await getClientPaymentSummary(clientId);
+
+      // Update client's payment status
+      await tx.client.update({
+        where: { id: clientId },
+        data: {
+          paymentStatus: updatedSummary.effectivePaymentStatus
+        }
+      });
+
+      // If the invoice is now fully paid, check if we should extend expiry date
+      if (invoice && totalPaid >= invoice.amount) {
+        const packageInfo = await tx.package.findUnique({
+          where: { id: client.packageId }
+        });
+
+        if (packageInfo) {
+          // Extend expiry date safely: baseDate = max(client.expiryDate, currentDate)
+          const baseDate = client.expiryDate > new Date() ? client.expiryDate : new Date();
+          const newExpiryDate = new Date(baseDate);
+          newExpiryDate.setDate(newExpiryDate.getDate() + packageInfo.durationDays);
+
+          await tx.client.update({
+            where: { id: clientId },
+            data: {
+              expiryDate: newExpiryDate
+            }
+          });
+        }
+      }
+
+      // Create AccountTransaction for ledger integration
+      // Find or create a cash/asset account for the company
+      let cashAccount = await tx.accountLedger.findFirst({
+        where: {
+          name: 'Cash',
+          companyId: admin.companyId
+        }
+      });
+
+      if (!cashAccount) {
+        cashAccount = await tx.accountLedger.create({
+          data: {
+            name: 'Cash',
+            description: 'Cash account for daily transactions',
+            type: 'ASSET',
+            companyId: admin.companyId
+          }
+        });
+      }
+
+      await tx.accountTransaction.create({
+        data: {
+          accountId: cashAccount.id,
+          amount: parseFloat(amount),
+          description: `Client Payment for Invoice ${targetInvoiceId}`,
+          reference: newPayment.id,
+          date: new Date(),
+          transactionType: 'CREDIT', // CREDIT for incoming payment
+          companyId: admin.companyId
+        }
+      });
+
+      // Also create a corresponding debit to Accounts Receivable or similar
+      let receivableAccount = await tx.accountLedger.findFirst({
+        where: {
+          name: 'Accounts Receivable',
+          companyId: admin.companyId
+        }
+      });
+
+      if (!receivableAccount) {
+        receivableAccount = await tx.accountLedger.create({
+          data: {
+            name: 'Accounts Receivable',
+            description: 'Accounts Receivable for client payments',
+            type: 'ASSET',
+            companyId: admin.companyId
+          }
+        });
+      }
+
+      // Create a debit transaction to offset the credit (for accounting balance)
+      await tx.accountTransaction.create({
+        data: {
+          accountId: receivableAccount.id,
+          amount: parseFloat(amount),
+          description: `Payment received reducing AR for Invoice ${targetInvoiceId}`,
+          reference: newPayment.id,
+          date: new Date(),
+          transactionType: 'DEBIT', // DEBIT to reduce accounts receivable
+          companyId: admin.companyId
+        }
+      });
+
+      return {
+        payment: newPayment,
+        targetInvoiceId
+      };
     });
 
-    // Enhance with payment summary
-    if (!paymentWithSummary) {
-      return NextResponse.json(
-        { error: "Payment created but failed to fetch" },
-        { status: 500 },
-      );
-    }
+    // Get updated invoice summary after transaction is complete
+    const invoiceSummary = await getInvoicePaymentSummary(targetInvoiceId);
 
-    // Get client summary for totalPaid calculation
-    const clientSummary = await getClientPaymentSummary(clientId);
-
-    const enhancedPayment = {
-      ...paymentWithSummary,
-      totalAmount: clientSummary.total,
-      totalPaid: clientSummary.totalPaid,
-      remainingAmount: clientSummary.remainingAmount,
-      overpaidAmount: clientSummary.overpaidAmount,
-      effectivePaymentStatus: clientSummary.effectivePaymentStatus,
-    };
-
-    return NextResponse.json(enhancedPayment);
+    return NextResponse.json(payment);
   } catch (error: any) {
-    console.error("Error creating payment:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to create payment" },
-      { status: 500 },
-    );
+    console.error('Error creating payment:', error);
+    return NextResponse.json({ error: error.message || 'Failed to create payment' }, { status: 500 });
   }
 }

@@ -8,7 +8,6 @@ export async function POST(request: Request) {
     // Security is handled through other means (rate limiting, strong passwords, etc.)
 
     const { email, password, rememberMe = false } = await request.json()
-    console.log('[SIGNIN] Attempting signin for:', email)
 
     // Apply rate limiting based on email after parsing it
     const { rateLimitByEmail } = await import('@/lib/rate-limiter');
@@ -34,21 +33,7 @@ export async function POST(request: Request) {
     }
 
     // Authenticate admin
-    console.log('[SIGNIN] Calling authenticateAdmin...')
-
-    // Direct prisma lookup for debugging
-    const { prisma } = await import('@/lib/prisma');
-    const directAdmin = await prisma.admin.findUnique({ where: { email } });
-    console.log('[SIGNIN] Direct prisma lookup:', directAdmin ? `FOUND ${directAdmin.email}` : 'NOT FOUND');
-    if (directAdmin) {
-      console.log('[SIGNIN] Hash prefix:', directAdmin.password.substring(0, 10));
-      const { verifyPassword } = await import('@/lib/auth');
-      const isValid = await verifyPassword(password, directAdmin.password);
-      console.log('[SIGNIN] Direct password check:', isValid);
-    }
-
     const admin = await authenticateAdmin(email, password)
-    console.log('[SIGNIN] authenticateAdmin result:', admin ? 'FOUND' : 'NOT FOUND')
 
     if (!admin) {
       return NextResponse.json(
