@@ -10,7 +10,8 @@
       "Bash(tasklist)",
       "Bash(taskkill *)",
       "Bash(select-object *)",
-      "Bash(select-string *)"
+      "Bash(select-string *)",
+      "Bash(npm ls *)"
     ]
   },
   "$version": 3

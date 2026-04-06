@@ -16,7 +16,8 @@
     "postinstall": "prisma generate",
     "test:final": "node --loader ts-node/esm final-test.ts",
     "seed:saas": "tsx seed-saas.ts",
-    "seed": "tsx test_seed.ts"
+    "seed": "tsx test_seed.ts",
+    "build:clean": "npm ci --ignore-scripts && npm run build"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
