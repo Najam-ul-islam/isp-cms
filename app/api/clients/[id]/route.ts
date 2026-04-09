@@ -111,6 +111,7 @@ export async function PUT(
 
     const {
       name,
+      username,
       phone,
       cnic,
       city,
@@ -124,6 +125,25 @@ export async function PUT(
       status,
       notes
     } = await request.json()
+
+    // Validate username uniqueness if provided and different from current
+    if (username) {
+      const currentClient = await prisma.client.findUnique({
+        where: { id: clientId }
+      });
+      
+      if (currentClient && currentClient.username !== username) {
+        const existingUsername = await prisma.client.findUnique({
+          where: { username }
+        });
+        if (existingUsername) {
+          return NextResponse.json(
+            { error: 'Username already exists' },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     // Verify that the package exists if packageId is provided
     if (packageId) {
@@ -197,6 +217,7 @@ export async function PUT(
 
     const updateData: any = {
       name,
+      username: username || null,
       phone,
       cnic,
       city,
@@ -282,6 +303,14 @@ export async function DELETE(
 
     // Delete related payments first to avoid foreign key constraint
     await prisma.payment.deleteMany({
+      where: {
+        clientId,
+        companyId: admin.companyId  // Multi-tenant filter
+      }
+    });
+
+    // Delete related invoices to avoid foreign key constraint
+    await prisma.invoice.deleteMany({
       where: {
         clientId,
         companyId: admin.companyId  // Multi-tenant filter

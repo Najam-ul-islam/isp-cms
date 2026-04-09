@@ -10,13 +10,13 @@ import {
   Edit2,
   Trash2,
   Search,
-  Filter,
   AlertCircle,
   CheckCircle,
   X,
   RefreshCw,
   ChevronDown,
-  ArrowUpDown
+  Package,
+  Activity
 } from 'lucide-react';
 
 interface ExtendedServiceProvider extends SPType {
@@ -29,8 +29,6 @@ export default function ServiceProvidersPage() {
   const [serviceProviders, setServiceProviders] = useState<ExtendedServiceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'createdAt'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -134,7 +132,7 @@ export default function ServiceProvidersPage() {
     }
   };
 
-  // Filter and sort service providers
+  // Filter service providers
   const filteredServiceProviders = serviceProviders
     .filter(sp => {
       const matchesSearch = sp.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -142,23 +140,13 @@ export default function ServiceProvidersPage() {
                            (filterStatus === 'active' && sp.isActive) ||
                            (filterStatus === 'inactive' && !sp.isActive);
       return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'createdAt':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
     });
 
   if (loading) {
     return <ServiceProvidersSkeleton />;
   }
+
+  const activeCount = serviceProviders.filter(sp => sp.isActive).length;
 
   return (
     <div className="space-y-6">
@@ -229,8 +217,8 @@ export default function ServiceProvidersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:text-slate-800 dark:to-gray-300 bg-clip-text text-transparent">
-            Service Providers
+          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+            Service Provider Management
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mt-1">
             Manage internet service providers and their packages
@@ -238,22 +226,62 @@ export default function ServiceProvidersPage() {
         </div>
         <Link
           href="/dashboard/service-providers/new"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5"
         >
           <Plus className="w-5 h-5" />
-          Add New Provider
+          Add Provider
         </Link>
       </div>
 
-      {/* Filters & Search */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-gray-400">Total Providers</p>
+              <p className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{serviceProviders.length}</p>
+            </div>
+            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+              <Factory className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-gray-400">Active Providers</p>
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{activeCount}</p>
+            </div>
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+              <Activity className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-gray-400">Total Packages</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                {serviceProviders.reduce((sum, sp) => sum + (sp._count?.packages || 0), 0)}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+              <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Bar & Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 p-4">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search providers..."
+              placeholder="Search by provider name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
@@ -273,32 +301,13 @@ export default function ServiceProvidersPage() {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-
-          {/* Sort */}
-          <div className="relative">
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder];
-                setSortBy(newSortBy);
-                setSortOrder(newSortOrder);
-              }}
-              className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer min-w-40"
-            >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="createdAt-asc">Created (Oldest-Newest)</option>
-              <option value="createdAt-desc">Created (Newest-Oldest)</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
         </div>
       </div>
 
       {/* Service Providers Table */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 overflow-hidden">
         {/* Table Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-purple-50/50 to-transparent dark:from-purple-900/10">
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-purple-50/50 to-transparent dark:from-purple-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
               <Factory className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -311,10 +320,7 @@ export default function ServiceProvidersPage() {
             </div>
           </div>
           <button
-            onClick={() => {
-              setLoading(true);
-              setTimeout(() => setLoading(false), 500);
-            }}
+            onClick={() => { setLoading(true); setTimeout(() => setLoading(false), 500); }}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
             title="Refresh"
           >
@@ -322,169 +328,134 @@ export default function ServiceProvidersPage() {
           </button>
         </div>
 
-        {/* Table Content */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50/80 dark:bg-gray-900/50">
-              <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
-                <th className="px-6 py-4">Provider Name</th>
-                <th className="px-6 py-4">Contact Info</th>
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => {
-                      setSortBy('createdAt');
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-gray-200 transition-colors"
-                  >
-                    Created
-                    <ArrowUpDown className="w-3 h-3" />
-                  </button>
-                </th>
-                <th className="px-6 py-4">Packages</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
-              {filteredServiceProviders.length > 0 ? (
-                filteredServiceProviders.map((sp, index) => (
-                  <tr
-                    key={sp.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-linear-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg shadow-purple-500/20">
-                          <Factory className="w-4 h-4 text-white" />
+        {loading ? (
+          <div className="p-8 animate-pulse space-y-4">
+            <div className="h-12 bg-slate-100 dark:bg-gray-700 rounded"></div>
+            <div className="h-12 bg-slate-100 dark:bg-gray-700 rounded"></div>
+            <div className="h-12 bg-slate-100 dark:bg-gray-700 rounded"></div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50/80 dark:bg-gray-900/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 dark:text-gray-400">Provider</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 dark:text-gray-400">Contact Info</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 dark:text-gray-400">Created</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 dark:text-gray-400">Packages</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 dark:text-gray-400">Status</th>
+                  <th className="px-6 py-4 text-right text-xs font-medium text-slate-500 dark:text-gray-400">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
+                {filteredServiceProviders.length > 0 ? (
+                  filteredServiceProviders.map((sp, index) => (
+                    <tr key={sp.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group" style={{ animationDelay: `${index * 50}ms` }}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-semibold shadow-lg shadow-purple-500/20">
+                            {sp.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-medium text-slate-800 dark:text-white">{sp.name}</div>
+                            <div className="text-xs text-slate-500 dark:text-gray-400">ID: {sp.id.slice(0, 8)}...</div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 dark:text-white">{sp.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-gray-400">ID: {sp.id.slice(0, 8)}...</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          {sp.email && (
+                            <p className="text-sm text-slate-600 dark:text-gray-300">{sp.email}</p>
+                          )}
+                          {sp.phone && (
+                            <p className="text-sm text-slate-600 dark:text-gray-300">{sp.phone}</p>
+                          )}
+                          {!sp.email && !sp.phone && (
+                            <span className="text-sm text-slate-400 dark:text-gray-500">-</span>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        {sp.email && (
-                          <p className="text-sm text-slate-700 dark:text-gray-200 flex items-center gap-2">
-                            📧 {sp.email}
-                          </p>
-                        )}
-                        {sp.phone && (
-                          <p className="text-sm text-slate-700 dark:text-gray-200 flex items-center gap-2">
-                            📞 {sp.phone}
-                          </p>
-                        )}
-                        {sp.address && (
-                          <p className="text-sm text-slate-700 dark:text-gray-200 flex items-start gap-2">
-                            📍 {sp.address}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-slate-700 dark:text-gray-200">
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-gray-300">
                         {new Date(sp.createdAt).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric'
                         })}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Link
-                        href={`/dashboard/service-providers/${sp.id}/packages`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          (sp._count?.packages || 0) > 0
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:underline'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                        }`}
-                      >
-                        {sp._count?.packages || 0} package{sp._count?.packages !== 1 ? 's' : ''}
-                        {(sp._count?.packages || 0) > 0 && (
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                          </svg>
-                        )}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        sp.isActive
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                          : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
-                      }`}>
-                        {sp.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      </td>
+                      <td className="px-6 py-4">
                         <Link
-                          href={`/dashboard/service-providers/${sp.id}/edit`}
-                          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors group/btn"
-                          title="Edit service provider"
+                          href={`/dashboard/service-providers/${sp.id}/packages`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            (sp._count?.packages || 0) > 0
+                              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+                              : 'bg-slate-50 dark:bg-gray-700 text-slate-600 dark:text-gray-400'
+                          }`}
                         >
-                          <Edit2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                          <Package className="w-3 h-3" />
+                          {sp._count?.packages || 0} package{(sp._count?.packages || 0) !== 1 ? 's' : ''}
                         </Link>
-                        <button
-                          onClick={() => setShowDeleteConfirm(sp.id)}
-                          disabled={deletingId === sp.id}
-                          className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors group/btn disabled:opacity-50"
-                          title="Delete service provider"
-                        >
-                          {deletingId === sp.id ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
-                          )}
-                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-medium ${
+                          sp.isActive
+                            ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
+                        }`}>
+                          {sp.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/dashboard/service-providers/${sp.id}/edit`}
+                            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => setShowDeleteConfirm(sp.id)}
+                            disabled={deletingId === sp.id}
+                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete"
+                          >
+                            {deletingId === sp.id ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-gray-500">
+                        <div className="p-3 bg-slate-100 dark:bg-gray-800 rounded-full">
+                          <Factory className="w-10 h-10 opacity-50" />
+                        </div>
+                        <div className="text-center">
+                          <p className="font-semibold">No service providers found</p>
+                          <p className="text-sm mt-0.5">
+                            {searchTerm || filterStatus !== 'all' ? "Try adjusting your search" : "Add your first provider"}
+                          </p>
+                        </div>
+                        {!searchTerm && filterStatus === 'all' && (
+                          <Link
+                            href="/dashboard/service-providers/new"
+                            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <Plus className="w-4 h-4" /> Add Provider
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
-                      <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
-                        <Factory className="w-12 h-12 opacity-50" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-lg">No service providers found</p>
-                        <p className="text-sm mt-1">
-                          {searchTerm || filterStatus !== 'all'
-                            ? 'Try adjusting your filters or search terms'
-                            : 'Get started by creating your first service provider'}
-                        </p>
-                      </div>
-                      {(!searchTerm && filterStatus === 'all') && (
-                        <Link
-                          href="/dashboard/service-providers/new"
-                          className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Create Provider
-                        </Link>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Footer */}
-        {filteredServiceProviders.length > 0 && (
-          <div className="px-6 py-4 border-t border-slate-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30">
-            <div className="flex items-center justify-between text-sm text-slate-500 dark:text-gray-400">
-              <span>Showing {filteredServiceProviders.length} of {serviceProviders.length} service providers</span>
-              <div className="flex items-center gap-4">
-                <span>Total Providers: <strong>{serviceProviders.length}</strong></span>
-              </div>
-            </div>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -500,18 +471,32 @@ function ServiceProvidersSkeleton() {
       {/* Header Skeleton */}
       <div className="flex justify-between items-center">
         <div className="space-y-2">
-          <div className="h-8 w-56 bg-slate-200 dark:bg-gray-700 rounded" />
-          <div className="h-4 w-72 bg-slate-100 dark:bg-gray-800 rounded" />
+          <div className="h-8 w-64 bg-slate-200 dark:bg-gray-700 rounded" />
+          <div className="h-4 w-80 bg-slate-100 dark:bg-gray-800 rounded" />
         </div>
-        <div className="h-10 w-48 bg-slate-200 dark:bg-gray-700 rounded-xl" />
+        <div className="h-10 w-40 bg-slate-200 dark:bg-gray-700 rounded-xl" />
+      </div>
+
+      {/* Stats Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-slate-200/60 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-slate-100 dark:bg-gray-900 rounded" />
+                <div className="h-8 w-16 bg-slate-200 dark:bg-gray-700 rounded" />
+              </div>
+              <div className="w-12 h-12 bg-slate-100 dark:bg-gray-900 rounded-xl" />
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Filters Skeleton */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-slate-200 dark:border-gray-700">
-        <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex gap-4">
           <div className="flex-1 h-10 bg-slate-100 dark:bg-gray-900 rounded-xl" />
           <div className="w-36 h-10 bg-slate-100 dark:bg-gray-900 rounded-xl" />
-          <div className="w-48 h-10 bg-slate-100 dark:bg-gray-900 rounded-xl" />
         </div>
       </div>
 
@@ -524,7 +509,7 @@ function ServiceProvidersSkeleton() {
           {[1, 2, 3, 4, 5].map((row) => (
             <div key={row} className="flex items-center gap-4">
               <div className="flex items-center gap-3 flex-1">
-                <div className="w-10 h-10 bg-slate-100 dark:bg-gray-900 rounded-xl" />
+                <div className="w-10 h-10 bg-slate-100 dark:bg-gray-900 rounded-full" />
                 <div className="space-y-2">
                   <div className="h-4 w-32 bg-slate-100 dark:bg-gray-900 rounded" />
                   <div className="h-3 w-24 bg-slate-50 dark:bg-gray-800 rounded" />
@@ -532,8 +517,8 @@ function ServiceProvidersSkeleton() {
               </div>
               <div className="h-4 w-32 bg-slate-100 dark:bg-gray-900 rounded" />
               <div className="h-4 w-20 bg-slate-100 dark:bg-gray-900 rounded" />
-              <div className="h-4 w-20 bg-slate-100 dark:bg-gray-900 rounded" />
-              <div className="h-4 w-24 bg-slate-100 dark:bg-gray-900 rounded" />
+              <div className="h-6 w-20 bg-slate-100 dark:bg-gray-900 rounded-lg" />
+              <div className="h-6 w-16 bg-slate-100 dark:bg-gray-900 rounded-lg" />
               <div className="flex gap-2">
                 <div className="w-8 h-8 bg-slate-100 dark:bg-gray-900 rounded-lg" />
                 <div className="w-8 h-8 bg-slate-100 dark:bg-gray-900 rounded-lg" />

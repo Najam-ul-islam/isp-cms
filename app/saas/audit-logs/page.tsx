@@ -27,10 +27,13 @@ export default async function AuditLogsPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Audit Logs</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50">
+          Audit Logs
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Monitor system activity and changes
         </p>
       </div>

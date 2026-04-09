@@ -28,6 +28,7 @@ export async function initializeLedgers(companyId: string) {
   const createdLedgers: LedgerInfo[] = [];
 
   for (const ledger of DEFAULT_LEDGERS) {
+    // Check if ledger exists
     const existing = await prisma.accountLedger.findFirst({
       where: {
         companyId,
@@ -36,20 +37,47 @@ export async function initializeLedgers(companyId: string) {
     });
 
     if (!existing) {
-      const created = await prisma.accountLedger.create({
-        data: {
-          name: ledger.name,
-          type: ledger.type,
-          description: ledger.description,
-          companyId,
-          balance: 0,
-        },
-      });
+      try {
+        const created = await prisma.accountLedger.create({
+          data: {
+            name: ledger.name,
+            type: ledger.type,
+            description: ledger.description,
+            companyId,
+            balance: 0,
+          },
+        });
+        
+        createdLedgers.push({
+          id: created.id,
+          name: created.name,
+          type: created.type,
+          companyId: created.companyId,
+        });
+      } catch (error: any) {
+        // Ignore unique constraint errors (ledger was created by another concurrent request)
+        if (error?.code !== 'P2002') {
+          console.error(`Error creating ledger "${ledger.name}":`, error);
+        }
+        // Try to fetch the ledger that might have been created
+        const nowExists = await prisma.accountLedger.findFirst({
+          where: { companyId, name: ledger.name },
+        });
+        if (nowExists) {
+          createdLedgers.push({
+            id: nowExists.id,
+            name: nowExists.name,
+            type: nowExists.type,
+            companyId: nowExists.companyId,
+          });
+        }
+      }
+    } else {
       createdLedgers.push({
-        id: created.id,
-        name: created.name,
-        type: created.type,
-        companyId: created.companyId,
+        id: existing.id,
+        name: existing.name,
+        type: existing.type,
+        companyId: existing.companyId,
       });
     }
   }

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminFromToken } from "@/lib/jwt";
 import { getAdmins, createAdmin } from "@/lib/saas/adminService";
 import { Role } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -23,6 +29,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, email, password, role, companyId } = body;
 
@@ -40,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const admin = await createAdmin({
+    const newAdmin = await createAdmin({
       name,
       email,
       password,
@@ -48,7 +59,7 @@ export async function POST(request: NextRequest) {
       companyId,
     });
 
-    return NextResponse.json(admin, { status: 201 });
+    return NextResponse.json(newAdmin, { status: 201 });
   } catch (error: any) {
     console.error("Create Admin Error:", error);
     if (error.code === "P2002") {

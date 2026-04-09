@@ -14,6 +14,12 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
   const endOfDay = new Date(today);
   endOfDay.setHours(23, 59, 59, 999);
 
+  // Yesterday for comparison
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const endOfYesterday = new Date(yesterday);
+  endOfYesterday.setHours(23, 59, 59, 999);
+
   const next3Days = new Date(today);
   next3Days.setDate(today.getDate() + 3);
 
@@ -26,6 +32,9 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     { _count: { _all: totalUsers } },
     activeUsers,
     expiredUsers,
+
+    // Suspended users
+    suspendedUsers,
 
     // Expiration alerts
     expireToday,
@@ -40,11 +49,17 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     // New users today
     newUsersToday,
 
+    // Yesterday metrics for comparison
+    paidYesterday,
+    newUsersYesterday,
+
     // Extended metrics
     totalRevenue,
     totalExpenses,
     todayRecovery,
     todayExpenses,
+    otherIncome,
+    pendingRecovery,
 
     // Other service calls
     accountSummary,
@@ -70,6 +85,14 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     prisma.client.count({
       where: {
         status: ClientStatus.expired,
+        companyId: admin.companyId
+      }
+    }),
+
+    // Suspended users
+    prisma.client.count({
+      where: {
+        status: ClientStatus.suspended,
         companyId: admin.companyId
       }
     }),
@@ -160,6 +183,30 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
       }
     }),
 
+    // Paid yesterday (for comparison)
+    prisma.client.aggregate({
+      _sum: { price: true },
+      where: {
+        paymentStatus: PaymentStatus.paid,
+        expiryDate: {
+          gte: yesterday,
+          lte: endOfYesterday
+        },
+        companyId: admin.companyId
+      }
+    }),
+
+    // New users yesterday (for comparison)
+    prisma.client.count({
+      where: {
+        createdAt: {
+          gte: yesterday,
+          lte: endOfYesterday
+        },
+        companyId: admin.companyId
+      }
+    }),
+
     // Payment stats
     getPaymentStatsByCompany(admin.companyId),
 
@@ -172,6 +219,12 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     // Today's expenses
     getExpenseStatsByCompany(admin.companyId, today, today),
 
+    // Other income (partial payments)
+    getPaymentStatsByCompany(admin.companyId, today, today, 'partial'),
+
+    // Pending recovery (unpaid clients expiring soon)
+    getPendingRecovery(admin.companyId, today, next7Days),
+
     // Other service calls
     getAccountSummary(admin.companyId),
     getAreaInsights(admin.companyId),
@@ -183,6 +236,7 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     totalUsers: totalUsers,
     activeUsers,
     expiredUsers,
+    suspendedUsers,
 
     expireToday,
     expireNext3Days,
@@ -198,13 +252,28 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     netProfit: (totalRevenue._sum.amount || 0) - (totalExpenses._sum.amount || 0),
     todayRecovery: todayRecovery._sum.amount || 0,
     todayExpenses: todayExpenses._sum.amount || 0,
+    otherIncome: otherIncome._sum.amount || 0,
+    pendingRecovery: pendingRecovery._sum.price || 0,
     newUsersToday,
     expiringToday: expireToday,
+
+    // Yesterday comparison metrics
+    paidYesterday: paidYesterday._sum.price || 0,
+    newUsersYesterday,
+    revenueChangePercent: calculatePercentChange(
+      paidYesterday._sum.price || 0,
+      paidToday._sum.price || 0
+    ),
+    newUsersChangePercent: calculatePercentChange(
+      newUsersYesterday,
+      newUsersToday
+    ),
 
     // Phase 3 additions
     totalReceivable: accountSummary.totalReceivable,
     totalPayable: accountSummary.totalPayable,
     netBalance: accountSummary.netBalance,
+    rechargeTarget: accountSummary.totalReceivable || 0,
     areaInsights: areaInsights,
 
     // New inventory and employee stats
@@ -217,12 +286,16 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
 };
 
 // Helper functions for multi-tenancy with existing modules
-const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {
+const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date, paymentStatus?: string) => {
   const whereClause: any = {
     client: {
       companyId
     }
   };
+
+  if (paymentStatus) {
+    whereClause.status = paymentStatus;
+  }
 
   if (startDate && endDate) {
     whereClause.paymentDate = {
@@ -246,6 +319,21 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
     },
     _count: {
       id: true,
+    },
+  });
+};
+
+// Get pending recovery (unpaid clients expiring within date range)
+const getPendingRecovery = async (companyId: string, startDate: Date, endDate: Date) => {
+  return await prisma.client.aggregate({
+    _sum: { price: true },
+    where: {
+      companyId,
+      paymentStatus: PaymentStatus.unpaid,
+      expiryDate: {
+        gte: startDate,
+        lte: endDate,
+      },
     },
   });
 };
@@ -313,6 +401,7 @@ export const getExpiringClients = async (admin: AdminWithPackages) => {
   return expiringClients.map(client => ({
     id: client.id,
     name: client.name,
+    username: client.username,
     phone: client.phone,
     email: client.email || '', // Use the email field from the updated schema
     package: client.package.name,
@@ -321,4 +410,14 @@ export const getExpiringClients = async (admin: AdminWithPackages) => {
       (new Date(client.expiryDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
     )
   }));
+};
+
+/**
+ * Calculate percentage change between two values
+ */
+const calculatePercentChange = (oldValue: number, newValue: number): number => {
+  if (oldValue === 0) {
+    return newValue > 0 ? 100 : 0;
+  }
+  return Math.round(((newValue - oldValue) / oldValue) * 100);
 };

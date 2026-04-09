@@ -22,13 +22,15 @@ import {
   Sparkles,
   Hash,
   Building,
-  Factory
+  Factory,
+  AtSign
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
 export default function NewClientPage() {
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
   const [phone, setPhone] = useState('')
   const [cnic, setCnic] = useState('')
   const [city, setCity] = useState('')
@@ -144,6 +146,7 @@ export default function NewClientPage() {
         credentials: 'include' // This ensures cookies are sent with the request
       , body: JSON.stringify({
           name,
+          username: username || undefined,
           phone,
           cnic,
           city,
@@ -242,7 +245,7 @@ export default function NewClientPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl text-slate-800 lg:text-3xl font-bold dark:text-slate-800">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
                 Add New Client
               </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -293,6 +296,24 @@ export default function NewClientPage() {
                       placeholder="Enter client's full name"
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
                       required
+                    />
+                  </div>
+                </div>
+
+                {/* Username */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="username">
+                    Username <span className="text-slate-400 text-xs">(Optional, must be unique)</span>
+                  </label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter unique username"
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
                     />
                   </div>
                 </div>

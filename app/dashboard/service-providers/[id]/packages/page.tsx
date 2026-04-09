@@ -259,7 +259,7 @@ export default function ServiceProviderPackagesPage() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <Factory className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-            <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:text-slate-800 dark:to-gray-300 bg-clip-text text-transparent">
+            <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
               {serviceProvider?.name} Packages
             </h1>
           </div>

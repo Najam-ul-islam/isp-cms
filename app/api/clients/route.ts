@@ -6,6 +6,7 @@ import { AdminWithPackages } from '@/lib/jwt'
 import { ClientStatus, PaymentStatus } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 import { logAction } from '../../../modules/audit/services'
+import { emitEvent } from '@/lib/sse-service'
 
 function parseClientStatus(value: string | null): ClientStatus | undefined {
   if (!value) return undefined;
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
 
     const {
       name,
+      username,
       phone,
       cnic,
       city,
@@ -96,6 +98,19 @@ export async function POST(request: Request) {
         { error: 'Missing required fields' },
         { status: 400 }
       )
+    }
+
+    // Validate username uniqueness if provided
+    if (username) {
+      const existingUsername = await prisma.client.findUnique({
+        where: { username }
+      });
+      if (existingUsername) {
+        return NextResponse.json(
+          { error: 'Username already exists' },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate status and paymentStatus
@@ -173,6 +188,7 @@ export async function POST(request: Request) {
 
     const clientData: any = {
       name,
+      username: username || null,
       phone,
       cnic,
       city,
@@ -212,6 +228,20 @@ export async function POST(request: Request) {
       },
       companyId: admin.companyId
     });
+
+    // Emit real-time event for client creation
+    try {
+      await emitEvent('client_created', {
+        clientId: client.id,
+        clientName: client.name,
+        phone: client.phone,
+        area: client.area,
+        packageId: client.packageId,
+        price: client.price,
+      });
+    } catch (sseError) {
+      console.error('SSE event emission failed:', sseError);
+    }
 
     return NextResponse.json(client, { status: 201 })
   } catch (error) {

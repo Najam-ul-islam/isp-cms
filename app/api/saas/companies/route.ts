@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminFromToken } from "@/lib/jwt";
 import {
   getCompanies,
   createCompany,
 } from "@/lib/saas/companyService";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const companies = await getCompanies();
     return NextResponse.json(companies);
   } catch (error) {
@@ -19,6 +25,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, modulesEnabled } = body;
 

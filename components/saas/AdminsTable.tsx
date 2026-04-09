@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, Edit, Trash2, Key } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Search, Trash2, Key, Users } from "lucide-react";
 import AddAdminModal from "@/components/saas/AddAdminModal";
 import ResetPasswordModal from "@/components/saas/ResetPasswordModal";
 
@@ -18,13 +18,29 @@ interface AdminsTableProps {
   admins: Admin[];
 }
 
-export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps) {
+export default function AdminsTable({ admins: initialAdmins = [] }: AdminsTableProps) {
   const [admins, setAdmins] = useState(initialAdmins);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // Auto-dismiss notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+  };
 
   const filteredAdmins = admins.filter(
     (admin) =>
@@ -34,19 +50,26 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
   );
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this admin?")) return;
+    const admin = admins.find((a) => a.id === id);
+    if (!confirm(`Are you sure you want to permanently delete "${admin?.name}"? This action cannot be undone.`)) return;
 
     setLoading(id);
     try {
       const response = await fetch(`/api/saas/admins/${id}`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (response.ok) {
         setAdmins((prev) => prev.filter((a) => a.id !== id));
+        showNotification("success", "Admin deleted successfully");
+      } else {
+        const data = await response.json();
+        showNotification("error", data.error || "Failed to delete admin");
       }
     } catch (error) {
       console.error("Failed to delete admin:", error);
+      showNotification("error", "Failed to delete admin");
     } finally {
       setLoading(null);
     }
@@ -64,6 +87,7 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
       const response = await fetch(`/api/saas/admins/${selectedAdmin.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           action: "resetPassword",
           newPassword,
@@ -73,10 +97,14 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
       if (response.ok) {
         setIsResetModalOpen(false);
         setSelectedAdmin(null);
-        alert("Password reset successfully");
+        showNotification("success", "Password reset successfully");
+      } else {
+        const data = await response.json();
+        showNotification("error", data.error || "Failed to reset password");
       }
     } catch (error) {
       console.error("Failed to reset password:", error);
+      showNotification("error", "Failed to reset password");
     }
   };
 
@@ -91,6 +119,7 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
       const response = await fetch("/api/saas/admins", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -104,120 +133,199 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
           ...prev,
         ]);
         setIsModalOpen(false);
+        showNotification("success", "Admin added successfully");
+      } else {
+        const data = await response.json();
+        showNotification("error", data.error || "Failed to add admin");
       }
     } catch (error) {
       console.error("Failed to add admin:", error);
+      showNotification("error", "Failed to add admin");
     }
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
+    <div className="space-y-6">
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg border animate-in slide-in-from-top-2 duration-300 ${
+          notification.type === "success"
+            ? "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800/50"
+            : "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800/50"
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+              notification.type === "success"
+                ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+                : "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"
+            }`}>
+              {notification.type === "success" ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </div>
+            <p className={`text-sm font-medium ${
+              notification.type === "success"
+                ? "text-green-800 dark:text-green-200"
+                : "text-red-800 dark:text-red-200"
+            }`}>
+              {notification.message}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200 space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">All Admins</h3>
+      <div className="p-6 border-b border-gray-200/60 dark:border-gray-700/60 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
+              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                All Admins
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {filteredAdmins.length} of {admins.length} admins
+              </p>
+            </div>
+          </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <Plus className="w-4 h-4" />
             Add Admin
           </button>
         </div>
 
+        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
-            placeholder="Search admins..."
+            placeholder="Search admins by name, email, or company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
+            aria-label="Search admins"
           />
         </div>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <table className="w-full" role="table">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-750 dark:to-gray-700/50 border-b border-gray-200/60 dark:border-gray-700/60">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Role
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Company
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Created
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {filteredAdmins.map((admin) => (
               <tr
                 key={admin.id}
-                className="hover:bg-gray-50 transition-colors"
+                className="hover:bg-gray-50/80 dark:hover:bg-gray-700/30 transition-colors duration-150"
               >
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                  {admin.name}
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      {admin.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {admin.name}
+                    </span>
+                  </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
+                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                   {admin.email}
                 </td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-6 py-4">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                       admin.role === "ADMIN"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-gray-100 text-gray-800"
+                        ? "bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                     }`}
                   >
                     {admin.role}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
+                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                   {admin.companyName}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  {new Date(admin.createdAt).toLocaleDateString()}
+                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                  {new Date(admin.createdAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
                 </td>
-                <td className="px-6 py-4 text-sm space-x-2">
-                  <button
-                    onClick={() => handleResetPassword(admin)}
-                    className="text-yellow-600 hover:text-yellow-800 transition-colors"
-                    title="Reset Password"
-                  >
-                    <Key className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(admin.id)}
-                    disabled={loading === admin.id}
-                    className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleResetPassword(admin)}
+                      className="p-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+                      title="Reset Password"
+                      aria-label={`Reset password for ${admin.name}`}
+                    >
+                      <Key className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(admin.id)}
+                      disabled={loading === admin.id}
+                      className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Delete"
+                      aria-label={`Delete ${admin.name}`}
+                    >
+                      {loading === admin.id ? (
+                        <div className="w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {filteredAdmins.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-500">No admins found</p>
+        {filteredAdmins.length === 0 ? (
+          <div className="text-center py-16">
+            <Users className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-base font-medium text-gray-500 dark:text-gray-400">
+              {searchTerm ? "No admins match your search" : "No admins found"}
+            </p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+              {searchTerm ? "Try adjusting your search terms" : "Click 'Add Admin' to get started"}
+            </p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Modals */}
@@ -238,6 +346,7 @@ export default function AdminsTable({ admins: initialAdmins }: AdminsTableProps)
           onReset={handlePasswordReset}
         />
       )}
+    </div>
     </div>
   );
 }

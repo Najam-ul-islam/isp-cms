@@ -40,6 +40,7 @@ export const getAllComplaints = async () => {
         select: {
           id: true,
           name: true,
+          username: true,
           phone: true
         }
       }
@@ -96,7 +97,8 @@ export const getComplaintsByStatus = async (status: ComplaintStatus) => {
       client: {
         select: {
           id: true,
-          name: true
+          name: true,
+          username: true
         }
       }
     }

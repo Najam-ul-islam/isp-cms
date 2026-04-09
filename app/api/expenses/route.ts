@@ -61,6 +61,16 @@ export async function POST(request: Request) {
       receipt
     });
 
+    // Emit real-time event for expense creation
+    const { emitEvent } = await import('@/lib/sse-service');
+    await emitEvent('expense_created', {
+      id: expense.id,
+      title: expense.title,
+      amount: expense.amount,
+      category: expense.category,
+      createdAt: expense.createdAt,
+    });
+
     return NextResponse.json(expense);
   } catch (error: any) {
     console.error('Error creating expense:', error);

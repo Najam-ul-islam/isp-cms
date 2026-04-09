@@ -139,7 +139,7 @@ export default function NewServiceProviderPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-800">
+            <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
               Add New Service Provider
             </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">

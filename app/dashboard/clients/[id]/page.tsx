@@ -6,7 +6,7 @@ import { Client, Package, ServiceProvider, Payment } from '@prisma/client';
 import {
   User, Phone, MapPin, Calendar, CreditCard, IndianRupee,
   Building, Factory, Wifi, Clock, Mail, Hash, ArrowLeft, Edit2,
-  BarChart3, DollarSign, Receipt, AlertTriangle
+  BarChart3, DollarSign, Receipt, AlertTriangle, AtSign
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -264,6 +264,16 @@ export default function ClientDetailPage() {
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Full Name</p>
                   <p className="text-slate-800 dark:text-white font-medium">{client.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Username</p>
+                  {client.username ? (
+                    <p className="text-slate-800 dark:text-white font-medium flex items-center gap-2">
+                      <AtSign className="w-4 h-4 text-blue-500" />{client.username}
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 dark:text-slate-500 italic">Not set</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">CNIC</p>

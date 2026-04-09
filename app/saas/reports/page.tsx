@@ -11,9 +11,12 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Reports</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50">
+          Reports
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Revenue and financial insights
         </p>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   CreditCard,
@@ -18,6 +18,7 @@ import {
 interface Payment {
   id: string;
   clientName: string;
+  clientUsername?: string;
   clientId: string;
   area?: string;
   amount: number;
@@ -53,79 +54,110 @@ export default function PaymentsPage() {
     "Mobile Payment",
   ];
 
-  useEffect(() => {
-    const fetchPayments = async () => {
-      try {
-        // Check if user is authenticated by making a simple API call
-        const authCheck = await fetch('/api/auth/check', {
-          method: 'GET',
-          credentials: 'include' // This ensures cookies are sent with the request
-        });
+  // Use refs to prevent duplicate API calls
+  const isMounted = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-        if (authCheck.status === 401) {
+  const fetchPayments = useCallback(async (signal: AbortSignal, range: { start: string; end: string }) => {
+    try {
+      // Check if user is authenticated by making a simple API call
+      const authCheck = await fetch('/api/auth/check', {
+        method: 'GET',
+        credentials: 'include',
+        signal
+      });
+
+      if (authCheck.status === 401) {
+        if (isMounted.current) {
           router.push('/login');
-          return;
         }
+        return;
+      }
 
-        // Build query parameters for date range
-        let url = "/api/payments";
-        const params = new URLSearchParams();
+      // Build query parameters for date range
+      let url = "/api/payments";
+      const params = new URLSearchParams();
 
-        if (dateRange.start) {
-          params.append('startDate', dateRange.start);
-        }
-        if (dateRange.end) {
-          params.append('endDate', dateRange.end);
-        }
+      if (range.start) {
+        params.append('startDate', range.start);
+      }
+      if (range.end) {
+        params.append('endDate', range.end);
+      }
 
-        if (params.toString()) {
-          url += '?' + params.toString();
-        }
+      if (params.toString()) {
+        url += '?' + params.toString();
+      }
 
-        const response = await fetch(url, {
-          credentials: 'include', // This ensures cookies are sent with the request
-          headers: {
-            "Content-Type": "application/json",
-          },
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Since the API returns payment with client details, we need to map it to our Payment interface
+        const mappedPayments = data.map((p: any) => {
+          // Client name without area
+          const clientName = p.client?.name || "Unknown Client";
+
+          // Total amount is based on the client's package price
+          const totalAmount = p.client?.price || 0;
+
+          return {
+            id: p.id,
+            clientName,
+            clientUsername: p.client?.username || undefined,
+            clientId: p.clientId,
+            area: p.client?.area || "-",
+            amount: p.amount,
+            date: p.paymentDate,
+            method: p.method || "Cash",
+            notes: p.notes || "",
+            totalAmount,
+            totalPaid: p.totalPaid || 0,
+            remainingAmount: p.remainingAmount || 0,
+          };
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          // Since the API returns payment with client details, we need to map it to our Payment interface
-          const mappedPayments = data.map((p: any) => {
-            // Client name without area
-            const clientName = p.client?.name || "Unknown Client";
-
-            // Total amount is based on the client's package price
-            const totalAmount = p.client?.price || 0;
-
-            return {
-              id: p.id,
-              clientName,
-              clientId: p.clientId,
-              area: p.client?.area || "-",
-              amount: p.amount,
-              date: p.paymentDate,
-              method: p.method || "Cash",
-              notes: p.notes || "",
-              totalAmount,
-              totalPaid: p.totalPaid || 0,
-              remainingAmount: p.remainingAmount || 0,
-            };
-          });
+        
+        if (isMounted.current) {
           setPayments(mappedPayments);
-        } else if (response.status === 401) {
+          setLoading(false);
+        }
+      } else if (response.status === 401) {
+        if (isMounted.current) {
           router.push("/login");
         }
-      } catch (error) {
+      }
+    } catch (error: any) {
+      // Don't show error for aborted requests
+      if (error.name !== 'AbortError') {
         console.error("Error fetching payments:", error);
-      } finally {
-        setLoading(false);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    isMounted.current = true;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    fetchPayments(controller.signal, dateRange);
+
+    // Cleanup function
+    return () => {
+      isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
-
-    fetchPayments();
-  }, [router, dateRange.start, dateRange.end]);
+  }, [router, dateRange.start, dateRange.end, fetchPayments]);
 
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
@@ -312,35 +344,7 @@ export default function PaymentsPage() {
         } else {
           alert("Failed to add payment");
         }
-        // // Add new payment
-        // const response = await fetch("/api/payments", {
-        //   method: "POST",
-        //   headers: {
-        //     Authorization: `Bearer ${token}`,
-        //     "Content-Type": "application/json",
-        //   },
-        //   body: JSON.stringify(paymentData),
-        // });
 
-        // if (response.ok) {
-        //   const newPayment = await response.json();
-        //   const mappedNewPayment = {
-        //     id: newPayment.id,
-        //     clientName: newPayment.client?.name || "Unknown Client",
-        //     clientId: newPayment.clientId,
-        //     amount: newPayment.amount,
-        //     date: newPayment.paymentDate,
-        //     method: newPayment.method || "Cash",
-        //     notes: newPayment.notes || "",
-        //   };
-
-        //   setPayments([...payments, mappedNewPayment]);
-        //   setShowForm(false);
-        // } else if (response.status === 401) {
-        //   router.push("/login");
-        // } else {
-        //   alert("Failed to add payment");
-        // }
       }
     } catch (error) {
       console.error("Error saving payment:", error);
@@ -360,7 +364,7 @@ export default function PaymentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:text-slate-800 dark:to-gray-300 bg-clip-text text-transparent">
+          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
             Payments
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -377,37 +381,39 @@ export default function PaymentsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-3 gap-5">
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Total Payments</p>
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-3">
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Total Payments</p>
+            <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
               <IndianRupee className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold text-slate-800 dark:text-white">
             Rs {totalPayments.toLocaleString("en-PK")}
           </div>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">{filteredPayments.length} payments</p>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Total Records</p>
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-3">
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Total Records</p>
+            <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
               <FileText className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-bold">{filteredPayments.length}</div>
+          <div className="text-2xl font-bold text-slate-800 dark:text-white">{filteredPayments.length}</div>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">Payment records</p>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">Avg. Payment</p>
-            <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+          <div className="flex justify-between items-start mb-3">
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Avg. Payment</p>
+            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
               <Calendar className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold text-slate-800 dark:text-white">
             Rs{" "}
             {filteredPayments.length
               ? Math.round(
@@ -415,6 +421,7 @@ export default function PaymentsPage() {
                 ).toLocaleString("en-PK")
               : "0"}
           </div>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">Per payment average</p>
         </div>
       </div>
 
@@ -503,6 +510,7 @@ export default function PaymentsPage() {
           <table className="w-full">
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
+                <th className="px-3 py-4">Username</th>
                 <th className="px-3 py-4">Client</th>
                 <th className="px-3 py-4">Area</th>
                 <th className="px-3 py-4">Total Amount</th>
@@ -522,6 +530,14 @@ export default function PaymentsPage() {
                     className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
+                    {/* Username Column */}
+                    <td className="px-3 py-4">
+                      <span className="text-slate-600 dark:text-gray-300 font-mono text-sm">
+                        {payment.clientUsername || "-"}
+                      </span>
+                    </td>
+
+                    {/* Client Column */}
                     <td className="px-3 py-4">
                       <div
                         className="font-semibold text-slate-800 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 underline"
@@ -755,6 +771,30 @@ function PaymentFormModal({
 
   const [clients, setClients] = useState<{ id: string; name: string; packageName: string; packagePrice: number }[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+  const [clientPaymentSummary, setClientPaymentSummary] = useState<{
+    totalAmount: number;
+    remainingAmount: number;
+    isLoading: boolean;
+  }>({ totalAmount: 0, remainingAmount: 0, isLoading: false });
+
+  // Auto-dismiss notification after 4 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotification({ type, message });
+  };
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -815,7 +855,7 @@ function PaymentFormModal({
     fetchClients();
   }, [payment]);
 
-  const handleChange = (
+  const handleChange = async (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >,
@@ -829,9 +869,38 @@ function PaymentFormModal({
         ...prev,
         [name]: value,
         clientId: selectedClient ? selectedClient.id : "",
-        // Auto-fill amount based on client's package price
+        // Auto-fill amount based on client's remaining amount
         amount: selectedClient ? selectedClient.packagePrice : prev.amount,
       }));
+
+      // Fetch client payment summary when client is selected
+      if (selectedClient) {
+        setClientPaymentSummary(prev => ({ ...prev, isLoading: true }));
+        try {
+          const response = await fetch(`/api/clients/${selectedClient.id}`, {
+            credentials: 'include',
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (response.ok) {
+            const clientData = await response.json();
+            setClientPaymentSummary({
+              totalAmount: clientData.totalAmount || 0,
+              remainingAmount: clientData.remainingAmount || 0,
+              isLoading: false,
+            });
+          } else {
+            setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
+          }
+        } catch (error) {
+          console.error("Error fetching client payment summary:", error);
+          setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
+        }
+      } else {
+        setClientPaymentSummary({ totalAmount: 0, remainingAmount: 0, isLoading: false });
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -849,23 +918,27 @@ function PaymentFormModal({
 
   if (loadingClients) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               {payment ? "Edit Payment" : "Add New Payment"}
             </h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               ×
             </button>
           </div>
-          <div className="animate-pulse">
-            <div className="h-12 bg-gray-200 rounded mb-4"></div>
-            <div className="h-12 bg-gray-200 rounded mb-4"></div>
-            <div className="h-12 bg-gray-200 rounded mb-4"></div>
+          <div className="animate-pulse space-y-4">
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+            <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+            </div>
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
           </div>
         </div>
       </div>
@@ -873,31 +946,42 @@ function PaymentFormModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">
-            {payment ? "Edit Payment" : "Add New Payment"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            ×
-          </button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200/80 dark:border-gray-700/80">
+        {/* Header */}
+        <div className="bg-linear-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 p-6 rounded-t-2xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                {payment ? "Edit Payment" : "Add New Payment"}
+              </h2>
+              <p className="text-xs text-blue-100 mt-1">
+                {payment ? "Update payment details" : "Record a new payment from client"}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-xl transition-colors text-white hover:scale-110"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Client Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Client *
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+              Client <span className="text-red-500">*</span>
             </label>
             <select
               name="clientName"
               value={formData.clientName}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
             >
               <option value="">Select a client</option>
               {clients.map((client) => (
@@ -908,34 +992,122 @@ function PaymentFormModal({
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Amount *
-            </label>
-            <input
-              type="number"
-              name="amount"
-              value={formData.amount}
-              onChange={handleChange}
-              required
-              min="0"
-              step="0.01"
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              placeholder="0.00"
-            />
+          {/* Payment Summary Card */}
+          {formData.clientId && (
+            <div className="bg-linear-to-br from-slate-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 p-5 rounded-xl border border-slate-200/60 dark:border-gray-500">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  Client Payment Summary
+                </h3>
+              </div>
+              {clientPaymentSummary.isLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-32"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-28"></div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-200/60 dark:border-gray-500">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Amount</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      Rs. {clientPaymentSummary.totalAmount.toLocaleString('en-PK')}
+                    </p>
+                  </div>
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-200/60 dark:border-gray-500">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Paid</p>
+                    <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                      Rs. {(clientPaymentSummary.totalAmount - clientPaymentSummary.remainingAmount).toLocaleString('en-PK')}
+                    </p>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Remaining Amount</p>
+                    <p className={`text-xl font-bold ${
+                      clientPaymentSummary.remainingAmount > 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : clientPaymentSummary.remainingAmount < 0
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      Rs. {clientPaymentSummary.remainingAmount.toLocaleString('en-PK')}
+                    </p>
+                  </div>
+                  {clientPaymentSummary.remainingAmount > 0 && (
+                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/60 dark:border-amber-800/50">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        💡 Client still has an outstanding balance
+                      </p>
+                    </div>
+                  )}
+                  {clientPaymentSummary.remainingAmount <= 0 && (
+                    <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200/60 dark:border-green-800/50">
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        ✅ Client has paid in full
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Amount and Date Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                Payment Amount <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-semibold">
+                  Rs.
+                </span>
+                <input
+                  type="number"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleChange}
+                  required
+                  min="0"
+                  step="0.01"
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all text-gray-900 dark:text-white font-semibold"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                Payment Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
+              />
+            </div>
           </div>
 
+          {/* Payment Method */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Method *
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+              Payment Method <span className="text-red-500">*</span>
             </label>
             <select
               name="method"
               value={formData.method}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
             >
+              <option value="">Select payment method</option>
               {paymentMethods.map((method) => (
                 <option key={method} value={method}>
                   {method}
@@ -944,34 +1116,20 @@ function PaymentFormModal({
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date *
-            </label>
-            <input
-              type="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            />
-          </div>
-
-
-          <div className="flex gap-3 pt-4">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all font-semibold border-2 border-gray-200 dark:border-gray-600"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+              className="flex-1 px-4 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl"
             >
-              {payment ? "Update" : "Add"} Payment
+              {payment ? "Update Payment" : "Add Payment"}
             </button>
           </div>
         </form>

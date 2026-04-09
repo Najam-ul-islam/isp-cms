@@ -134,14 +134,19 @@ export default function EditInventoryPage() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="space-y-6">
         <div className="animate-pulse">
-          <div className="h-8 bg-slate-200 rounded w-1/4 mb-4"></div>
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
-            <div className="h-10 bg-slate-200 rounded mb-4"></div>
-            <div className="h-10 bg-slate-200 rounded mb-4"></div>
-            <div className="h-10 bg-slate-200 rounded mb-4"></div>
-            <div className="h-10 bg-slate-200 rounded mb-4"></div>
+          <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-2xl w-3/4 mb-2"></div>
+          <div className="h-4 bg-slate-200 dark:bg-gray-700 rounded w-1/3 mb-6"></div>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-slate-200/60 dark:border-gray-700">
+            <div className="space-y-6">
+              <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-xl"></div>
+                <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-xl"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -149,43 +154,46 @@ export default function EditInventoryPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Back Button */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Inventory
-      </button>
-
+    <div className="space-y-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Package className="w-6 h-6 text-blue-600" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              className="p-2 text-slate-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all group"
+            >
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent flex items-center gap-3">
+                <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                  <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <span>Edit Inventory Item</span>
+              </h1>
+              <p className="text-slate-500 dark:text-gray-400 mt-1">
+                Update item details and stock information
+              </p>
+            </div>
           </div>
-          Edit Inventory Item
-        </h1>
-        <p className="text-slate-600 mt-2">
-          Update item details and stock information
-        </p>
+        </div>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">{error}</p>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">{error}</p>
         </div>
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 p-6">
         <div className="space-y-6">
           {/* Item Name */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Item Name *
             </label>
             <input
@@ -193,7 +201,7 @@ export default function EditInventoryPage() {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500"
               placeholder="e.g., Router Model X"
               required
             />
@@ -201,7 +209,7 @@ export default function EditInventoryPage() {
 
           {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Category *
             </label>
             <input
@@ -209,7 +217,7 @@ export default function EditInventoryPage() {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500"
               placeholder="e.g., Networking Equipment"
               required
             />
@@ -218,7 +226,7 @@ export default function EditInventoryPage() {
           {/* Quantity and Unit Price */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Quantity *
               </label>
               <input
@@ -227,13 +235,13 @@ export default function EditInventoryPage() {
                 value={formData.quantity}
                 onChange={handleChange}
                 min="0"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Unit Price (Rs) *
               </label>
               <input
@@ -243,39 +251,39 @@ export default function EditInventoryPage() {
                 onChange={handleChange}
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
                 required
               />
             </div>
           </div>
 
           {/* Total Value Preview */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 border border-blue-200/60 dark:border-blue-700/50 rounded-xl p-5">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-blue-700">Total Value</span>
-              <span className="text-2xl font-bold text-blue-800">
+              <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Total Value</span>
+              <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 Rs {totalValue.toLocaleString()}
               </span>
             </div>
-            <p className="text-xs text-blue-600 mt-1">
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
               Calculated as Quantity × Unit Price
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-8 pt-6 border-t border-slate-200 flex justify-end gap-3">
+        <div className="mt-8 pt-6 border-t border-slate-200/60 dark:border-gray-700 flex justify-end gap-3">
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+            className="px-6 py-2.5 border border-slate-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
             {saving ? (
               <>

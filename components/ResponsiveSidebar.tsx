@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -16,31 +16,54 @@ import {
   CreditCard,
   TrendingUp,
   Package as PackageIcon,
-  ShoppingCart,
-  BadgePercent,
   Menu,
   X,
-  CreditCard as CreditCardIcon
+  Moon,
+  Sun,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon
 } from 'lucide-react'
+import { useTheme } from '@/components/ThemeProvider'
+
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  hasSubmenu?: boolean
+  submenu?: Array<{
+    href: string
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }>
+}
 
 export default function ResponsiveSidebar() {
   const router = useRouter()
   const pathname = usePathname()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { theme, toggleTheme } = useTheme()
+  
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
-  const [showToggle, setShowToggle] = useState(false)
   const [packagesExpanded, setPackagesExpanded] = useState(false)
+  const [isCollapsible, setIsCollapsible] = useState(false)
+  
+  const sidebarRef = useRef<HTMLElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   // Check if mobile screen
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024) // lg breakpoint
+      const mobile = window.innerWidth < 1024
+      const collapsible = window.innerWidth >= 1024 && window.innerWidth < 1280
+      
+      setIsMobile(mobile)
+      setIsCollapsible(collapsible)
+      
       // On mobile, always close sidebar initially
-      if (window.innerWidth < 1024) {
-        setSidebarOpen(false);
+      if (mobile) {
+        setSidebarOpen(false)
       } else {
-        // On desktop, keep sidebar open by default
-        setSidebarOpen(true);
+        setSidebarOpen(true)
       }
     }
 
@@ -57,14 +80,71 @@ export default function ResponsiveSidebar() {
     }
   }, [pathname])
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;'
-    router.push('/login')
-    router.refresh()
-  }
+  // Close sidebar on Escape key (mobile)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobile && sidebarOpen) {
+        setSidebarOpen(false)
+      }
+    }
 
-  const navItems = [
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isMobile, sidebarOpen])
+
+  // Trap focus in sidebar when open on mobile
+  useEffect(() => {
+    if (!isMobile || !sidebarOpen) return
+
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+
+    const focusableElements = sidebar.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+
+    const firstElement = focusableElements[0] as HTMLElement
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement
+
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement.focus()
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement.focus()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleTabKey)
+    firstElement?.focus()
+
+    return () => document.removeEventListener('keydown', handleTabKey)
+  }, [isMobile, sidebarOpen])
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      localStorage.removeItem('token')
+      document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;'
+      router.push('/login')
+      router.refresh()
+    }
+  }, [router])
+
+  const navItems: NavItem[] = [
     {
       href: '/dashboard',
       label: 'Dashboard',
@@ -123,128 +203,149 @@ export default function ResponsiveSidebar() {
       label: 'Employees',
       icon: Users
     },
-    {
-      href: '/dashboard/subscription',
-      label: 'Subscription',
-      icon: CreditCardIcon
-    },
   ]
+
+  const isActive = (href: string) => pathname === href
 
   return (
     <>
       {/* Mobile menu button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-gray-800 text-white shadow-lg"
-      >
-        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
-
+      {isMobile && (
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200/80 dark:border-gray-700/80 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95"
+          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          aria-expanded={sidebarOpen}
+        >
+          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      )}
 
       {/* Sidebar backdrop (mobile) */}
-      {sidebarOpen && (
+      {isMobile && sidebarOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          ref={overlayRef}
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        ref={sidebarRef}
         className={`
-          fixed lg:static z-40 h-screen w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white
-          transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          ${sidebarOpen ? 'w-64' : 'w-20'} lg:w-auto
-          flex flex-col shadow-xl border-r border-gray-700/50
+          fixed lg:static z-40 h-screen
+          bg-gradient-to-b from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-900/95
+          border-r border-gray-200/80 dark:border-gray-700/80
+          flex flex-col
+          transition-all duration-300 ease-in-out
+          ${isMobile ? 'w-72' : ''}
+          ${!isMobile && !sidebarOpen ? 'w-16' : ''}
+          ${!isMobile && sidebarOpen ? 'w-60' : ''}
+          ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'}
+          ${isMobile ? 'left-0 top-0' : ''}
+          shadow-xl lg:shadow-sm
         `}
-        onMouseEnter={() => setShowToggle(true)}
-        onMouseLeave={() => setShowToggle(false)}
+        role="navigation"
+        aria-label="Main navigation"
       >
         {/* Logo/Header */}
-        <div className="p-4 border-b border-gray-700/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/30">
-              <Wifi className="w-6 h-6 text-white" />
+        <div className="p-3 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-blue-50/50 to-purple-50/30 dark:from-blue-900/20 dark:to-purple-900/10">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-md shadow-blue-500/30 flex-shrink-0 transition-transform duration-200 hover:scale-110 hover:shadow-xl">
+              <Wifi className="w-4 h-4 text-white" />
             </div>
-            <div className={`${sidebarOpen ? '' : 'hidden'}`}>
-              <h1 className="text-lg font-bold tracking-tight">ISP Admin</h1>
-              <p className="text-xs text-gray-400">Control Panel</p>
-            </div>
+            {(!isMobile && sidebarOpen) && (
+              <div className="overflow-hidden animate-in slide-in-from-left duration-300">
+                <h1 className="text-sm font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent tracking-tight">ISP Admin</h1>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Control Panel</p>
+              </div>
+            )}
+            {!isMobile && isCollapsible && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/80 dark:hover:bg-gray-700/50 rounded-lg transition-all duration-200 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              >
+                {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto">
-          <p className={`${sidebarOpen ? 'px-4 py-3' : 'p-3'} text-xs font-semibold text-gray-400 uppercase tracking-wider ${sidebarOpen ? '' : 'hidden'}`}>
-            Menu
-          </p>
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent" role="menubar">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const active = isActive(item.href)
             const hasSubmenu = item.hasSubmenu && item.submenu
+            const isPackagesExpanded = hasSubmenu && packagesExpanded
 
             return (
-              <div key={item.href}>
-                <div
-                  onClick={() => hasSubmenu && sidebarOpen ? setPackagesExpanded(!packagesExpanded) : undefined}
-                  className={`
-                    group flex items-center gap-3 px-3 py-2.5 rounded-xl
-                    transition-all duration-200 ease-in-out cursor-pointer
-                    ${isActive && !hasSubmenu
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                      : 'text-gray-300 hover:bg-gray-700/60 hover:text-white'
+              <div key={item.href} role="none">
+                <Link
+                  href={hasSubmenu ? '#' : item.href}
+                  onClick={(e) => {
+                    if (hasSubmenu) {
+                      e.preventDefault()
+                      setPackagesExpanded(!packagesExpanded)
+                    } else if (isMobile) {
+                      setSidebarOpen(false)
                     }
-                    ${sidebarOpen ? 'mx-2' : 'justify-center'}
+                  }}
+                  className={`
+                    group flex items-center gap-2.5 px-2.5 py-2 rounded-lg
+                    transition-all duration-200 ease-in-out
+                    ${!isMobile && !sidebarOpen ? 'justify-center px-2' : ''}
+                    ${active && !hasSubmenu
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md shadow-blue-500/30 hover:from-blue-700 hover:to-blue-800'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 hover:shadow-sm'
+                    }
                   `}
+                  role="menuitem"
+                  aria-current={active ? 'page' : undefined}
                 >
-                  <Link
-                    href={item.href}
-                    className="flex items-center gap-3 flex-1"
-                    onClick={() => isMobile && setSidebarOpen(false)}
-                  >
-                    <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'} ${sidebarOpen ? '' : 'mx-auto'}`} />
-                    {sidebarOpen && (
-                      <>
-                        <span className="font-medium flex-1">{item.label}</span>
-                        {hasSubmenu && (
-                          packagesExpanded ? (
-                            <ChevronDown className="w-4 h-4 opacity-70" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 opacity-70" />
-                          )
-                        )}
-                        {!hasSubmenu && isActive && (
-                          <ChevronRight className="w-4 h-4 ml-auto opacity-70" />
-                        )}
-                      </>
-                    )}
-                  </Link>
-                </div>
+                  <Icon className={`w-4.5 h-4.5 flex-shrink-0 transition-all duration-200 ${
+                    active && !hasSubmenu ? 'scale-110' : 'group-hover:scale-110'
+                  }`} />
+
+                  {(!isMobile && sidebarOpen) && (
+                    <>
+                      <span className="font-medium flex-1 text-xs">{item.label}</span>
+                      {hasSubmenu && (
+                        <div className={`transition-transform duration-200 ${isPackagesExpanded ? 'rotate-0' : '-rotate-90'}`}>
+                          <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Link>
 
                 {/* Submenu items */}
-                {hasSubmenu && packagesExpanded && sidebarOpen && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    {item.submenu.map((subItem) => {
+                {hasSubmenu && isPackagesExpanded && (!isMobile && sidebarOpen) && (
+                  <div className="ml-3 mt-0.5 space-y-0.5 animate-in slide-in-from-top-2 duration-200" role="menu">
+                    {item.submenu!.map((subItem) => {
                       const SubIcon = subItem.icon
-                      const isSubActive = pathname === subItem.href
+                      const isSubActive = isActive(subItem.href)
                       return (
                         <Link
                           key={subItem.href}
                           href={subItem.href}
                           className={`
-                            group flex items-center gap-3 px-3 py-2 rounded-xl
-                            transition-all duration-200 ease-in-out
+                            group flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg
+                            transition-all duration-200
                             ${isSubActive
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                              : 'text-gray-400 hover:bg-gray-700/60 hover:text-white'
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md shadow-blue-500/25'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
                             }
-                            mx-2
                           `}
+                          role="menuitem"
+                          aria-current={isSubActive ? 'page' : undefined}
                           onClick={() => isMobile && setSidebarOpen(false)}
                         >
-                          <SubIcon className="w-4 h-4" />
-                          <span className="text-sm font-medium">{subItem.label}</span>
+                          <SubIcon className="w-3.5 h-3.5 flex-shrink-0 transition-transform group-hover:scale-110" />
+                          <span className="text-xs font-medium">{subItem.label}</span>
                           {isSubActive && (
                             <ChevronRight className="w-3 h-3 ml-auto opacity-70" />
                           )}
@@ -258,49 +359,58 @@ export default function ResponsiveSidebar() {
           })}
         </nav>
 
-        {/* User Section & Logout */}
-        <div className="border-t border-gray-700/50 space-y-2">
-          {/* Optional: User Profile Preview */}
-          <div className={`flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-700/30 ${sidebarOpen ? 'mx-2 mb-2' : 'justify-center'}`}>
-            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+        {/* Footer Section */}
+        <div className="border-t border-gray-200/80 dark:border-gray-700/80 p-2 space-y-1.5 bg-gradient-to-t from-gray-50/50 to-transparent dark:from-gray-900/50">
+          {/* Theme Toggle */}
+          {(!isMobile && sidebarOpen) && (
+            <button
+              onClick={toggleTheme}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg
+                text-gray-700 dark:text-gray-200 hover:bg-gray-100/80 dark:hover:bg-gray-800/80
+                transition-all duration-200 hover:shadow-sm group"
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            >
+              <div className="transition-transform duration-200 group-hover:scale-110">
+                {theme === 'light' ? (
+                  <Moon className="w-4 h-4" />
+                ) : (
+                  <Sun className="w-4 h-4" />
+                )}
+              </div>
+              <span className="text-xs font-medium">
+                {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+              </span>
+            </button>
+          )}
+
+          {/* User Profile */}
+          <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100/70 dark:from-gray-800/80 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile && !sidebarOpen ? 'justify-center border-0' : ''}`}>
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-md hover:shadow-lg transition-shadow duration-200">
               A
             </div>
-            <div className={`${sidebarOpen ? '' : 'hidden'}`}>
-              <p className="text-sm font-medium truncate">Admin User</p>
-              <p className="text-xs text-gray-400 truncate">admin@isp.com</p>
-            </div>
+            {(!isMobile && sidebarOpen) && (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Admin User</p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">admin@isp.com</p>
+              </div>
+            )}
           </div>
 
           {/* Logout Button */}
           <button
             onClick={handleLogout}
             className={`
-              flex items-center gap-3 px-3 py-2.5 rounded-xl
-              text-gray-300 hover:text-white hover:bg-red-900
-              hover:shadow-lg hover:shadow-red-500/20
-              transition-all duration-200 ease-in-out
-              group
-              ${sidebarOpen ? 'mx-2 w-auto' : 'justify-center w-full'}
+              w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg
+              text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400
+              transition-all duration-200 hover:shadow-sm group
+              ${!isMobile && !sidebarOpen ? 'justify-center' : ''}
             `}
+            aria-label="Logout"
           >
-            <LogOut className={`w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200 ${sidebarOpen ? '' : 'mx-auto'}`} />
-            <span className={`font-medium ${sidebarOpen ? '' : 'hidden'}`}>Logout</span>
+            <LogOut className={`w-4 h-4 transition-all duration-200 group-hover:scale-110 group-hover:translate-x-0.5 ${!isMobile && !sidebarOpen ? '' : ''}`} />
+            {(!isMobile && sidebarOpen) && <span className="text-xs font-medium">Logout</span>}
           </button>
         </div>
-
-        {/* Toggle button positioned at the edge of the sidebar */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`
-            absolute top-1/2 -translate-y-1/2 z-50 bg-red-800 text-white shadow-lg hover:bg-red-800 transition-all duration-300
-            ${sidebarOpen ? 'right-0 translate-x-1/2' : 'right-0 translate-x-1/2'} // Positioned at the right edge
-            p-2 rounded-full w-8 h-8 flex items-center justify-center
-            ${showToggle ? 'opacity-100 visible' : 'opacity-0 invisible'}
-          `}
-          title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-        >
-          {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-        </button>
       </aside>
     </>
   )

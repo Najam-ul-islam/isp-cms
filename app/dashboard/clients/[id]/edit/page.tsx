@@ -25,6 +25,7 @@ export default function EditClientPage() {
 
   // Form fields
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [cnic, setCnic] = useState('');
   const [city, setCity] = useState('');
@@ -58,6 +59,7 @@ export default function EditClientPage() {
 
         // Set form fields with client data, with null checks and proper date handling
         setName(clientData.name || '');
+        setUsername(clientData.username || '');
         setPhone(clientData.phone || '');
         setCnic(clientData.cnic || '');
         setCity(clientData.city || '');
@@ -142,6 +144,7 @@ export default function EditClientPage() {
         credentials: 'include' // This ensures cookies are sent with the request
       , body: JSON.stringify({
           name,
+          username: username || undefined,
           phone,
           cnic,
           city,
@@ -241,6 +244,21 @@ export default function EditClientPage() {
               onChange={(e) => setName(e.target.value)}
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               required
+            />
+          </div>
+
+          {/* Username */}
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
+              Username <span className="text-gray-400 font-normal text-xs">(Optional, must be unique)</span>
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter unique username"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             />
           </div>
 

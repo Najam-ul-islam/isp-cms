@@ -116,6 +116,7 @@ model Area {
 model Client {
   id            String        @id @default(cuid())
   name          String
+  username      String?       @unique
   phone         String        @unique
   cnic          String        @unique
   city          String
@@ -149,6 +150,7 @@ model Client {
   @@index([companyId, paymentStatus])
   @@index([companyId, expiryDate])
   @@index([companyId, status, expiryDate])
+  @@index([username])
 }
 
 model Invoice {

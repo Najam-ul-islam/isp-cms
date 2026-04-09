@@ -21,6 +21,10 @@ interface ExtendedClient extends Omit<
   totalAmount?: number;
   effectivePaymentStatus?: "paid" | "partial" | "unpaid";
   latestPaymentDate?: Date | null;
+  invoices?: Array<{
+    id: string;
+    additionalCharges?: string | Array<{ name: string; amount: number }>;
+  }>;
 }
 
 export default function ClientInvoicePage() {
@@ -104,14 +108,37 @@ export default function ClientInvoicePage() {
     );
   }
 
+  // Calculate values dynamically from client data (no hardcoded values)
   const packagePrice = client.price || 0;
-  const additionalTotal = additionalCharges.reduce(
-    (sum, c) => sum + c.amount,
-    0,
-  );
+  
+  // Calculate additional charges from ALL invoices
+  const allAdditionalCharges: Array<{ name: string; amount: number }> = [];
+  if (client.invoices && Array.isArray(client.invoices)) {
+    client.invoices.forEach((invoice: any) => {
+      if (invoice.additionalCharges) {
+        try {
+          const charges = typeof invoice.additionalCharges === 'string' 
+            ? JSON.parse(invoice.additionalCharges) 
+            : invoice.additionalCharges;
+          if (Array.isArray(charges)) {
+            allAdditionalCharges.push(...charges);
+          }
+        } catch (error) {
+          console.error('Error parsing additional charges:', error);
+        }
+      }
+    });
+  }
+
+  // Use additional charges from local state if editing, otherwise from all invoices
+  const currentCharges = additionalCharges.length > 0 ? additionalCharges : allAdditionalCharges;
+  
+  const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount || 0), 0);
   const total = packagePrice + additionalTotal;
+  
+  // Use dynamic values from API (client.totalPaid is calculated from actual payments)
   const paid = client.totalPaid ?? 0;
-  const remaining = total - paid;
+  const remaining = Math.max(total - paid, 0);
 
   const handleAddCharge = async () => {
     if (newCharge.name && newCharge.amount) {
@@ -287,7 +314,7 @@ Please clear your dues. Thank you!
                 alt="Transworld"
                 width={60}
                 height={60}
-                className="object-contain"
+                className="object-contain w-auto h-auto"
               />
               {/* <p className="text-xs text-center text-slate-600 mt-1 font-medium">SNS</p> */}
             </div>
@@ -368,10 +395,10 @@ Please clear your dues. Thank you!
           )}
 
           {/* Show count of charges if any exist */}
-          {additionalCharges.length > 0 && (
+          {currentCharges.length > 0 && (
             <div className="text-xs text-slate-500 italic">
-              {additionalCharges.length} charge
-              {additionalCharges.length > 1 ? "s" : ""} added
+              {currentCharges.length} charge
+              {currentCharges.length > 1 ? "s" : ""} added
             </div>
           )}
         </div>
@@ -392,7 +419,7 @@ Please clear your dues. Thank you!
           </div>
 
           {/* One-Time Charges listed individually */}
-          {additionalCharges.map((charge, idx) => (
+          {currentCharges.map((charge, idx) => (
             <div key={idx} className="flex justify-between items-center py-0.5">
               <span className="text-slate-600 text-xs leading-tight">
                 {charge.name}
@@ -404,7 +431,7 @@ Please clear your dues. Thank you!
           ))}
 
           {/* Subtotal */}
-          {additionalCharges.length > 0 && (
+          {currentCharges.length > 0 && (
             <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
               <span className="text-slate-600">Subtotal</span>
               <span className="text-slate-800 font-medium">

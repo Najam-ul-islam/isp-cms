@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminFromToken } from "@/lib/jwt";
 import {
   updateCompany,
   deleteCompany,
@@ -6,12 +7,18 @@ import {
   updateCompanyModules,
   getCompanyWithStats,
 } from "@/lib/saas/companyService";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const company = await getCompanyWithStats(id);
 
@@ -37,6 +44,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { name, isActive, modulesEnabled, action } = body;
@@ -76,13 +88,30 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await getAdminFromToken(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
-    const company = await deleteCompany(id);
-    return NextResponse.json(company);
-  } catch (error) {
+
+    // Delete related data first to avoid foreign key constraints
+    await prisma.accountTransaction.deleteMany({
+      where: { company: { id } }
+    });
+    await prisma.accountLedger.deleteMany({ where: { companyId: id } });
+
+    // Hard delete the company
+    await prisma.company.delete({ where: { id } });
+
+    return NextResponse.json({ message: "Company deleted successfully" });
+  } catch (error: any) {
     console.error("Delete Company Error:", error);
+    if (error.code === "P2025") {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
     return NextResponse.json(
-      { error: "Failed to delete company" },
+      { error: error.message || "Failed to delete company" },
       { status: 500 }
     );
   }

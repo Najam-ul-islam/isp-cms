@@ -5,6 +5,7 @@ import {
   getClientPaymentSummary,
   getInvoicePaymentSummary,
 } from "@/lib/payment-calculator";
+import { emitEvent } from "@/lib/sse-service";
 
 export async function GET(request: Request) {
   try {
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
           select: {
             id: true,
             name: true,
+            username: true,
             phone: true,
             email: true,
             area: true, // Include area for client display
@@ -404,23 +406,70 @@ export async function POST(request: Request) {
       // Create accounting entries (outside transaction, using fresh prisma instance)
       const { recordPayment } =
         await import("@/lib/accounting/accountingService");
-      const { initializeLedgers } =
+      const { initializeLedgers, getLedgerByName } =
         await import("@/lib/accounting/ledgerService");
 
       // Only create accounting entries if we have valid clientId
       if (clientId) {
-        // Auto-initialize ledgers if they don't exist
-        await initializeLedgers(admin.companyId);
+        try {
+          // Auto-initialize ledgers if they don't exist
+          await initializeLedgers(admin.companyId);
 
-        await recordPayment({
-          companyId: admin.companyId,
-          amount: parseFloat(amount),
-          clientId,
-          invoiceId: targetInvoiceId || undefined,
-          paymentId: payment.id,
-          method: method || "CASH",
-          useBank: method === "BANK_TRANSFER",
-        });
+          await recordPayment({
+            companyId: admin.companyId,
+            amount: parseFloat(amount),
+            clientId,
+            invoiceId: targetInvoiceId || undefined,
+            paymentId: payment.id,
+            method: method || "CASH",
+            useBank: method === "BANK_TRANSFER",
+          });
+        } catch (accountingError: any) {
+          // If account not found, force re-initialize and retry
+          if (accountingError.message?.includes("not found")) {
+            console.log("Account not found, forcing ledger re-initialization...");
+            
+            // Force create ledgers by checking each one
+            const requiredLedgers = ["Cash", "Bank", "Accounts Receivable", "Revenue", "Expense"];
+            for (const ledgerName of requiredLedgers) {
+              const existing = await getLedgerByName(admin.companyId, ledgerName);
+              if (!existing) {
+                console.log(`Creating missing ledger: ${ledgerName}`);
+                await prisma.accountLedger.create({
+                  data: {
+                    name: ledgerName,
+                    type: ledgerName === "Cash" || ledgerName === "Bank" ? "ASSET" :
+                          ledgerName === "Accounts Receivable" ? "ASSET" :
+                          ledgerName === "Revenue" ? "INCOME" : "EXPENSE",
+                    description: `${ledgerName} account`,
+                    companyId: admin.companyId,
+                    balance: 0,
+                  }
+                });
+              }
+            }
+
+            // Small delay to ensure writes complete
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            try {
+              await recordPayment({
+                companyId: admin.companyId,
+                amount: parseFloat(amount),
+                clientId,
+                invoiceId: targetInvoiceId || undefined,
+                paymentId: payment.id,
+                method: method || "CASH",
+                useBank: method === "BANK_TRANSFER",
+              });
+            } catch (retryError: any) {
+              console.error("Accounting retry error:", retryError);
+            }
+          } else {
+            // Log other accounting errors but don't fail the payment
+            console.error("Accounting error:", accountingError);
+          }
+        }
       }
     } catch (postError) {
       console.error("Post-payment operations error:", postError);
@@ -471,6 +520,21 @@ export async function POST(request: Request) {
       overpaidAmount: clientSummary.overpaidAmount,
       effectivePaymentStatus: clientSummary.effectivePaymentStatus,
     };
+
+    // Emit real-time event for payment creation
+    try {
+      await emitEvent("payment_created", {
+        paymentId: payment.id,
+        clientId,
+        amount: parseFloat(amount),
+        method: method || "CASH",
+        clientName: paymentWithSummary.client?.name,
+        totalPaidToday: clientSummary.totalPaid,
+      });
+    } catch (sseError) {
+      // Don't fail payment if SSE fails
+      console.error("SSE event emission failed:", sseError);
+    }
 
     return NextResponse.json(enhancedPayment);
   } catch (error: any) {

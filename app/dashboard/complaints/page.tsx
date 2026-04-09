@@ -14,6 +14,7 @@ interface Complaint {
   createdAt: string;
   updatedAt: string;
   clientName?: string;
+  clientUsername?: string;
   clientPhone?: string;
 }
 
@@ -126,7 +127,14 @@ export default function ComplaintsPage() {
         }
 
         const data = await response.json();
-        setComplaints(data);
+        // Map complaints to include username
+        const mappedData = data.map((complaint: any) => ({
+          ...complaint,
+          clientUsername: complaint.client?.username || undefined,
+          clientName: complaint.client?.name || complaint.clientName,
+          clientPhone: complaint.client?.phone || complaint.clientPhone,
+        }));
+        setComplaints(mappedData);
       } catch (error) {
         console.error('Error fetching complaints:', error);
         showNotification('error', 'Failed to load complaints');
@@ -341,7 +349,7 @@ export default function ComplaintsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
             Complaints
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -427,6 +435,7 @@ export default function ComplaintsPage() {
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
                 <th className="px-6 py-4">Complaint</th>
+                <th className="px-6 py-4">Username</th>
                 <th className="px-6 py-4">Client</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Priority</th>
@@ -450,6 +459,13 @@ export default function ComplaintsPage() {
                           {complaint.description}
                         </p>
                       </div>
+                    </td>
+
+                    {/* Username */}
+                    <td className="px-6 py-4">
+                      <span className="text-slate-600 dark:text-gray-300 font-mono text-sm">
+                        {complaint.clientUsername || 'N/A'}
+                      </span>
                     </td>
 
                     {/* Client Info */}

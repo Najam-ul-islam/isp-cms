@@ -42,18 +42,12 @@ export default function EditPackagePage() {
 
   // Load package and service providers data
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     const fetchData = async () => {
       try {
-        // Fetch package data
+        // Fetch package data with cookies
         const packageRes = await fetch(`/api/packages/${id}`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -76,10 +70,10 @@ export default function EditPackagePage() {
         setDurationDays(packageData.durationDays);
         setServiceProviderId(packageData.serviceProviderId || null);
 
-        // Fetch service providers
+        // Fetch service providers with cookies
         const providersRes = await fetch('/api/service-providers', {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -115,15 +109,12 @@ export default function EditPackagePage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
       const res = await fetch(`/api/packages/${id}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           name,
@@ -193,7 +184,7 @@ export default function EditPackagePage() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-800">
+            <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
               Edit Package
             </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">

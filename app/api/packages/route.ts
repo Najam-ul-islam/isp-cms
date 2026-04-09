@@ -68,6 +68,21 @@ import { NextResponse } from 'next/server'
       // Use the admin's company ID instead of the one from request
       const companyId = admin.companyId;
 
+      // Check if package with same name already exists for this company
+      const existingPackage = await prisma.package.findFirst({
+        where: {
+          companyId,
+          name,
+        },
+      });
+
+      if (existingPackage) {
+        return NextResponse.json(
+          { error: `A package with the name "${name}" already exists` },
+          { status: 409 }
+        )
+      }
+
       const pkg = await prisma.package.create({
         data: {
           name,
@@ -82,7 +97,14 @@ import { NextResponse } from 'next/server'
       })
 
       return NextResponse.json(pkg, { status: 201 })
-    } catch (error) {
+    } catch (error: any) {
+      // Handle unique constraint violation
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('name')) {
+        return NextResponse.json(
+          { error: 'A package with this name already exists. Package names must be unique across all companies.' },
+          { status: 409 }
+        )
+      }
       console.error('Create package error:', error)
       return NextResponse.json(
         { error: 'Internal server error' },

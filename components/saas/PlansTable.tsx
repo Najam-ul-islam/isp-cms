@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Edit, Trash2, CheckCircle, XCircle, CreditCard } from "lucide-react";
 import AddPlanModal from "@/components/saas/AddPlanModal";
 
 interface Plan {
@@ -101,16 +101,28 @@ export default function PlansTable({ plans: initialPlans }: PlansTableProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
+    <div>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">All Plans</h3>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
+            <CreditCard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+              Subscription Plans
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {plans.length} plan{plans.length !== 1 ? "s" : ""} available
+            </p>
+          </div>
+        </div>
         <button
           onClick={() => {
             setEditingPlan(null);
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         >
           <Plus className="w-4 h-4" />
           Add Plan
@@ -118,92 +130,110 @@ export default function PlansTable({ plans: initialPlans }: PlansTableProps) {
       </div>
 
       {/* Plans Grid */}
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {plans.map((plan) => (
-          <div
-            key={plan.id}
-            className={`rounded-lg border-2 p-6 ${
-              plan.isActive ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"
-            }`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h4 className="text-lg font-bold text-gray-900">{plan.name}</h4>
-                <p className="text-3xl font-bold mt-2 text-blue-600">
-                  PKR {plan.price.toLocaleString()}
-                </p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {plan.duration} days
-                </p>
-              </div>
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  plan.isActive
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}
-              >
-                {plan.isActive ? "Active" : "Inactive"}
-              </span>
-            </div>
-
-            {plan.description && (
-              <p className="text-sm text-gray-600 mb-4">{plan.description}</p>
-            )}
-
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-700 mb-2">Features:</p>
-              <div className="space-y-1">
-                {Object.entries(plan.features).map(([key, value]) => (
-                  <div key={key} className="flex items-center gap-2 text-xs">
-                    {(value as boolean) ? (
-                      <CheckCircle className="w-3 h-3 text-green-600" />
-                    ) : (
-                      <XCircle className="w-3 h-3 text-gray-400" />
-                    )}
-                    <span className="text-gray-700 capitalize">{key}</span>
+      {plans.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm text-center py-12">
+          <CreditCard className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">No plans created yet</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Create your first plan to get started</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {plans.map((plan) => (
+            <div
+              key={plan.id}
+              className={`group rounded-2xl border-2 p-6 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
+                plan.isActive
+                  ? "border-blue-200/60 dark:border-blue-500/20 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500/40"
+                  : "border-gray-200/60 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/50 opacity-75"
+              }`}
+            >
+              {/* Plan Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-gray-50">{plan.name}</h4>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        plan.isActive
+                          ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                      }`}
+                    >
+                      {plan.isActive ? "Active" : "Inactive"}
+                    </span>
                   </div>
-                ))}
+                  <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                    PKR {plan.price.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {plan.duration} days
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              {plan.description && (
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">{plan.description}</p>
+              )}
+
+              {/* Features */}
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Features</p>
+                <div className="space-y-1.5">
+                  {Object.entries(plan.features).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2 text-xs">
+                      {(value as boolean) ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0" />
+                      )}
+                      <span className="text-gray-600 dark:text-gray-300 capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-4 border-t border-gray-200/60 dark:border-gray-700/60">
+                <button
+                  onClick={() => {
+                    setEditingPlan(plan);
+                    setIsModalOpen(true);
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleToggleActive(plan.id, plan.isActive)}
+                  disabled={loading === plan.id}
+                  className="p-2 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={plan.isActive ? "Deactivate plan" : "Activate plan"}
+                >
+                  {loading === plan.id ? (
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  ) : plan.isActive ? (
+                    <XCircle className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDelete(plan.id)}
+                  disabled={loading === plan.id}
+                  className="p-2 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Delete plan"
+                >
+                  {loading === plan.id ? (
+                    <div className="w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
-
-            <div className="flex gap-2 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setEditingPlan(plan);
-                  setIsModalOpen(true);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => handleToggleActive(plan.id, plan.isActive)}
-                disabled={loading === plan.id}
-                className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
-              >
-                {plan.isActive ? (
-                  <XCircle className="w-4 h-4" />
-                ) : (
-                  <CheckCircle className="w-4 h-4" />
-                )}
-              </button>
-              <button
-                onClick={() => handleDelete(plan.id)}
-                disabled={loading === plan.id}
-                className="px-3 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {plans.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-sm text-gray-500">No plans created yet</p>
+          ))}
         </div>
       )}
 

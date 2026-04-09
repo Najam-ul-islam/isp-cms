@@ -18,12 +18,12 @@ const accessSecret = new TextEncoder().encode(process.env.JWT_SECRET!);
 const refreshSecret = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET!);
 
 /**
- * Generates an access token (15 minutes)
+ * Generates an access token (60 minutes)
  */
 export const generateAccessToken = async (payload: TokenPayload): Promise<string> => {
   return await new SignJWT(payload as any)
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('15m')
+    .setExpirationTime('60m')
     .sign(accessSecret);
 };
 
@@ -82,7 +82,7 @@ export const setAuthCookies = async (
   cookieStore.set('access_token', accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 15 * 60,
+    maxAge: 60 * 60, // 60 minutes
     path: '/',
     sameSite: 'lax', // ✅ CHANGE: 'strict' → 'lax' (allows redirect from /login)
   });
@@ -127,7 +127,7 @@ export const setAccessTokenCookie = (
   response.cookies.set('access_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 15 * 60,
+    maxAge: 60 * 60, // 60 minutes
     path: '/',
     sameSite: 'lax', // ✅ CHANGE: 'strict' → 'lax'
   });
