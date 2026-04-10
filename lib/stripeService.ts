@@ -9,7 +9,7 @@ function getStripe(): Stripe {
       throw new Error("Stripe API key not configured. Set STRIPE_SECRET_KEY in environment.");
     }
     stripeInstance = new Stripe(key, {
-      apiVersion: "2024-12-18.acacia",
+      apiVersion: "2026-03-25.dahlia",
     });
   }
   return stripeInstance;

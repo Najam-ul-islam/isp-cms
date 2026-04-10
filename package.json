@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@prisma/engines": "^7.7.0",
     "@types/recharts": "^1.8.29",
     "bcrypt": "^5.1.1",
     "chart.js": "^4.5.1",

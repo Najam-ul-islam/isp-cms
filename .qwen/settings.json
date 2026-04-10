@@ -18,7 +18,10 @@
       "Bash(powershell *)",
       "Bash(type *)",
       "Bash(mkdir *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(tar *)",
+      "Bash(curl *)",
+      "Bash(rm *)"
     ]
   },
   "$version": 3
