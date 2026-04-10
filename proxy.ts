@@ -32,6 +32,7 @@ export async function proxy(request: NextRequest) {
     "/api/auth/signin",
     "/api/auth/signup", // Add signup API route
     "/api/auth/refresh", // Refresh handles its own auth
+    "/api/auth/check", // Check handles its own auth (returns null if not logged in)
   ];
   
   if (publicRoutes.some(route => pathname.startsWith(route))) {
@@ -40,8 +41,14 @@ export async function proxy(request: NextRequest) {
 
   // ✅ API routes: verify token, attach user to headers
   if (pathname.startsWith("/api/")) {
+    // Skip auth for SSE stream - it handles its own auth via getAdminFromToken
+    // This prevents proxy from interfering with long-lived SSE connections
+    if (pathname === "/api/dashboard/stream") {
+      return NextResponse.next();
+    }
+
     const user = await verifyAccessToken(request);
-    
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -51,7 +58,7 @@ export async function proxy(request: NextRequest) {
     requestHeaders.set("x-user-id", user.userId);
     requestHeaders.set("x-user-role", user.role || "");
     requestHeaders.set("x-company-id", user.companyId || "");
-    
+
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 

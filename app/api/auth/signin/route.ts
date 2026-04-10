@@ -38,6 +38,21 @@ export async function POST(request: Request) {
 
     // Direct prisma lookup for debugging
     const { prisma } = await import('@/lib/prisma');
+    
+    // Check which database we're connected to
+    try {
+      const dbCheck = await prisma.$queryRaw`SELECT current_database()`;
+      console.log('[SIGNIN] Connected to database:', JSON.stringify(dbCheck));
+    } catch (e) {
+      console.log('[SIGNIN] Could not check database name');
+    }
+    
+    // List all admins in the database
+    const allAdmins = await prisma.admin.findMany({
+      select: { email: true, role: true }
+    });
+    console.log('[SIGNIN] All admins in database:', allAdmins.map(a => a.email).join(', '));
+    
     const directAdmin = await prisma.admin.findUnique({ where: { email } });
     console.log('[SIGNIN] Direct prisma lookup:', directAdmin ? `FOUND ${directAdmin.email}` : 'NOT FOUND');
     if (directAdmin) {
@@ -55,6 +70,18 @@ export async function POST(request: Request) {
         { error: 'Invalid credentials' },
         { status: 401 }
       )
+    }
+
+    // Auto-migrate password from bcrypt to argon2 on successful login
+    const { needsPasswordMigration, hashPassword } = await import('@/lib/auth');
+    
+    if (needsPasswordMigration(admin.password)) {
+      console.log('[SIGNIN] Migrating password from bcrypt to argon2 for:', admin.email);
+      const newHash = await hashPassword(password);
+      await prisma.admin.update({
+        where: { id: admin.id },
+        data: { password: newHash }
+      });
     }
 
     // Generate access and refresh tokens

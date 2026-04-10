@@ -21,7 +21,10 @@
       "Bash(node *)",
       "Bash(tar *)",
       "Bash(curl *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(npm uninstall *)",
+      "Bash(start *)",
+      "Bash(netstat *)"
     ]
   },
   "$version": 3

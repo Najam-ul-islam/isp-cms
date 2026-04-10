@@ -60,6 +60,12 @@ interface StatsData {
   totalPayable?: number;
   netBalance?: number;
   rechargeTarget?: number;
+  // Financial summary fields
+  financialRevenue?: number;
+  financialPayable?: number;
+  financialArrears?: number;
+  financialTodaysRecovery?: number;
+  financialTodaysExpense?: number;
   areaInsights?: Array<{
     areaName: string;
     totalClients: number;
@@ -127,7 +133,7 @@ export default function DashboardPage() {
   // ─────────────────────────────────────────────────────────
   const fetchDashboardData = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [overviewRes, expiringRes] = await Promise.all([
+      const [overviewRes, expiringRes, financialRes] = await Promise.all([
         fetch("/api/dashboard/overview", {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -135,6 +141,12 @@ export default function DashboardPage() {
           signal,
         }),
         fetch("/api/dashboard/expiring_clients", {
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }),
+        fetch("/api/dashboard/financial-summary", {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           cache: "no-store",
@@ -151,9 +163,20 @@ export default function DashboardPage() {
 
       const overviewData = await overviewRes.json().catch(() => ({}));
       const expiringData = await expiringRes.json().catch(() => []);
+      const financialData = await financialRes.json().catch(() => ({}));
+
+      // Merge financial data into stats
+      const mergedStats = {
+        ...overviewData,
+        financialRevenue: financialData.totalRevenue || 0,
+        financialPayable: financialData.totalPayable || 0,
+        financialArrears: financialData.totalArrears || 0,
+        financialTodaysRecovery: financialData.todaysRecovery || 0,
+        financialTodaysExpense: financialData.todaysExpense || 0,
+      };
 
       return {
-        stats: overviewData as StatsData,
+        stats: mergedStats as StatsData,
         expiringClients: Array.isArray(expiringData) ? expiringData : [],
       };
     } catch (error) {
@@ -249,84 +272,128 @@ export default function DashboardPage() {
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 10;
 
     const connectSSE = () => {
-      eventSource = new EventSource('/api/dashboard/stream');
+      try {
+        eventSource = new EventSource('/api/dashboard/stream');
 
-      eventSource.onopen = () => {
-        console.log('[Dashboard] Connected to real-time updates');
-      };
+        eventSource.onopen = () => {
+          console.log('[Dashboard] Connected to real-time updates');
+          reconnectAttempts = 0; // Reset on successful connection
+        };
 
-      eventSource.addEventListener('connected', (event) => {
-        const data = JSON.parse(event.data);
-        console.log('[Dashboard] SSE connected:', data.message);
-      });
+        eventSource.addEventListener('connected', (event) => {
+          const data = JSON.parse(event.data);
+          console.log('[Dashboard] SSE connected:', data.message);
+        });
 
-      eventSource.onmessage = (event) => {
-        try {
-          const dashboardEvent = JSON.parse(event.data);
-          console.log('[Dashboard] Received event:', dashboardEvent.type);
+        eventSource.onmessage = (event) => {
+          try {
+            const dashboardEvent = JSON.parse(event.data);
+            console.log('[Dashboard] Received event:', dashboardEvent.type);
 
-          // Handle different event types
-          switch (dashboardEvent.type) {
-            case 'payment_created':
-              console.log('[Dashboard] New payment received:', dashboardEvent.data);
-              // Optionally refresh data immediately
-              if (document.visibilityState === 'visible') {
-                loadDashboardData();
-              }
-              break;
+            // Handle different event types
+            switch (dashboardEvent.type) {
+              case 'payment_created':
+                console.log('[Dashboard] New payment received:', dashboardEvent.data);
+                if (document.visibilityState === 'visible') {
+                  loadDashboardData();
+                }
+                break;
 
-            case 'expense_created':
-              console.log('[Dashboard] New expense created:', dashboardEvent.data);
-              // Refresh data immediately when expense is created
-              if (document.visibilityState === 'visible') {
-                loadDashboardData();
-              }
-              break;
+              case 'expense_created':
+                console.log('[Dashboard] New expense created:', dashboardEvent.data);
+                if (document.visibilityState === 'visible') {
+                  loadDashboardData();
+                }
+                break;
 
-            case 'client_created':
-              console.log('[Dashboard] New client created:', dashboardEvent.data);
-              if (document.visibilityState === 'visible') {
-                loadDashboardData();
-              }
-              break;
+              case 'client_created':
+                console.log('[Dashboard] New client created:', dashboardEvent.data);
+                if (document.visibilityState === 'visible') {
+                  loadDashboardData();
+                }
+                break;
 
-            case 'client_updated':
-            case 'client_expired':
-            case 'complaint_created':
-            case 'complaint_updated':
-              // Refresh for any client/complaint changes
-              if (document.visibilityState === 'visible') {
-                loadDashboardData();
-              }
-              break;
+              case 'client_updated':
+              case 'client_expired':
+              case 'complaint_created':
+              case 'complaint_updated':
+                if (document.visibilityState === 'visible') {
+                  loadDashboardData();
+                }
+                break;
+            }
+          } catch (error) {
+            console.error('[Dashboard] Error parsing SSE event:', error);
           }
-        } catch (error) {
-          console.error('[Dashboard] Error parsing SSE event:', error);
-        }
-      };
+        };
 
-      eventSource.onerror = (error) => {
-        console.error('[Dashboard] SSE connection error:', error);
-        eventSource?.close();
-
-        // Try to reconnect after 5 seconds
-        reconnectTimeout = setTimeout(() => {
-          if (isMounted.current) {
-            console.log('[Dashboard] Reconnecting to SSE...');
-            connectSSE();
+        eventSource.onerror = (error) => {
+          // EventSource readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
+          const readyState = eventSource?.readyState;
+          
+          if (readyState === 2) {
+            // Connection was closed
+            console.warn('[Dashboard] SSE connection closed');
+            return;
           }
-        }, 5000);
-      };
+
+          // Only log error if it's not a normal reconnect
+          if (readyState === 0) {
+            console.debug('[Dashboard] SSE connecting...');
+            return;
+          }
+
+          // readyState === 1 means connection was open and now errored
+          reconnectAttempts++;
+          
+          if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+            console.error('[Dashboard] Max SSE reconnection attempts reached. Please refresh the page.');
+            eventSource?.close();
+            return;
+          }
+
+          console.warn(`[Dashboard] SSE connection error (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}):`, error);
+          eventSource?.close();
+
+          // Exponential backoff: 2s, 4s, 8s, max 30s
+          const delay = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
+          
+          reconnectTimeout = setTimeout(() => {
+            if (isMounted.current && document.visibilityState === 'visible') {
+              console.log(`[Dashboard] Reconnecting to SSE (attempt ${reconnectAttempts})...`);
+              connectSSE();
+            }
+          }, delay);
+        };
+      } catch (error) {
+        console.error('[Dashboard] Failed to create SSE connection:', error);
+      }
     };
 
     connectSSE();
 
+    // Handle page visibility changes - reconnect when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (!eventSource || eventSource.readyState === 2) {
+          console.log('[Dashboard] Page visible, reconnecting SSE...');
+          connectSSE();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Cleanup on unmount
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (eventSource) {
         eventSource.close();
+        eventSource = null;
       }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
@@ -553,7 +620,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => router.push("/dashboard/payments")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Today's Recovery: Rs ${(stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}`}
+                aria-label={`Today's Recovery: Rs ${(stats.financialTodaysRecovery ?? stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today&apos;s Recovery</p>
@@ -562,13 +629,13 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
-                  Rs {(stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}
+                  Rs {(stats.financialTodaysRecovery ?? stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}
                 </p>
               </button>
               <button
                 onClick={() => router.push("/dashboard/expenses")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-rose-200/60 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50/80 dark:hover:bg-rose-500/5 hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Today's Expense: Rs ${(stats.todayExpenses ?? 0).toLocaleString()}`}
+                aria-label={`Today's Expense: Rs ${(stats.financialTodaysExpense ?? stats.todayExpenses ?? 0).toLocaleString()}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today&apos;s Expense</p>
@@ -577,7 +644,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-semibold bg-linear-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
-                  Rs {(stats.todayExpenses ?? 0).toLocaleString()}
+                  Rs {(stats.financialTodaysExpense ?? stats.todayExpenses ?? 0).toLocaleString()}
                 </p>
               </button>
               <OtherIncomeCard />
@@ -600,12 +667,12 @@ export default function DashboardPage() {
           </Section>
         </div>
 
-{/* FINANCIAL SUMMARY - Full width, single row */}
+{/* FINANCIAL SUMMARY - Uses accurate financial data from new endpoint */}
 <FinancialSummary
-  totalRevenue={`Rs ${(stats.totalRevenue ?? 0).toLocaleString()}`}
+  totalRevenue={`Rs ${(stats.financialRevenue ?? 0).toLocaleString()}`}
   totalExpenses={`Rs ${(stats.totalExpenses ?? 0).toLocaleString()}`}
-  totalArrears={`Rs 0`}
-  totalPayable={`Rs ${(stats.totalPayable ?? 0).toLocaleString()}`}
+  totalArrears={`Rs ${(stats.financialArrears ?? 0).toLocaleString()}`}
+  totalPayable={`Rs ${(stats.financialPayable ?? 0).toLocaleString()}`}
   totalReceivable={`Rs ${(stats.totalReceivable ?? 0).toLocaleString()}`}
 />
 

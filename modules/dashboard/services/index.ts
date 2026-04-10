@@ -222,8 +222,8 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     // Other income (partial payments)
     getPaymentStatsByCompany(admin.companyId, today, today, 'partial'),
 
-    // Pending recovery (unpaid clients expiring soon)
-    getPendingRecovery(admin.companyId, today, next7Days),
+    // Pending recovery (all unpaid clients)
+    getPendingRecovery(admin.companyId),
 
     // Other service calls
     getAccountSummary(admin.companyId),
@@ -323,17 +323,13 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
   });
 };
 
-// Get pending recovery (unpaid clients expiring within date range)
-const getPendingRecovery = async (companyId: string, startDate: Date, endDate: Date) => {
+// Get pending recovery (all unpaid clients)
+const getPendingRecovery = async (companyId: string) => {
   return await prisma.client.aggregate({
     _sum: { price: true },
     where: {
       companyId,
       paymentStatus: PaymentStatus.unpaid,
-      expiryDate: {
-        gte: startDate,
-        lte: endDate,
-      },
     },
   });
 };

@@ -7,11 +7,16 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await getAdminFromToken(request as any);
+    console.log('[SSE] Connection attempt from:', request.headers.get('x-forwarded-for') || 'unknown');
     
+    const admin = await getAdminFromToken(request as any);
+
     if (!admin) {
+      console.warn('[SSE] Unauthorized: No valid admin token');
       return new Response('Unauthorized', { status: 401 });
     }
+
+    console.log('[SSE] Authenticated admin:', admin.id);
 
     // Create a TransformStream for SSE
     const { readable, writable } = new TransformStream();
@@ -34,14 +39,17 @@ export async function GET(request: NextRequest) {
       message: 'Connected to real-time updates',
       timestamp: new Date().toISOString(),
     })}\n\n`;
-    
-    writer.write(encoder.encode(welcomeMsg));
+
+    await writer.write(encoder.encode(welcomeMsg));
+    console.log('[SSE] Welcome message sent to client:', clientId);
 
     // Send periodic heartbeat to keep connection alive
     const heartbeatInterval = setInterval(() => {
       try {
         const heartbeat = `: heartbeat\n\n`;
-        writer.write(encoder.encode(heartbeat));
+        writer.write(encoder.encode(heartbeat)).catch(() => {
+          clearInterval(heartbeatInterval);
+        });
       } catch (error) {
         clearInterval(heartbeatInterval);
       }
@@ -49,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     // Handle client disconnection
     request.signal.addEventListener('abort', () => {
+      console.log('[SSE] Client disconnected (signal abort):', clientId);
       clearInterval(heartbeatInterval);
       removeSSEClient(clientId);
       writer.close().catch(() => {});

@@ -29,13 +29,41 @@ export function useCurrentUser(): UseCurrentUserResult {
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const hasFetched = useRef(false);
+  const fetchCountRef = useRef(0);
+  const maxRetries = 2;
+  const userRef = useRef<CurrentUser | null>(null);
 
-  const fetchUser = useCallback(async () => {
-    // Prevent duplicate fetches
-    if (hasFetched.current) return;
-    hasFetched.current = true;
+  // Keep ref in sync with user state
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
+  const fetchUser = useCallback(async (retryCount = 0) => {
+    // Check for pending user from login redirect
+    if (typeof window !== 'undefined' && fetchCountRef.current === 0) {
+      const pendingUser = sessionStorage.getItem('pendingUser');
+      if (pendingUser) {
+        try {
+          const parsedUser = JSON.parse(pendingUser);
+          if (!isMounted.current) return;
+          
+          // Set user immediately from sessionStorage
+          setUser(parsedUser);
+          userRef.current = parsedUser;
+          setIsLoading(false);
+          
+          // Clear pending user
+          sessionStorage.removeItem('pendingUser');
+          
+          // Still verify with server in background
+          console.log('[useCurrentUser] Using pending user from sessionStorage, verifying with server...');
+        } catch (e) {
+          // Invalid pendingUser, clear it
+          sessionStorage.removeItem('pendingUser');
+        }
+      }
+    }
+    
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -43,7 +71,10 @@ export function useCurrentUser(): UseCurrentUserResult {
     const { signal } = abortControllerRef.current;
 
     try {
-      setIsLoading(true);
+      // If we already have user from sessionStorage, don't show loading
+      if (!userRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const res = await fetch('/api/auth/check', {
@@ -56,9 +87,23 @@ export function useCurrentUser(): UseCurrentUserResult {
       if (!isMounted.current) return;
 
       if (res.status === 401 || res.status === 403) {
-        setUser(null);
+        // If we haven't retried yet, try one more time after a short delay
+        // This handles the case where cookies aren't set immediately after login
+        if (retryCount < maxRetries && fetchCountRef.current <= maxRetries) {
+          fetchCountRef.current++;
+          console.log(`[useCurrentUser] Retrying fetch (${retryCount + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, 300));
+          fetchUser(retryCount + 1);
+          return;
+        }
+        // Don't clear user if we already have one from sessionStorage
+        if (!userRef.current) {
+          setUser(null);
+        }
         setError(null);
-        setIsLoading(false);
+        if (!userRef.current) {
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -72,26 +117,39 @@ export function useCurrentUser(): UseCurrentUserResult {
 
       if (data.user) {
         setUser(data.user);
-      } else {
+        userRef.current = data.user;
+      } else if (!userRef.current) {
+        // Only set to null if we don't have pending user
         setUser(null);
       }
       setError(null);
+      setIsLoading(false);
     } catch (err) {
       if (!isMounted.current) return;
       if (err instanceof Error && err.name === 'AbortError') return;
 
+      // Retry on network errors
+      if (retryCount < maxRetries && fetchCountRef.current <= maxRetries) {
+        fetchCountRef.current++;
+        console.log(`[useCurrentUser] Network error, retrying (${retryCount + 1}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        fetchUser(retryCount + 1);
+        return;
+      }
+
       console.error('[useCurrentUser] Error fetching user:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setUser(null);
-    } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
+      if (!userRef.current) {
+        setUser(null);
       }
+      setIsLoading(false);
     }
   }, [router]);
 
   useEffect(() => {
     isMounted.current = true;
+    fetchCountRef.current = 0;
+    userRef.current = user;
     fetchUser();
 
     return () => {

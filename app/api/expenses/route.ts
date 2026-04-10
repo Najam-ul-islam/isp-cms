@@ -36,13 +36,22 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const admin = await getAdminFromToken(request);
+    
+    console.log('[EXPENSE CREATE] Admin from token:', admin ? {
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      name: admin.name
+    } : null);
+    
     if (!admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - Please login again' }, { status: 401 });
     }
 
     // Check if user has permission to create expenses
     if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      console.log('[EXPENSE CREATE] Forbidden - Role:', admin.role);
+      return NextResponse.json({ error: `Insufficient permissions - Your role: ${admin.role}` }, { status: 403 });
     }
 
     const body = await request.json();

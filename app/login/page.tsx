@@ -60,17 +60,25 @@ function LoginForm() {
       })
 
       if (res.ok) {
-        setSuccess('Login successful! Redirecting...')
-        // Clear any local storage tokens (we're using cookies now)
+        const data = await res.json();
+        setSuccess('Login successful! Redirecting...');
+        
+        // Store user info temporarily until cookies are fully set
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('token')
+          // Clear any old localStorage tokens (we're using cookies now)
+          localStorage.removeItem('token');
+          
+          // Store user info for immediate display after redirect
+          if (data.admin) {
+            sessionStorage.setItem('pendingUser', JSON.stringify(data.admin));
+          }
         }
 
-        // Small delay to show success message
-        setTimeout(() => {
-          router.push(redirect)
-          router.refresh()
-        }, 500)
+        // Small delay to ensure cookies are set
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Force a full page reload to ensure cookies are sent with the new request
+        window.location.href = redirect;
       } else {
         const data = await res.json()
         setError(data.error || 'Invalid email or password')

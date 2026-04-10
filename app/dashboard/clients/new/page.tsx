@@ -273,16 +273,16 @@ export default function NewClientPage() {
         </div>
 
         <div className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* Personal Information Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <div className="space-y-5">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                 <User className="w-5 h-5 text-blue-500" />
                 Personal Information
               </h3>
-              <div className="grid grid-cols-1 gap-5">
+              <div className="space-y-5">
                 {/* Name */}
-                <div className="col-span-full">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="name">
                     Full Name <span className="text-rose-500">*</span>
                   </label>
@@ -359,12 +359,12 @@ export default function NewClientPage() {
             </div>
 
             {/* Address Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <div className="space-y-5">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-amber-500" />
                 Address Information
               </h3>
-              <div className="grid grid-cols-1 gap-5">
+              <div className="space-y-5">
                 {/* City */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="city">
@@ -424,14 +424,14 @@ export default function NewClientPage() {
             </div>
 
             {/* Package & Pricing Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <div className="space-y-5">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                 <Wifi className="w-5 h-5 text-purple-500" />
                 Package & Pricing
               </h3>
-              <div className="grid grid-cols-1 gap-5">
+              <div className="space-y-5">
                 {/* Package Selection */}
-                <div className="col-span-full">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="package">
                     Select Package <span className="text-rose-500">*</span>
                   </label>
@@ -453,26 +453,6 @@ export default function NewClientPage() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
-                  {selectedPackage && (
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <div className="flex flex-col gap-2 text-sm text-blue-700 dark:text-blue-300">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4" />
-                          <span>
-                            <strong>{selectedPackage.name}</strong>: {selectedPackage.speed} Mbps, {selectedPackage.durationDays} days validity
-                          </span>
-                        </div>
-                        {(selectedPackage as any).serviceProvider && (
-                          <div className="flex items-center gap-2 ml-6">
-                            <Factory className="w-4 h-4" />
-                            <span>
-                              Service Provider: <strong>{(selectedPackage as any).serviceProvider.name}</strong>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Price */}
@@ -481,17 +461,38 @@ export default function NewClientPage() {
                     Price (PKR) <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    {/* <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" /> */}
                     <input
                       id="price"
                       type="number"
                       value={price}
                       onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-gray-900 dark:text-white font-semibold"
+                      className="w-full pl-4 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-gray-900 dark:text-white font-semibold"
                       required
                     />
                   </div>
                 </div>
+
+                {/* Package info box */}
+                {selectedPackage && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex flex-col gap-2 text-sm text-blue-700 dark:text-blue-300">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        <span>
+                          <strong>{selectedPackage.name}</strong>: {selectedPackage.speed} Mbps, {selectedPackage.durationDays} days validity
+                        </span>
+                      </div>
+                      {(selectedPackage as any).serviceProvider && (
+                        <div className="flex items-center gap-2 ml-6">
+                          <Factory className="w-4 h-4" />
+                          <span>
+                            Service Provider: <strong>{(selectedPackage as any).serviceProvider.name}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Start Date */}
                 <div>
@@ -561,13 +562,13 @@ export default function NewClientPage() {
               </div>
             </div>
 
-            {/* Status Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            {/* Status Section - Two Columns */}
+            <div className="xl:col-span-3 space-y-5">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-500" />
                 Status Settings
               </h3>
-              <div className="grid grid-cols-1 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Payment Status */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="paymentStatus">
@@ -612,8 +613,8 @@ export default function NewClientPage() {
               </div>
             </div>
 
-            {/* Notes Section */}
-            <div>
+            {/* Notes Section - Full Width */}
+            <div className="xl:col-span-3">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="notes">
                 <FileText className="w-4 h-4 inline mr-1" />
                 Additional Notes

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, Trash2, Key, Users } from "lucide-react";
+import { Plus, Search, Trash2, Key, Users, ShieldCheck } from "lucide-react";
 import AddAdminModal from "@/components/saas/AddAdminModal";
 import ResetPasswordModal from "@/components/saas/ResetPasswordModal";
+import ChangeRoleModal from "@/components/saas/ChangeRoleModal";
 
 interface Admin {
   id: string;
@@ -19,10 +20,12 @@ interface AdminsTableProps {
 }
 
 export default function AdminsTable({ admins: initialAdmins = [] }: AdminsTableProps) {
-  const [admins, setAdmins] = useState(initialAdmins);
+  // Initialize once, don't sync with prop on every render
+  const [admins, setAdmins] = useState(() => initialAdmins);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [notification, setNotification] = useState<{
@@ -78,6 +81,43 @@ export default function AdminsTable({ admins: initialAdmins = [] }: AdminsTableP
   const handleResetPassword = (admin: Admin) => {
     setSelectedAdmin(admin);
     setIsResetModalOpen(true);
+  };
+
+  const handleChangeRole = (admin: Admin) => {
+    setSelectedAdmin(admin);
+    setIsRoleModalOpen(true);
+  };
+
+  const handleRoleChange = async (newRole: string) => {
+    if (!selectedAdmin) return;
+
+    try {
+      const response = await fetch(`/api/saas/admins/${selectedAdmin.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          role: newRole,
+        }),
+      });
+
+      if (response.ok) {
+        setAdmins((prev) =>
+          prev.map((a) =>
+            a.id === selectedAdmin.id ? { ...a, role: newRole } : a
+          )
+        );
+        setIsRoleModalOpen(false);
+        setSelectedAdmin(null);
+        showNotification("success", `Role updated to ${newRole}`);
+      } else {
+        const data = await response.json();
+        showNotification("error", data.error || "Failed to update role");
+      }
+    } catch (error) {
+      console.error("Failed to update role:", error);
+      showNotification("error", "Failed to update role");
+    }
   };
 
   const handlePasswordReset = async (newPassword: string) => {
@@ -288,6 +328,14 @@ export default function AdminsTable({ admins: initialAdmins = [] }: AdminsTableP
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={() => handleChangeRole(admin)}
+                      className="p-2 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                      title="Change Role"
+                      aria-label={`Change role for ${admin.name}`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => handleResetPassword(admin)}
                       className="p-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
                       title="Reset Password"
@@ -344,6 +392,18 @@ export default function AdminsTable({ admins: initialAdmins = [] }: AdminsTableP
             setSelectedAdmin(null);
           }}
           onReset={handlePasswordReset}
+        />
+      )}
+
+      {isRoleModalOpen && selectedAdmin && (
+        <ChangeRoleModal
+          adminName={selectedAdmin.name}
+          currentRole={selectedAdmin.role}
+          onClose={() => {
+            setIsRoleModalOpen(false);
+            setSelectedAdmin(null);
+          }}
+          onChangeRole={handleRoleChange}
         />
       )}
     </div>
