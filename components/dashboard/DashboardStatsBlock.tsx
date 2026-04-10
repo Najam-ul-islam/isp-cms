@@ -26,12 +26,15 @@ export default function DashboardStatsBlock({
 
   return (
     <div className="rounded-2xl w-full">
+      <h1 className="text-2xl font-normal text-gray-800 dark:text-white mb-4">
+        Overall Statistics
+      </h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Row 1 */}
         {/* Card 1: Your Recharge Target (spans 2 columns) */}
         <button
           onClick={() => router.push('/dashboard/clients')}
-          className="group col-span-1 md:col-span-2 lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between text-left border border-indigo-200/60 dark:border-indigo-500/20 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/5 hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+          className="group col-span-1 md:col-span-2 lg:col-span-2 bg-white dark:bg-violet-900 rounded-2xl p-5 shadow-sm flex flex-col justify-between text-left border border-indigo-200/60 dark:border-indigo-500/20 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/5 hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
           aria-label={`Recharge Target: ${rechargeTarget}`}
         >
           <div className="flex items-start justify-between mb-3">
@@ -58,7 +61,7 @@ export default function DashboardStatsBlock({
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Total Clients
+                Total
               </p>
             </div>
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 transition-transform duration-200 group-hover:scale-110">
@@ -79,7 +82,7 @@ export default function DashboardStatsBlock({
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Active Clients
+                Active
               </p>
             </div>
             <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 transition-transform duration-200 group-hover:scale-110">
@@ -101,7 +104,7 @@ export default function DashboardStatsBlock({
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                New Clients
+                New
               </p>
             </div>
             <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-500/10 transition-transform duration-200 group-hover:scale-110">
@@ -125,7 +128,7 @@ export default function DashboardStatsBlock({
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Suspended Clients
+                Disabled
               </p>
             </div>
             <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 transition-transform duration-200 group-hover:scale-110">
@@ -146,7 +149,7 @@ export default function DashboardStatsBlock({
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Expired Clients
+                Expired
               </p>
             </div>
             <div className="p-2 rounded-lg bg-gray-50 dark:bg-gray-500/10 transition-transform duration-200 group-hover:scale-110">

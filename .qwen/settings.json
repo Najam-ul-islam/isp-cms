@@ -16,7 +16,9 @@
       "Bash(timeout *)",
       "Bash(rmdir *)",
       "Bash(powershell *)",
-      "Bash(type *)"
+      "Bash(type *)",
+      "Bash(mkdir *)",
+      "Bash(node *)"
     ]
   },
   "$version": 3

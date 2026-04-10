@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -17,10 +18,30 @@ import {
   ShoppingCart,
   BadgePercent
 } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
+  const { user, isLoading: userLoading } = useCurrentUser()
+
+  const getUserInitials = (name: string | null | undefined) => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN': return 'from-amber-500 to-orange-500';
+      case 'ADMIN': return 'from-blue-500 to-indigo-500';
+      case 'EMPLOYEE': return 'from-emerald-500 to-teal-500';
+      default: return 'from-gray-500 to-gray-600';
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -54,6 +75,11 @@ export default function Sidebar() {
       href: '/dashboard/expenses',
       label: 'Expenses',
       icon: DollarSign
+    },
+    {
+      href: '/dashboard/product-sales',
+      label: 'Product Sales',
+      icon: ShoppingCart
     },
     {
       href: '/dashboard/reports',
@@ -131,16 +157,41 @@ export default function Sidebar() {
 
       {/* User Section & Logout */}
       <div className="p-4 border-t border-gray-700/50 space-y-2">
-        {/* Optional: User Profile Preview */}
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-700/30">
-          <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
-            A
+        {/* User Profile */}
+        {userLoading ? (
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-700/30 animate-pulse">
+            <div className="w-8 h-8 rounded-full bg-gray-600 flex-shrink-0" />
+            <div className="flex-1 space-y-1">
+              <div className="h-3 w-20 bg-gray-600 rounded" />
+              <div className="h-2 w-28 bg-gray-600 rounded" />
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Admin User</p>
-            <p className="text-xs text-gray-400 truncate">admin@isp.com</p>
+        ) : user ? (
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-700/30">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+              {getUserInitials(user.name)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium truncate">{user.name}</p>
+                <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full bg-gradient-to-r ${getRoleBadgeColor(user.role)} text-white flex-shrink-0`}>
+                  {user.role.replace('_', ' ').slice(0, 3)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-red-900/20 border border-red-700/50">
+            <div className="w-8 h-8 rounded-full bg-red-800/50 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs text-red-400">?</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-red-400 truncate">Not logged in</p>
+              <p className="text-xs text-red-500 truncate">Please sign in</p>
+            </div>
+          </div>
+        )}
 
         {/* Logout Button */}
         <button

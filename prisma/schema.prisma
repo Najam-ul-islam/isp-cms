@@ -31,6 +31,7 @@ model Company {
   packages              Package[]
   payments              Payment[]
   providers             ServiceProvider[]
+  productSales          ProductSale[]
   subscription          Subscription?
 
   @@map("companies")
@@ -140,6 +141,7 @@ model Client {
   complaints    Complaint[]
   payments      Payment[]
   invoices      Invoice[]
+  productSales  ProductSale[]
 
   @@map("clients")
   @@index([companyId])
@@ -428,6 +430,30 @@ model Subscription {
   @@index([status])
   @@index([endDate])
   @@map("subscriptions")
+}
+
+model ProductSale {
+  id                 String   @id @default(cuid())
+  clientId           String?
+  productName        String
+  actualPrice        Float
+  sellingPrice       Float
+  quantity           Int      @default(1)
+  unitProfit         Float
+  totalOtherIncome   Float
+  notes              String?
+  saleDate           DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  companyId          String
+  client             Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([saleDate])
+  @@index([companyId, saleDate])
+  @@index([clientId])
+  @@map("product_sales")
 }
 
 enum InvoiceStatus {

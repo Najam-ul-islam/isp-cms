@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import DashboardStatsBlock from "@/components/dashboard/DashboardStatsBlock";
 import FinancialSummary from "@/components/dashboard/FinancialSummary";
+import OtherIncomeCard from "@/components/dashboard/OtherIncomeCard";
 
 // ─────────────────────────────────────────────────────────────
 // Types (Match your API response structure)
@@ -579,21 +580,7 @@ export default function DashboardPage() {
                   Rs {(stats.todayExpenses ?? 0).toLocaleString()}
                 </p>
               </button>
-              <button
-                onClick={() => router.push("/dashboard/payments")}
-                className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-indigo-200/60 dark:border-indigo-500/20 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/80 dark:hover:bg-indigo-500/5 hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Other Income: Rs ${(stats.otherIncome ?? 0).toLocaleString()}`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Other Income</p>
-                  <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 transition-transform duration-200 group-hover:scale-110">
-                    <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                </div>
-                <p className="text-2xl font-semibold bg-linear-to-r from-indigo-600 to-indigo-500 dark:from-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
-                  Rs {(stats.otherIncome ?? 0).toLocaleString()}
-                </p>
-              </button>
+              <OtherIncomeCard />
               <button
                 onClick={() => router.push("/dashboard/payments?filter=due")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-amber-200/60 dark:border-amber-500/20 hover:border-amber-300 dark:hover:border-amber-500/40 hover:bg-amber-50/80 dark:hover:bg-amber-500/5 hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"

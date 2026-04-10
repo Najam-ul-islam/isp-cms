@@ -16,14 +16,18 @@ import {
   CreditCard,
   TrendingUp,
   Package as PackageIcon,
+  ShoppingCart,
   Menu,
   X,
   Moon,
   Sun,
   ChevronLeft,
-  ChevronRight as ChevronRightIcon
+  ChevronRight as ChevronRightIcon,
+  User,
+  Shield
 } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface NavItem {
   href: string
@@ -41,7 +45,8 @@ export default function ResponsiveSidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
-  
+  const { user, isLoading: userLoading } = useCurrentUser()
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [packagesExpanded, setPackagesExpanded] = useState(false)
@@ -184,6 +189,11 @@ export default function ResponsiveSidebar() {
       icon: DollarSign
     },
     {
+      href: '/dashboard/product-sales',
+      label: 'Product Sales',
+      icon: ShoppingCart
+    },
+    {
       href: '/dashboard/reports',
       label: 'Reports',
       icon: TrendingUp
@@ -206,6 +216,30 @@ export default function ResponsiveSidebar() {
   ]
 
   const isActive = (href: string) => pathname === href
+
+  // Get user initials for avatar
+  const getUserInitials = (name: string | null | undefined) => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // Role badge color
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return 'from-amber-500 to-orange-500';
+      case 'ADMIN':
+        return 'from-blue-500 to-indigo-500';
+      case 'EMPLOYEE':
+        return 'from-emerald-500 to-teal-500';
+      default:
+        return 'from-gray-500 to-gray-600';
+    }
+  };
 
   return (
     <>
@@ -384,17 +418,44 @@ export default function ResponsiveSidebar() {
           )}
 
           {/* User Profile */}
-          <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100/70 dark:from-gray-800/80 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile && !sidebarOpen ? 'justify-center border-0' : ''}`}>
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-md hover:shadow-lg transition-shadow duration-200">
-              A
+          {userLoading ? (
+            <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100/70 dark:from-gray-800/80 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile && !sidebarOpen ? 'justify-center border-0' : ''}`}>
+              <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse flex-shrink-0" />
+              {(!isMobile && sidebarOpen) && (
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  <div className="h-2 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                </div>
+              )}
             </div>
-            {(!isMobile && sidebarOpen) && (
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Admin User</p>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">admin@isp.com</p>
+          ) : user ? (
+            <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100/70 dark:from-gray-800/80 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile && !sidebarOpen ? 'justify-center border-0' : ''}`}>
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-md hover:shadow-lg transition-shadow duration-200">
+                {getUserInitials(user.name)}
               </div>
-            )}
-          </div>
+              {(!isMobile && sidebarOpen) && (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{user.name}</p>
+                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded-full bg-gradient-to-r ${getRoleBadgeColor(user.role)} text-white flex-shrink-0`}>
+                      {user.role.replace('_', ' ').slice(0, 3)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-gradient-to-r from-rose-50 to-rose-100/70 dark:from-rose-900/20 dark:to-rose-900/10 border border-rose-200/60 dark:border-rose-700/60 ${!isMobile && !sidebarOpen ? 'justify-center border-0' : ''}`}>
+              <User className="w-5 h-5 text-rose-500 dark:text-rose-400 flex-shrink-0" />
+              {(!isMobile && sidebarOpen) && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 truncate">Not logged in</p>
+                  <p className="text-[10px] text-rose-400 dark:text-rose-500 truncate">Please sign in</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Logout Button */}
           <button
