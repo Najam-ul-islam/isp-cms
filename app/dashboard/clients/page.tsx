@@ -234,6 +234,7 @@ export default function ClientsPage() {
     .filter(client => {
       const matchesSearch =
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.username && client.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
         client.phone.includes(searchTerm) ||
         client.cnic.includes(searchTerm) ||
         client.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -419,9 +420,9 @@ export default function ClientsPage() {
         </div>
 
         {/* Bottom Row: Search + Filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2">
           {/* Search Input */}
-          <div className="relative flex-1">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -432,75 +433,78 @@ export default function ClientsPage() {
             />
           </div>
 
-          {/* Status Filter */}
-          <div className="relative">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
-              className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="expired">Expired</option>
-              <option value="suspended">Suspended</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
+          {/* Filters Grid: 2 columns on mobile, more on larger screens */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+            {/* Status Filter */}
+            <div className="relative">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+                <option value="suspended">Suspended</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
 
-          {/* Payment Filter */}
-          <div className="relative">
-            <select
-              value={filterPayment}
-              onChange={(e) => setFilterPayment(e.target.value as typeof filterPayment)}
-              className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap"
-            >
-              <option value="all">All Payments</option>
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="partial">Partial</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
+            {/* Payment Filter */}
+            <div className="relative">
+              <select
+                value={filterPayment}
+                onChange={(e) => setFilterPayment(e.target.value as typeof filterPayment)}
+                className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
+              >
+                <option value="all">All Payments</option>
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partial</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
 
-          {/* Sort */}
-          <div className="relative">
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder]
-                setSortBy(newSortBy)
-                setSortOrder(newSortOrder)
-              }}
-              className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap"
-            >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="phone-asc">Phone (A-Z)</option>
-              <option value="phone-desc">Phone (Z-A)</option>
-              <option value="area-asc">Area (A-Z)</option>
-              <option value="area-desc">Area (Z-A)</option>
-              <option value="price-asc">Price (Low-High)</option>
-              <option value="price-desc">Price (High-Low)</option>
-              <option value="expiryDate-asc">Expiry (Soon-Late)</option>
-              <option value="expiryDate-desc">Expiry (Late-Soon)</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
+            {/* Sort */}
+            <div className="relative">
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder]
+                  setSortBy(newSortBy)
+                  setSortOrder(newSortOrder)
+                }}
+                className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
+              >
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="phone-asc">Phone (A-Z)</option>
+                <option value="phone-desc">Phone (Z-A)</option>
+                <option value="area-asc">Area (A-Z)</option>
+                <option value="area-desc">Area (Z-A)</option>
+                <option value="price-asc">Price (Low-High)</option>
+                <option value="price-desc">Price (High-Low)</option>
+                <option value="expiryDate-asc">Expiry (Soon-Late)</option>
+                <option value="expiryDate-desc">Expiry (Late-Soon)</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
 
-          {/* Items Per Page */}
-          <div className="relative">
-            <select
-              value={itemsPerPage}
-              onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-24"
-            >
-              <option value={10}>10 / pg</option>
-              <option value={50}>50 / pg</option>
-              <option value={100}>100 / pg</option>
-              <option value={500}>500 / pg</option>
-              <option value={1000}>1000 / pg</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            {/* Items Per Page */}
+            <div className="relative">
+              <select
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
+              >
+                <option value={10}>10 / pg</option>
+                <option value={50}>50 / pg</option>
+                <option value={100}>100 / pg</option>
+                <option value={500}>500 / pg</option>
+                <option value={1000}>1000 / pg</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>

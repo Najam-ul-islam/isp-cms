@@ -29,7 +29,7 @@ export default function FinancialSummary({
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Financial Summary</h2>
       </div>
       <div className="w-full">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {/* Card 1: Total Revenue */}
           <button
             onClick={() => router.push('/dashboard/payments')}

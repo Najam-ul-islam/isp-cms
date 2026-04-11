@@ -110,7 +110,7 @@ export default async function AccountsDashboard() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <FinancialMetricCard
           title="Cash Balance"
           value={metrics.cashBalance}
@@ -158,7 +158,7 @@ export default async function AccountsDashboard() {
       {/* Quick Reports Section */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Reports</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
           {quickReports.map((report) => {
             const colors = colorMap[report.color as keyof typeof colorMap];
             const Icon = report.icon;

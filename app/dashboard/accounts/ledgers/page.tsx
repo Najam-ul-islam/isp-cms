@@ -51,7 +51,7 @@ export default async function LedgersPage() {
       </div>
 
       {/* Ledgers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {ledgers.map((ledger: any) => {
           const balance = calculateLedgerBalance(ledger);
           const typeColor = typeColorMap[ledger.type] || "bg-gray-100 text-gray-800";

@@ -116,7 +116,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">Report Type</label>
             <select
@@ -229,7 +229,7 @@ export default function ReportsPage() {
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Report Results</h3>
 
             {reportData && (selectedReport === 'expiry' || Object.keys(reportData).includes('expiringToday')) ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 p-5 rounded-2xl border border-blue-200/60 dark:border-blue-700/50">
                   <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Expiring Today</h4>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{reportData.expiringToday}</p>
@@ -250,7 +250,7 @@ export default function ReportsPage() {
             ) : null}
 
             {reportData && (selectedReport === 'payment-status' || Object.keys(reportData).includes('paid')) ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-800/20 p-5 rounded-2xl border border-emerald-200/60 dark:border-emerald-700/50">
                   <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Paid</h4>
                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{reportData.paid}</p>
@@ -297,7 +297,7 @@ export default function ReportsPage() {
             {selectedReport === 'daily' && reportData.date && (
               <div className="mt-6">
                 <h4 className="font-semibold text-slate-800 dark:text-white mb-4">Daily Report for {reportData.date}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 p-5 rounded-2xl border border-blue-200/60 dark:border-blue-700/50">
                     <h5 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Total Clients</h5>
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{reportData.totalClients}</p>
@@ -317,7 +317,7 @@ export default function ReportsPage() {
             {selectedReport === 'monthly' && reportData.month && (
               <div className="mt-6">
                 <h4 className="font-semibold text-slate-800 dark:text-white mb-4">Monthly Report for {reportData.month} {reportData.year}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 p-5 rounded-2xl border border-blue-200/60 dark:border-blue-700/50">
                     <h5 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Total Clients</h5>
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{reportData.totalClients}</p>

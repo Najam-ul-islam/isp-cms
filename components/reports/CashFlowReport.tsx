@@ -74,7 +74,7 @@ export default function CashFlowReport({
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="p-6 rounded-lg border border-gray-200 bg-gray-50">
           <p className="text-sm font-medium text-gray-700">Opening Balance</p>
           <p className="text-2xl font-bold mt-2 text-gray-900">

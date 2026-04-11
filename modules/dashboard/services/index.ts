@@ -48,14 +48,15 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
 
     // New users today
     newUsersToday,
+    unpaidClients,
 
     // Yesterday metrics for comparison
     paidYesterday,
     newUsersYesterday,
 
-    // Extended metrics
-    totalRevenue,
-    totalExpenses,
+    // Payment and expense stats
+    paymentStats,
+    expenseStats,
     todayRecovery,
     todayExpenses,
     otherIncome,
@@ -183,6 +184,14 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
       }
     }),
 
+    // Unpaid clients
+    prisma.client.count({
+      where: {
+        paymentStatus: PaymentStatus.unpaid,
+        companyId: admin.companyId
+      }
+    }),
+
     // Paid yesterday (for comparison)
     prisma.client.aggregate({
       _sum: { price: true },
@@ -247,9 +256,9 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     dueNext7Days: dueNext7Days._sum.price || 0,
 
     // Extended metrics
-    totalRevenue: totalRevenue._sum.amount || 0,
-    totalExpenses: totalExpenses._sum.amount || 0,
-    netProfit: (totalRevenue._sum.amount || 0) - (totalExpenses._sum.amount || 0),
+    totalRevenue: paymentStats._sum.amount || 0,
+    totalExpenses: expenseStats._sum.amount || 0,
+    netProfit: (paymentStats._sum.amount || 0) - (expenseStats._sum.amount || 0),
     todayRecovery: todayRecovery._sum.amount || 0,
     todayExpenses: todayExpenses._sum.amount || 0,
     otherIncome: otherIncome._sum.amount || 0,
@@ -281,7 +290,8 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     lowStockItems: inventoryStats.lowStockItems,
     totalInventoryValue: inventoryStats.totalValue,
     totalEmployees: employeeStats.totalEmployees,
-    employeeRoles: employeeStats.roleCounts
+    employeeRoles: employeeStats.roleCounts,
+    unpaidClients
   };
 };
 

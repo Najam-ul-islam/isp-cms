@@ -38,7 +38,7 @@ export default function AccountsSummary() {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 animate-pulse">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Accounts Summary</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((item) => (
             <div key={item} className="p-4 bg-slate-100 rounded-lg">
               <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
@@ -53,7 +53,7 @@ export default function AccountsSummary() {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
       <h3 className="text-lg font-semibold text-slate-800 mb-4">Accounts Summary</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-blue-600" />

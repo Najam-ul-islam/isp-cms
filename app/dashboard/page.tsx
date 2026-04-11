@@ -37,6 +37,7 @@ interface StatsData {
   activeClients?: number;
   expiredClients?: number;
   suspendedClients?: number;
+  unpaidClients?: number;
   totalRevenue?: number;
   totalUsers?: number;
   activeUsers?: number;
@@ -259,10 +260,27 @@ export default function DashboardPage() {
       }
     }, 30000);
 
+    // Refresh data when window regains focus (e.g., after navigating back from another page)
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        loadDashboardData();
+      }
+    };
+
+    // Listen for popstate events (browser back/forward navigation)
+    const handlePopState = () => {
+      loadDashboardData();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("popstate", handlePopState);
+
     return () => {
       isMounted.current = false;
       if (abortControllerRef.current) abortControllerRef.current.abort();
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [loadDashboardData]);
 
@@ -481,17 +499,17 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 -m-4 sm:-m-6 lg:-m-8">
       {/* Top Header Bar - UPDATED with Quick Action Buttons */}
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/60 dark:border-gray-700/60 px-4 sm:px-6 py-3 sm:py-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mx-auto w-full gap-3 sm:gap-0">
-          <div>
+      <header className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/60 dark:border-gray-700/60 px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3 sm:gap-0">
+          <div className="lg:pl-0 pl-12">
             <h1 className="text-xl sm:text-2xl font-bold bg-linear-to-r from-gray-900 to-gray-600 dark:from-gray-50 dark:to-gray-300 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            {/* <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               Welcome back! Here's what's happening with your ISP today.
-            </p>
+            </p> */}
           </div>
 
           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
@@ -560,13 +578,13 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 py-4 space-y-4">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-4 space-y-4">
         {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
                 {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* User Overview Section - HIDDEN, replaced by DashboardStatsBlock */}
           {/* <Section title="User Overview" icon={<Users className="w-5 h-5" />} className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
               <StatCard
                 title="Total Users"
                 value={stats.totalUsers ?? stats.totalClients ?? 0}
@@ -607,6 +625,7 @@ export default function DashboardPage() {
             disabledClients={stats.expiredClients ?? stats.expiredUsers ?? 0}
             expiredClients={stats.expiredClients ?? stats.expiredUsers ?? 0}
             suspendedClients={stats.suspendedClients ?? stats.suspendedUsers ?? 0}
+            unpaidClients={stats.unpaidClients ?? 0}
           />
 
           {/* Real-Time Stats Section - 4 Cards */}
@@ -616,7 +635,7 @@ export default function DashboardPage() {
             variant="success"
             className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-5"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
               <button
                 onClick={() => router.push("/dashboard/payments")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
@@ -694,7 +713,7 @@ export default function DashboardPage() {
           variant="warning"
           className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-5"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <AlertCard
               title="Expiring Today"
               value={stats.expireToday ?? 0}
@@ -729,7 +748,7 @@ export default function DashboardPage() {
           icon={<Package className="w-5 h-5" />}
           className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-5"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <InventoryCard
               title="Total Items"
               value={stats.totalInventoryItems ?? 0}
@@ -760,7 +779,7 @@ export default function DashboardPage() {
         title="Employee Overview"
         icon={<Users className="w-5 h-5" />}
         className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <EmployeeCard
               title="Total Employees"
               value={stats.totalEmployees ?? 0}
@@ -800,7 +819,7 @@ export default function DashboardPage() {
           variant="success"
           className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-5"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <FinCard
               title="Paid Today"
               amount={stats.paidToday ?? 0}
@@ -1636,7 +1655,7 @@ function DashboardSkeleton() {
               <div className="w-9 h-9 bg-gray-200/60 dark:bg-gray-700/60 rounded-lg" />
               <div className="h-5 w-40 bg-gray-200/60 dark:bg-gray-700/60 rounded" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
               {[1, 2, 3].map((card) => (
                 <div
                   key={card}

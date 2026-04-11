@@ -197,7 +197,7 @@ export default function ClientDetailPage() {
         </div>
 
         {/* Client Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
