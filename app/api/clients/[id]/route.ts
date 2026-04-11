@@ -116,6 +116,7 @@ export async function PUT(
       cnic,
       city,
       area,
+      areaId,
       country,
       packageId,
       price,
@@ -159,22 +160,50 @@ export async function PUT(
       }
     }
 
-    // Check if the area exists, and create it if it doesn't exist (only if area is provided)
-    if (area) {
-      let areaExists = await prisma.area.findUnique({
-        where: { name: area }
+    // Handle area assignment - accept either areaId or area name (for backward compatibility)
+    let finalAreaId = areaId || null;
+    let finalAreaName = area || null;
+
+    if (finalAreaId) {
+      // Verify the area exists and belongs to the admin's company
+      const areaExists = await prisma.area.findFirst({
+        where: {
+          id: finalAreaId,
+          companyId: admin.companyId
+        }
+      });
+
+      if (!areaExists) {
+        return NextResponse.json(
+          { error: 'Selected area does not exist' },
+          { status: 400 }
+        );
+      }
+      finalAreaName = areaExists.name;
+    } else if (finalAreaName && finalAreaName.trim()) {
+      // Backward compatibility: If area name is provided instead of areaId
+      let areaExists = await prisma.area.findFirst({
+        where: {
+          companyId: admin.companyId,
+          name: {
+            equals: finalAreaName.trim(),
+            mode: 'insensitive'
+          }
+        }
       });
 
       if (!areaExists) {
         // Create the new area since it doesn't exist
         areaExists = await prisma.area.create({
           data: {
-            name: area,
-            description: `${area} area created automatically`,
+            name: finalAreaName.trim(),
+            description: `${finalAreaName.trim()} area created automatically`,
             companyId: admin.companyId
           }
         });
       }
+      finalAreaId = areaExists.id;
+      finalAreaName = areaExists.name;
     }
 
     // Parse dates safely
@@ -222,6 +251,8 @@ export async function PUT(
       cnic,
       city,
       country,
+      areaName: finalAreaName,
+      areaId: finalAreaId,
       price: typeof price === 'string' ? parseFloat(price) : price,
       paymentStatus,
       status,
@@ -239,11 +270,6 @@ export async function PUT(
     // Only update packageId if it was provided
     if (packageId) {
       updateData.packageId = packageId;
-    }
-
-    // Only update area if it was provided
-    if (area) {
-      updateData.area = area;
     }
 
     // Get the original client to include in audit log

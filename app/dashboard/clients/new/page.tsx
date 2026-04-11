@@ -23,10 +23,21 @@ import {
   Hash,
   Building,
   Factory,
-  AtSign
+  AtSign,
+  ChevronDown,
+  Plus
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+
+interface Area {
+  id: string
+  name: string
+  description: string | null
+  _count: {
+    clients: number
+  }
+}
 
 export default function NewClientPage() {
   const [name, setName] = useState('')
@@ -34,13 +45,17 @@ export default function NewClientPage() {
   const [phone, setPhone] = useState('')
   const [cnic, setCnic] = useState('')
   const [city, setCity] = useState('')
-  const [area, setArea] = useState('')
+  const [areaId, setAreaId] = useState('')
   const [country, setCountry] = useState('')
   const [packageId, setPackageId] = useState('')
   const [price, setPrice] = useState(0)
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [expiryDate, setExpiryDate] = useState<Date | null>(null)
   const [hasUserManuallySetExpiry, setHasUserManuallySetExpiry] = useState(false)
+  const [areas, setAreas] = useState<Area[]>([])
+  const [loadingAreas, setLoadingAreas] = useState(false)
+  const [showAddArea, setShowAddArea] = useState(false)
+  const [newAreaName, setNewAreaName] = useState('')
 
   // Helper function to calculate default expiry date (30 days from start date)
   const calculateDefaultExpiry = (start: Date | null, durationDays: number | undefined = undefined) => {
@@ -73,25 +88,74 @@ export default function NewClientPage() {
     setTimeout(() => setNotification(null), 4000)
   }
 
+  const handleAddArea = async () => {
+    if (!newAreaName.trim()) {
+      showNotification('error', 'Please enter an area name')
+      return
+    }
+
+    setLoadingAreas(true)
+    try {
+      const res = await fetch('/api/areas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newAreaName.trim() })
+      })
+
+      if (res.ok) {
+        const newArea = await res.json()
+        setAreas(prev => [...prev, newArea])
+        setAreaId(newArea.id)
+        setNewAreaName('')
+        setShowAddArea(false)
+        showNotification('success', `Area "${newArea.name}" created successfully!`)
+      } else {
+        const data = await res.json()
+        showNotification('error', data.error || 'Failed to create area')
+      }
+    } catch (err) {
+      console.error('Error creating area:', err)
+      showNotification('error', 'Network error. Please try again.')
+    } finally {
+      setLoadingAreas(false)
+    }
+  }
+
   useEffect(() => {
     // Check authentication by making a simple API call that requires auth
-    const checkAuthAndFetchPackages = async () => {
+    const checkAuthAndFetchData = async () => {
       try {
-        const res = await fetch('/api/packages', {
-          credentials: 'include', // This ensures cookies are sent with the request
-          cache: 'no-store'
-        })
+        const [packagesRes, areasRes] = await Promise.all([
+          fetch('/api/packages', {
+            credentials: 'include',
+            cache: 'no-store'
+          }),
+          fetch('/api/areas', {
+            credentials: 'include',
+            cache: 'no-store'
+          })
+        ])
 
-        if (res.ok) {
-          const data = await res.json()
-          setPackages(data)
-        } else if (res.status === 401) {
+        if (packagesRes.ok) {
+          const packagesData = await packagesRes.json()
+          setPackages(packagesData)
+        } else if (packagesRes.status === 401) {
           router.push('/login')
         } else {
           showNotification('error', 'Failed to fetch packages')
         }
+
+        if (areasRes.ok) {
+          const areasData = await areasRes.json()
+          setAreas(areasData)
+        } else if (areasRes.status === 401) {
+          router.push('/login')
+        } else {
+          console.error('Failed to fetch areas')
+        }
       } catch (err) {
-        console.error('Error fetching packages:', err)
+        console.error('Error fetching data:', err)
         showNotification('error', 'Network error. Please try again.')
         router.push('/login')
       } finally {
@@ -99,7 +163,7 @@ export default function NewClientPage() {
       }
     }
 
-    checkAuthAndFetchPackages()
+    checkAuthAndFetchData()
   }, [router])
 
   // Auto-fill price when package is selected
@@ -150,7 +214,7 @@ export default function NewClientPage() {
           phone,
           cnic,
           city,
-          area,
+          areaId: areaId || undefined,
           country,
           packageId,
           price: parseFloat(price.toString()),
@@ -384,22 +448,93 @@ export default function NewClientPage() {
                   </div>
                 </div>
 
-                {/* Area */}
+                {/* Area Selection */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2" htmlFor="area">
-                    Area
+                    Area <span className="text-slate-400 text-xs">(Optional)</span>
                   </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      id="area"
-                      type="text"
-                      value={area}
-                      onChange={(e) => setArea(e.target.value)}
-                      placeholder="Enter area"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
-                    />
-                  </div>
+                  {showAddArea ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            id="newAreaName"
+                            type="text"
+                            value={newAreaName}
+                            onChange={(e) => setNewAreaName(e.target.value)}
+                            placeholder="Enter area name"
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleAddArea()
+                              }
+                              if (e.key === 'Escape') {
+                                setShowAddArea(false)
+                                setNewAreaName('')
+                              }
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddArea}
+                          disabled={loadingAreas}
+                          className="px-4 py-2.5 bg-linear-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          {loadingAreas ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddArea(false)
+                            setNewAreaName('')
+                          }}
+                          className="px-3 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                        <select
+                          id="area"
+                          value={areaId}
+                          onChange={(e) => setAreaId(e.target.value)}
+                          className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white appearance-none cursor-pointer"
+                        >
+                          <option value="">Select Area</option>
+                          {areas.length === 0 ? (
+                            <option value="" disabled>No areas found</option>
+                          ) : (
+                            areas.map(a => (
+                              <option key={a.id} value={a.id}>
+                                {a.name} {a.description ? `(${a.description})` : ''} - {a._count.clients} client(s)
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddArea(true)}
+                        className="w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all flex items-center justify-center gap-2 border border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-600"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add New Area
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Country */}
@@ -672,26 +807,6 @@ export default function NewClientPage() {
         </div>
       </form>
     </div>
-  )
-}
-
-// Add ChevronDown import helper since it's used but not imported
-function ChevronDown(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   )
 }
 

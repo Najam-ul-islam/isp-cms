@@ -13,6 +13,7 @@ import {
 
 interface ClientWithPackage extends Client {
   package: Package & { serviceProvider?: ServiceProvider | null }
+  area?: { id: string; name: string; description: string | null } | null
 }
 
 interface ExtendedClient extends ClientWithPackage {
@@ -238,7 +239,8 @@ export default function ClientsPage() {
         client.phone.includes(searchTerm) ||
         client.cnic.includes(searchTerm) ||
         client.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (client.area && client.area.toLowerCase().includes(searchTerm.toLowerCase()))
+        (client.areaName && client.areaName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (client.area?.name && client.area.name.toLowerCase().includes(searchTerm.toLowerCase()))
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
       const matchesPayment = filterPayment === 'all' || (client.effectivePaymentStatus || client.paymentStatus) === filterPayment
       const now = new Date(); now.setHours(0, 0, 0, 0)
@@ -263,7 +265,7 @@ export default function ClientsPage() {
         case 'name': comparison = a.name.localeCompare(b.name); break
         case 'phone': comparison = a.phone.localeCompare(b.phone); break
         case 'city': comparison = a.city.localeCompare(b.city); break
-        case 'area': comparison = (a.area || '').localeCompare(b.area || ''); break
+        case 'area': comparison = (a.area?.name || a.areaName || '').localeCompare(b.area?.name || b.areaName || ''); break
         case 'price': comparison = (a.price || 0) - (b.price || 0); break
         case 'expiryDate': comparison = new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime(); break
       }
@@ -538,7 +540,7 @@ export default function ClientsPage() {
                       <div className="flex items-center gap-1 text-gray-700 dark:text-gray-200"><Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span className="truncate">{client.phone}</span></div>
                       {client.email && (<div className="flex items-center gap-1 text-gray-500 dark:text-gray-400"><Mail className="w-3 h-3 shrink-0" /><span className="truncate">{client.email}</span></div>)}
                       <div className="flex items-center gap-1 text-gray-700 dark:text-gray-200"><MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span className="truncate">{client.city}</span></div>
-                      <div className="flex items-center gap-1 text-gray-700 dark:text-gray-200"><MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span className="truncate">{client.area || '-'}</span></div>
+                      <div className="flex items-center gap-1 text-gray-700 dark:text-gray-200"><MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span className="truncate">{client.area?.name || client.areaName || '-'}</span></div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs">
                       <span className="font-medium text-gray-800 dark:text-white">{client.package?.name || 'No Package'}</span>
@@ -656,7 +658,7 @@ export default function ClientsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
-                        <p className="text-xs text-gray-700 dark:text-gray-200 truncate max-w-[100px]">{client.area || '-'}</p>
+                        <p className="text-xs text-gray-700 dark:text-gray-200 truncate max-w-[100px]">{client.area?.name || client.areaName || '-'}</p>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div>

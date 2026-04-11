@@ -102,7 +102,7 @@ model Package {
 
 model Area {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -110,6 +110,8 @@ model Area {
   company     Company  @relation(fields: [companyId], references: [id])
   clients     Client[]
 
+  @@unique([companyId, name])
+  @@index([companyId])
   @@map("areas")
 }
 
@@ -120,7 +122,7 @@ model Client {
   phone         String        @unique
   cnic          String        @unique
   city          String
-  area          String?
+  areaName      String?
   country       String
   packageId     String
   price         Float
@@ -133,7 +135,8 @@ model Client {
   email         String?       @unique
   createdBy     String
   companyId     String
-  areaModel     Area?         @relation(fields: [area], references: [name])
+  areaId        String?
+  area          Area?         @relation(fields: [areaId], references: [id])
   company       Company       @relation(fields: [companyId], references: [id])
   creator       Admin         @relation(fields: [createdBy], references: [id])
   package       Package       @relation(fields: [packageId], references: [id])
@@ -152,6 +155,7 @@ model Client {
   @@index([companyId, expiryDate])
   @@index([companyId, status, expiryDate])
   @@index([username])
+  @@index([areaId])
 }
 
 model Invoice {

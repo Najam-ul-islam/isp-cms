@@ -177,18 +177,12 @@ export default function ComplaintsPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch('/api/complaints', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
+        credentials: 'include', // Include httpOnly cookies
         body: JSON.stringify(newComplaint)
       });
 
@@ -222,18 +216,12 @@ export default function ComplaintsPage() {
   // Update complaint status
   const updateComplaintStatus = async (id: string, status: 'open' | 'in_progress' | 'resolved') => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch(`/api/complaints/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
+        credentials: 'include', // Include httpOnly cookies
         body: JSON.stringify({ status })
       });
 
@@ -263,18 +251,9 @@ export default function ComplaintsPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch(`/api/complaints/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        credentials: 'include' // Include httpOnly cookies
       });
 
       if (response.status === 401) {

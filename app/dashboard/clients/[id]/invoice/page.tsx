@@ -8,6 +8,7 @@ import PaymentModal from "@/components/payments/PaymentModal";
 
 interface ClientWithPackage extends Client {
   package: Package & { serviceProvider?: ServiceProvider | null };
+  area?: { id: string; name: string; description: string | null } | null;
 }
 
 interface ExtendedClient extends Omit<
@@ -36,6 +37,9 @@ export default function ClientInvoicePage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [additionalCharges, setAdditionalCharges] = useState<
     Array<{ name: string; amount: number }>
+  >([]);
+  const [productSales, setProductSales] = useState<
+    Array<{ id: string; productName: string; sellingPrice: number; quantity: number; totalOtherIncome: number; notes?: string }>
   >([]);
   const [showAddCharges, setShowAddCharges] = useState(false);
   const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
@@ -67,6 +71,18 @@ export default function ClientInvoicePage() {
               }
             } catch (error) {
               console.error("Error loading additional charges:", error);
+            }
+          }
+
+          // Fetch product sales for this client
+          const productSalesRes = await fetch(`/api/product-sales?clientId=${id}`, {
+            credentials: "include",
+            cache: "no-store",
+          });
+          if (productSalesRes.ok) {
+            const salesData = await productSalesRes.json();
+            if (salesData.data && Array.isArray(salesData.data)) {
+              setProductSales(salesData.data);
             }
           }
         } else {
@@ -117,8 +133,8 @@ export default function ClientInvoicePage() {
     client.invoices.forEach((invoice: any) => {
       if (invoice.additionalCharges) {
         try {
-          const charges = typeof invoice.additionalCharges === 'string' 
-            ? JSON.parse(invoice.additionalCharges) 
+          const charges = typeof invoice.additionalCharges === 'string'
+            ? JSON.parse(invoice.additionalCharges)
             : invoice.additionalCharges;
           if (Array.isArray(charges)) {
             allAdditionalCharges.push(...charges);
@@ -132,9 +148,14 @@ export default function ClientInvoicePage() {
 
   // Use additional charges from local state if editing, otherwise from all invoices
   const currentCharges = additionalCharges.length > 0 ? additionalCharges : allAdditionalCharges;
-  
+
   const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount || 0), 0);
-  const total = packagePrice + additionalTotal;
+  
+  // Calculate total other income from product sales
+  const productSalesTotal = productSales.reduce((sum, sale) => sum + sale.totalOtherIncome, 0);
+  
+  // Total = package price + additional charges + product sales other income
+  const total = packagePrice + additionalTotal + productSalesTotal;
   
   // Use dynamic values from API (client.totalPaid is calculated from actual payments)
   const paid = client.totalPaid ?? 0;
@@ -226,7 +247,7 @@ Date: ${formatDate(new Date())}
 👤 *Client Details*
 Name: ${client.name}
 Phone: ${client.phone}
-Address: ${client.area}, ${client.city}
+Address: ${client.area?.name || client.areaName || 'N/A'}, ${client.city}
 
 📦 *Package Detail*
 Package: ${client.package?.name}
@@ -305,7 +326,7 @@ Please clear your dues. Thank you!
                 {client.phone}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {client.area}, {client.city}
+                {client.area?.name || client.areaName || 'N/A'}, {client.city}
               </p>
             </div>
             <div className="ml-4">
@@ -429,6 +450,32 @@ Please clear your dues. Thank you!
               </span>
             </div>
           ))}
+
+          {/* Product Sales / Other Income */}
+          {productSales.length > 0 && (
+            <>
+              <div className="flex justify-between items-center py-2 mt-2 border-t border-slate-200">
+                <span className="text-slate-700 font-semibold text-sm">Product Sales</span>
+              </div>
+              {productSales.map((sale) => (
+                <div key={sale.id} className="flex justify-between items-center py-0.5 pl-2">
+                  <div className="flex-1">
+                    <span className="text-slate-600 text-xs leading-tight">
+                      {sale.productName} x {sale.quantity}
+                    </span>
+                    {sale.notes && (
+                      <span className="block text-[10px] text-slate-500 leading-tight">
+                        {sale.notes}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-800 font-normal text-xs leading-tight">
+                    {formatPKR(sale.totalOtherIncome)}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
 
           {/* Subtotal */}
           {currentCharges.length > 0 && (

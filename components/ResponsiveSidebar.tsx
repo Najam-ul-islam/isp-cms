@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   User,
-  Shield
+  Shield,
+  MapPin
 } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -155,6 +156,11 @@ export default function ResponsiveSidebar() {
       href: '/dashboard/clients',
       label: 'Clients',
       icon: Users
+    },
+    {
+      href: '/dashboard/areas',
+      label: 'Areas',
+      icon: MapPin
     },
     {
       href: '/dashboard/packages',
@@ -308,7 +314,7 @@ export default function ResponsiveSidebar() {
                   bg-clip-text text-transparent tracking-tight">
                   ISP Admin
                 </h1>
-                <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 tracking-wide">Financial Control Panel</p>
+                <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 tracking-wide">Clients Management System</p>
               </div>
             )}
           </div>

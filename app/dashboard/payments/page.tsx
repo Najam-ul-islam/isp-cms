@@ -779,8 +779,16 @@ function PaymentFormModal({
   const [clientPaymentSummary, setClientPaymentSummary] = useState<{
     totalAmount: number;
     remainingAmount: number;
+    packageAmount: number;
+    otherIncome: number;
     isLoading: boolean;
-  }>({ totalAmount: 0, remainingAmount: 0, isLoading: false });
+  }>({ totalAmount: 0, remainingAmount: 0, packageAmount: 0, otherIncome: 0, isLoading: false });
+  
+  // State for product sales breakdown
+  const [productSales, setProductSales] = useState<
+    Array<{ id: string; productName: string; sellingPrice: number; quantity: number; totalOtherIncome: number; notes?: string }>
+  >([]);
+  const [productSalesLoading, setProductSalesLoading] = useState(false);
 
   // Auto-dismiss notification after 4 seconds
   useEffect(() => {
@@ -876,8 +884,18 @@ function PaymentFormModal({
       // Fetch client payment summary when client is selected
       if (selectedClient) {
         setClientPaymentSummary(prev => ({ ...prev, isLoading: true }));
+        setProductSalesLoading(true);
         try {
+          // Fetch client data with payment summary
           const response = await fetch(`/api/clients/${selectedClient.id}`, {
+            credentials: 'include',
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          // Fetch product sales for this client
+          const productSalesRes = await fetch(`/api/product-sales?clientId=${selectedClient.id}`, {
             credentials: 'include',
             headers: {
               "Content-Type": "application/json",
@@ -887,19 +905,32 @@ function PaymentFormModal({
           if (response.ok) {
             const clientData = await response.json();
             setClientPaymentSummary({
-              totalAmount: clientData.totalAmount || 0,
+              totalAmount: clientData.totalAmount || clientData.total || 0,
               remainingAmount: clientData.remainingAmount || 0,
+              packageAmount: clientData.packageAmount || 0,
+              otherIncome: clientData.otherIncome || 0,
               isLoading: false,
             });
+            
+            // Set product sales data
+            if (productSalesRes.ok) {
+              const salesData = await productSalesRes.json();
+              if (salesData.data && Array.isArray(salesData.data)) {
+                setProductSales(salesData.data);
+              }
+            }
           } else {
             setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
           }
         } catch (error) {
           console.error("Error fetching client payment summary:", error);
           setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
+        } finally {
+          setProductSalesLoading(false);
         }
       } else {
-        setClientPaymentSummary({ totalAmount: 0, remainingAmount: 0, isLoading: false });
+        setClientPaymentSummary({ totalAmount: 0, remainingAmount: 0, packageAmount: 0, otherIncome: 0, isLoading: false });
+        setProductSales([]);
       }
     } else {
       setFormData((prev) => ({
@@ -1013,18 +1044,77 @@ function PaymentFormModal({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-200/60 dark:border-gray-500">
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Amount</p>
+                  {/* Package Amount */}
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-gray-500">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Package Amount</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      Rs. {clientPaymentSummary.packageAmount.toLocaleString('en-PK')}
+                    </p>
+                  </div>
+                  
+                  {/* Other Income (Product Sales) */}
+                  {clientPaymentSummary.otherIncome > 0 && (
+                    <div className="pb-2 border-b border-slate-200/60 dark:border-gray-500">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                          Other Income (Product Sales)
+                          <span className="block text-[10px] text-gray-500 dark:text-gray-400 font-normal">Router, cable, accessories, etc.</span>
+                        </p>
+                        <p className="text-base font-bold text-purple-600 dark:text-purple-400">
+                          Rs. {clientPaymentSummary.otherIncome.toLocaleString('en-PK')}
+                        </p>
+                      </div>
+                      
+                      {/* Product Sales Breakdown */}
+                      {productSalesLoading ? (
+                        <div className="animate-pulse space-y-2 ml-2">
+                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                        </div>
+                      ) : productSales.length > 0 ? (
+                        <div className="ml-2 space-y-1.5 bg-purple-50/50 dark:bg-purple-900/10 p-2 rounded-lg border border-purple-200/60 dark:border-purple-700/50">
+                          <p className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-1.5">
+                            Product Sales Breakdown
+                          </p>
+                          {productSales.map((sale) => (
+                            <div key={sale.id} className="flex justify-between items-start text-xs">
+                              <div className="flex-1 pr-2">
+                                <p className="text-gray-700 dark:text-gray-300 font-medium">
+                                  {sale.productName} × {sale.quantity}
+                                </p>
+                                {sale.notes && (
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {sale.notes}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-gray-700 dark:text-gray-300 font-semibold whitespace-nowrap">
+                                Rs. {sale.totalOtherIncome.toLocaleString('en-PK')}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                  
+                  {/* Total Amount */}
+                  <div className="flex justify-between items-center pb-3 border-b border-blue-200/60 dark:border-blue-500/50 bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Total Amount</p>
                     <p className="text-lg font-bold text-gray-900 dark:text-white">
                       Rs. {clientPaymentSummary.totalAmount.toLocaleString('en-PK')}
                     </p>
                   </div>
+                  
+                  {/* Total Paid */}
                   <div className="flex justify-between items-center pb-3 border-b border-slate-200/60 dark:border-gray-500">
                     <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Paid</p>
                     <p className="text-lg font-bold text-green-600 dark:text-green-400">
                       Rs. {(clientPaymentSummary.totalAmount - clientPaymentSummary.remainingAmount).toLocaleString('en-PK')}
                     </p>
                   </div>
+                  
+                  {/* Remaining Amount */}
                   <div className="flex justify-between items-center pt-1">
                     <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Remaining Amount</p>
                     <p className={`text-xl font-bold ${

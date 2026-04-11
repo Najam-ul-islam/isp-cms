@@ -6,6 +6,9 @@ export interface PaymentSummary {
   remainingAmount: number;
   overpaidAmount: number;
   effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
+  packageAmount?: number;
+  additionalCharges?: number;
+  otherIncome?: number;
 }
 
 export interface InvoicePaymentSummary {
@@ -96,8 +99,8 @@ export async function getInvoicePaymentSummary(invoiceId: string): Promise<Invoi
 }
 
 /**
- * Calculates client payment summary based on all invoices
- * Additional charges increase total, payments decrease remaining
+ * Calculates client payment summary based on all invoices and product sales
+ * Additional charges and product sales increase total, payments decrease remaining
  */
 export async function getClientPaymentSummary(clientId: string): Promise<PaymentSummary> {
   // Get all invoices for the client with additional charges
@@ -106,54 +109,37 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
     select: { amount: true, id: true, additionalCharges: true }
   });
 
-  // If no invoices exist, create a virtual invoice based on client price
-  if (invoices.length === 0) {
+  // Calculate total from all invoices including additional charges
+  let invoiceTotal = 0;
+
+  if (invoices.length > 0) {
+    for (const invoice of invoices) {
+      // Each invoice total = base amount + one-time charges
+      invoiceTotal += invoice.amount + calculateAdditionalChargesTotal(invoice);
+    }
+  } else {
+    // If no invoices exist, use client price as base
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       select: { price: true }
     });
 
-    if (!client) {
-      throw new Error(`Client with id ${clientId} not found`);
+    if (client) {
+      invoiceTotal = client.price;
     }
-
-    // Calculate payments for this client directly
-    const payments = await prisma.payment.findMany({
-      where: { clientId },
-      select: { amount: true }
-    });
-
-    // Total paid = ONLY actual payments
-    const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const total = client.price;
-    const remaining = Math.max(total - totalPaid, 0);
-    const overpaid = Math.max(totalPaid - total, 0);
-
-    let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
-    if (totalPaid === 0) {
-      effectivePaymentStatus = 'unpaid';
-    } else if (totalPaid > 0 && totalPaid < total) {
-      effectivePaymentStatus = 'partial';
-    } else {
-      effectivePaymentStatus = 'paid';
-    }
-
-    return {
-      total,
-      totalPaid,
-      remainingAmount: remaining,
-      overpaidAmount: overpaid,
-      effectivePaymentStatus
-    };
   }
 
-  // Calculate total from all invoices including additional charges
-  let total = 0;
+  // Get all product sales for the client and sum totalOtherIncome
+  const productSales = await prisma.productSale.findMany({
+    where: { clientId },
+    select: { totalOtherIncome: true }
+  });
 
-  for (const invoice of invoices) {
-    // Each invoice total = base amount + one-time charges
-    total += invoice.amount + calculateAdditionalChargesTotal(invoice);
-  }
+  // Calculate total other income from product sales
+  const totalOtherIncome = productSales.reduce((sum, sale) => sum + sale.totalOtherIncome, 0);
+
+  // Total = invoice total (package + additional charges) + product sales other income
+  const total = invoiceTotal + totalOtherIncome;
 
   // Get ALL payments for the client (ONLY actual payments, not additional charges)
   const allClientPayments = await prisma.payment.findMany({
@@ -183,7 +169,10 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
     totalPaid,
     remainingAmount: remaining,
     overpaidAmount: overpaid,
-    effectivePaymentStatus
+    effectivePaymentStatus,
+    packageAmount: invoiceTotal,
+    additionalCharges: 0, // This would need to be calculated separately if needed
+    otherIncome: totalOtherIncome
   };
 }
 

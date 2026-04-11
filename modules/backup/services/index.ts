@@ -204,8 +204,9 @@ export const importBackup = async (
             ...client,
             id: undefined,
             companyId: admin.companyId,
-            createdBy: admin.id, // Use current admin as creator
-            area: client.area // This should map to the area name, which should remain the same
+            createdBy: admin.id,
+            areaName: client.areaName || null,
+            areaId: client.areaId || null
           }))
         });
         importedCounts.clients = clients.count;

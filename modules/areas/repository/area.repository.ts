@@ -44,66 +44,50 @@ export const deleteArea = async (id: string): Promise<void> => {
 };
 
 export const getAreaInsights = async (companyId: string): Promise<AreaInsight[]> => {
-  // Get top 5 areas by client count
-  const insights = await prisma.client.groupBy({
-    by: ['area'],
-    _count: {
-      id: true,
-    },
-    _sum: {
-      price: true,
-    },
-    where: {
-      area: {
-        not: null,
+  // Get areas with their client counts
+  const areas = await prisma.area.findMany({
+    where: { companyId },
+    include: {
+      _count: {
+        select: {
+          clients: true
+        }
       },
-      companyId
+      clients: {
+        select: {
+          id: true,
+          status: true
+        }
+      }
     },
     orderBy: {
-      _count: {
-        id: 'desc',
-      },
+      clients: {
+        _count: 'desc'
+      }
     },
-    take: 5,
+    take: 5
   });
 
   // Map to the AreaInsight interface with active/expired breakdown
-  const detailedInsights: AreaInsight[] = [];
-
-  for (const insight of insights) {
-    if (insight.area) {
-      const activeCount = await prisma.client.count({
-        where: {
-          area: insight.area,
-          status: 'active',
-          companyId
-        },
-      });
-
-      const expiredCount = await prisma.client.count({
-        where: {
-          area: insight.area,
-          status: 'expired',
-          companyId
-        },
-      });
-
-      detailedInsights.push({
-        areaName: insight.area,
-        totalClients: insight._count.id,
-        activeClients: activeCount,
-        expiredClients: expiredCount,
-      });
-    }
-  }
+  const detailedInsights: AreaInsight[] = areas.map(area => {
+    const activeCount = area.clients.filter(c => c.status === 'active').length;
+    const expiredCount = area.clients.filter(c => c.status === 'expired').length;
+    
+    return {
+      areaName: area.name,
+      totalClients: area._count.clients,
+      activeClients: activeCount,
+      expiredClients: expiredCount,
+    };
+  });
 
   return detailedInsights;
 };
 
-export const getClientsByArea = async (areaName: string, companyId: string) => {
+export const getClientsByArea = async (areaId: string, companyId: string) => {
   return await prisma.client.findMany({
     where: {
-      area: areaName,
+      areaId,
       companyId
     },
     include: {

@@ -82,6 +82,7 @@ export async function POST(request: Request) {
       cnic,
       city,
       area,
+      areaId,
       country,
       packageId,
       price,
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
     } = await request.json()
 
     // Validate required fields
-    if (!name || !phone || !cnic || !city || !area || !country || !packageId || !price || !startDate || !expiryDate) {
+    if (!name || !phone || !cnic || !city || !country || !packageId || !price || !startDate || !expiryDate) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -170,20 +171,51 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if the area exists, and create it if it doesn't exist
-    let areaExists = await prisma.area.findUnique({
-      where: { name: area }
-    });
+    // Check if the area exists, and create it if it doesn't exist (backward compatibility)
+    // If areaId is provided, verify it exists
+    let finalAreaId = areaId || null;
+    let finalAreaName = area || null;
 
-    if (!areaExists) {
-      // Create the new area since it doesn't exist
-      areaExists = await prisma.area.create({
-        data: {
-          name: area,
-          description: `${area} area created automatically`,
-          companyId: admin.companyId  // Required for multi-tenancy
+    if (finalAreaId) {
+      // Verify the area exists and belongs to the admin's company
+      const areaExists = await prisma.area.findFirst({
+        where: {
+          id: finalAreaId,
+          companyId: admin.companyId
         }
       });
+
+      if (!areaExists) {
+        return NextResponse.json(
+          { error: 'Selected area does not exist' },
+          { status: 400 }
+        );
+      }
+      finalAreaName = areaExists.name;
+    } else if (finalAreaName && finalAreaName.trim()) {
+      // Backward compatibility: If area name is provided instead of areaId
+      let areaExists = await prisma.area.findFirst({
+        where: {
+          companyId: admin.companyId,
+          name: {
+            equals: finalAreaName.trim(),
+            mode: 'insensitive'
+          }
+        }
+      });
+
+      if (!areaExists) {
+        // Create the new area since it doesn't exist
+        areaExists = await prisma.area.create({
+          data: {
+            name: finalAreaName.trim(),
+            description: `${finalAreaName.trim()} area created automatically`,
+            companyId: admin.companyId
+          }
+        });
+      }
+      finalAreaId = areaExists.id;
+      finalAreaName = areaExists.name;
     }
 
     const clientData: any = {
@@ -192,7 +224,8 @@ export async function POST(request: Request) {
       phone,
       cnic,
       city,
-      area,
+      areaName: finalAreaName,
+      areaId: finalAreaId,
       country,
       packageId,
       price,
@@ -235,7 +268,8 @@ export async function POST(request: Request) {
         clientId: client.id,
         clientName: client.name,
         phone: client.phone,
-        area: client.area,
+        areaName: client.areaName,
+        areaId: client.areaId,
         packageId: client.packageId,
         price: client.price,
       });

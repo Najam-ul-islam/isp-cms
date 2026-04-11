@@ -23,8 +23,20 @@ import {
   X,
   Loader2,
   Save,
-  Clock
+  Clock,
+  ChevronDown,
+  Plus,
+  RefreshCw
 } from 'lucide-react';
+
+interface Area {
+  id: string
+  name: string
+  description: string | null
+  _count: {
+    clients: number
+  }
+}
 
 interface ClientWithPackage extends Client {
   package: Package & {
@@ -38,13 +50,17 @@ export default function EditClientPage() {
 
   const [client, setClient] = useState<ClientWithPackage | null>(null);
   const [packages, setPackages] = useState<(Package & { serviceProvider?: ServiceProvider | null })[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingAreas, setLoadingAreas] = useState(false);
   const [error, setError] = useState('');
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  const [showAddArea, setShowAddArea] = useState(false);
+  const [newAreaName, setNewAreaName] = useState('');
 
   // Form fields
   const [name, setName] = useState('');
@@ -52,7 +68,7 @@ export default function EditClientPage() {
   const [phone, setPhone] = useState('');
   const [cnic, setCnic] = useState('');
   const [city, setCity] = useState('');
-  const [area, setArea] = useState('');
+  const [areaId, setAreaId] = useState('');
   const [country, setCountry] = useState('');
   const [packageId, setPackageId] = useState('');
   const [price, setPrice] = useState<number>(0);
@@ -86,7 +102,7 @@ export default function EditClientPage() {
         setPhone(clientData.phone || '');
         setCnic(clientData.cnic || '');
         setCity(clientData.city || '');
-        setArea(clientData.area || '');
+        setAreaId(clientData.areaId || '');
         setCountry(clientData.country || '');
         setPackageId(clientData.packageId || '');
         setPrice(clientData.price || 0);
@@ -116,10 +132,15 @@ export default function EditClientPage() {
 
         setClient(clientData);
 
-        // Fetch all packages with service provider info
-        const packagesRes = await fetch('/api/packages', {
-          credentials: 'include'
-        });
+        // Fetch all packages with service provider info and areas
+        const [packagesRes, areasRes] = await Promise.all([
+          fetch('/api/packages', {
+            credentials: 'include'
+          }),
+          fetch('/api/areas', {
+            credentials: 'include'
+          })
+        ]);
 
         if (!packagesRes.ok) {
           if (packagesRes.status === 401) {
@@ -127,6 +148,11 @@ export default function EditClientPage() {
             return;
           }
           throw new Error('Failed to fetch packages');
+        }
+
+        if (areasRes.ok) {
+          const areasData = await areasRes.json()
+          setAreas(areasData)
         }
 
         const packagesData = await packagesRes.json();
@@ -171,7 +197,7 @@ export default function EditClientPage() {
           phone,
           cnic,
           city,
-          area,
+          areaId: areaId || undefined,
           country,
           packageId,
           price: typeof price === 'string' ? parseFloat(price) : price,
@@ -201,6 +227,40 @@ export default function EditClientPage() {
       setNotification({ type: 'error', message: 'An error occurred while updating the client' });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAddArea = async () => {
+    if (!newAreaName.trim()) {
+      setNotification({ type: 'error', message: 'Please enter an area name' });
+      return;
+    }
+
+    setLoadingAreas(true);
+    try {
+      const res = await fetch('/api/areas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newAreaName.trim() })
+      });
+
+      if (res.ok) {
+        const newArea = await res.json();
+        setAreas(prev => [...prev, newArea]);
+        setAreaId(newArea.id);
+        setNewAreaName('');
+        setShowAddArea(false);
+        setNotification({ type: 'success', message: `Area "${newArea.name}" created successfully!` });
+      } else {
+        const data = await res.json();
+        setNotification({ type: 'error', message: data.error || 'Failed to create area' });
+      }
+    } catch (err) {
+      console.error('Error creating area:', err);
+      setNotification({ type: 'error', message: 'Network error. Please try again.' });
+    } finally {
+      setLoadingAreas(false);
     }
   };
 
@@ -454,22 +514,93 @@ export default function EditClientPage() {
                   </div>
                 </div>
 
-                {/* Area */}
+                {/* Area Selection */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5" htmlFor="area">
-                    Area
+                    Area <span className="text-slate-400 text-xs">(Optional)</span>
                   </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                    <input
-                      id="area"
-                      type="text"
-                      value={area}
-                      onChange={(e) => setArea(e.target.value)}
-                      placeholder="Enter area"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
-                    />
-                  </div>
+                  {showAddArea ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                          <input
+                            id="newAreaName"
+                            type="text"
+                            value={newAreaName}
+                            onChange={(e) => setNewAreaName(e.target.value)}
+                            placeholder="Enter area name"
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleAddArea()
+                              }
+                              if (e.key === 'Escape') {
+                                setShowAddArea(false)
+                                setNewAreaName('')
+                              }
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddArea}
+                          disabled={loadingAreas}
+                          className="px-4 py-2.5 bg-linear-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          {loadingAreas ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddArea(false)
+                            setNewAreaName('')
+                          }}
+                          className="px-3 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                        <select
+                          id="area"
+                          value={areaId}
+                          onChange={(e) => setAreaId(e.target.value)}
+                          className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 appearance-none cursor-pointer"
+                        >
+                          <option value="">Select Area</option>
+                          {areas.length === 0 ? (
+                            <option value="" disabled>No areas found</option>
+                          ) : (
+                            areas.map(a => (
+                              <option key={a.id} value={a.id}>
+                                {a.name} {a.description ? `(${a.description})` : ''} - {a._count.clients} client(s)
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddArea(true)}
+                        className="w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all flex items-center justify-center gap-2 border border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-600"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add New Area
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Country */}
@@ -685,26 +816,6 @@ export default function EditClientPage() {
         </div>
       </form>
     </div>
-  );
-}
-
-// ChevronDown icon component
-function ChevronDown(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   );
 }
 

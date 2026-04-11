@@ -123,6 +123,16 @@ export default function DashboardPage() {
   });
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
+  // State for Complaints Modal
+  const [showComplaintsModal, setShowComplaintsModal] = useState(false);
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
+
+  // State for Expenses Modal
+  const [showExpensesModal, setShowExpensesModal] = useState(false);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+
   // Refs for cleanup & preventing race conditions
   const isMounted = useRef(true);
   const hasRedirected = useRef(false);
@@ -428,6 +438,48 @@ export default function DashboardPage() {
   };
 
   // ─────────────────────────────────────────────────────────
+  // Fetch Complaints
+  // ─────────────────────────────────────────────────────────
+  const fetchComplaints = async () => {
+    setComplaintsLoading(true);
+    try {
+      const res = await fetch('/api/complaints', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComplaints(data);
+      }
+    } catch (error) {
+      console.error('Error fetching complaints:', error);
+    } finally {
+      setComplaintsLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Fetch Expenses
+  // ─────────────────────────────────────────────────────────
+  const fetchExpenses = async () => {
+    setExpensesLoading(true);
+    try {
+      const res = await fetch('/api/expenses', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses(data);
+      }
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
+    } finally {
+      setExpensesLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
   // Loading State
   // ─────────────────────────────────────────────────────────
   if (data.isLoading && !data.stats) {
@@ -477,24 +529,34 @@ export default function DashboardPage() {
       icon: <Plus className="w-3.5 h-3.5" />,
       href: "/dashboard/clients/new",
       color: "bg-indigo-600 hover:bg-indigo-700",
+      onClick: undefined, // Navigate by default
     },
     {
       label: "Payments",
       icon: <CreditCard className="w-3.5 h-3.5" />,
       href: "/dashboard/payments",
       color: "bg-emerald-600 hover:bg-emerald-700",
+      onClick: undefined,
     },
     {
-      label: "Reports",
-      icon: <Receipt className="w-3.5 h-3.5" />,
-      href: "/dashboard/reports",
-      color: "bg-violet-600 hover:bg-violet-700",
+      label: "Complaints",
+      icon: <AlertTriangle className="w-3.5 h-3.5" />,
+      href: "/dashboard/complaints",
+      color: "bg-rose-600 hover:bg-rose-700",
+      onClick: () => {
+        setShowComplaintsModal(true);
+        if (complaints.length === 0) fetchComplaints();
+      },
     },
     {
-      label: "Packages",
-      icon: <Package className="w-3.5 h-3.5" />,
-      href: "/dashboard/packages",
-      color: "bg-amber-500 hover:bg-amber-600",
+      label: "Expenses",
+      icon: <DollarSign className="w-3.5 h-3.5" />,
+      href: "/dashboard/expenses",
+      color: "bg-amber-600 hover:bg-amber-700",
+      onClick: () => {
+        setShowExpensesModal(true);
+        if (expenses.length === 0) fetchExpenses();
+      },
     },
   ];
 
@@ -518,7 +580,7 @@ export default function DashboardPage() {
               {headerActions.map((action) => (
                 <button
                   key={action.label}
-                  onClick={() => router.push(action.href)}
+                  onClick={() => action.onClick ? action.onClick() : router.push(action.href)}
                   className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white rounded-xl
                               border border-transparent hover:border-white/30
                               hover:shadow-md hover:-translate-y-0.5
@@ -1050,6 +1112,177 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Complaints Modal */}
+      {showComplaintsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-rose-50/50 to-transparent dark:from-rose-900/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Complaints</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{complaints.length} total complaints</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowComplaintsModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto max-h-[calc(80vh-140px)] p-6">
+              {complaintsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-rose-600" />
+                </div>
+              ) : complaints.length === 0 ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                  <p className="text-gray-500 dark:text-gray-400">No complaints found</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {complaints.slice(0, 20).map((complaint) => (
+                    <div
+                      key={complaint.id}
+                      className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200/60 dark:border-gray-700/60 hover:border-rose-300 dark:hover:border-rose-600 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{complaint.title}</h3>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                              complaint.status === 'open' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300' :
+                              complaint.status === 'in_progress' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' :
+                              'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                              {complaint.status.replace('_', ' ')}
+                            </span>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                              complaint.priority === 'high' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                              complaint.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                              'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                            }`}>
+                              {complaint.priority}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{complaint.description}</p>
+                          <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Client: {complaint.client?.name || 'N/A'}</span>
+                            <span>Created: {new Date(complaint.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200/60 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/50">
+              <button
+                onClick={() => router.push('/dashboard/complaints')}
+                className="w-full px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-medium transition-all"
+              >
+                View All Complaints
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expenses Modal */}
+      {showExpensesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
+                  <DollarSign className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{expenses.length} total expenses</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExpensesModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto max-h-[calc(80vh-140px)] p-6">
+              {expensesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-amber-600" />
+                </div>
+              ) : expenses.length === 0 ? (
+                <div className="text-center py-12">
+                  <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                  <p className="text-gray-500 dark:text-gray-400">No expenses found</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {expenses.slice(0, 20).map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200/60 dark:border-gray-700/60 hover:border-amber-300 dark:hover:border-amber-600 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{expense.title}</h3>
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              {expense.category}
+                            </span>
+                          </div>
+                          {expense.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{expense.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Date: {new Date(expense.date).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                            {new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', minimumFractionDigits: 0 }).format(expense.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200/60 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/50">
+              <button
+                onClick={() => router.push('/dashboard/expenses')}
+                className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-medium transition-all"
+              >
+                View All Expenses
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,10 +16,11 @@ export async function GET(
 
     const { id } = await params;
 
-    // Get client with package information
+    // Get client with package and area information
     const client = await prisma.client.findUnique({
       where: { id },
       include: {
+        area: true,
         package: {
           include: {
             serviceProvider: true
@@ -54,6 +55,7 @@ export async function GET(
         email: client.email,
         cnic: client.cnic,
         city: client.city,
+        areaName: client.areaName,
         area: client.area,
         country: client.country,
         package: {

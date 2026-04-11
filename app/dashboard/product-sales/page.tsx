@@ -549,10 +549,10 @@ export default function ProductSalesPage() {
           <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">{summary.count} sales</p>
         </div>
 
-        {/* Total Sales Count */}
+        {/* Other Sales Count */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-3">
-            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Total Sales</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Other Sales</p>
             <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
               <ShoppingCart className="w-5 h-5" />
             </div>
@@ -655,7 +655,7 @@ export default function ProductSalesPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-gray-900/50 dark:to-gray-800/30">
+            <thead className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-gray-900/50 dark:to-gray-800/30">
               <tr className="text-left text-xs font-semibold text-slate-600 dark:text-gray-300 uppercase tracking-wider">
                 <th className="px-6 py-3.5">Date</th>
                 <th className="px-6 py-3.5">Product</th>
@@ -673,7 +673,7 @@ export default function ProductSalesPage() {
                 paginatedSales.map((sale) => (
                   <tr
                     key={sale.id}
-                    className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent dark:hover:from-blue-900/20 dark:hover:to-transparent transition-all duration-200"
+                    className="hover:bg-linear-to-r hover:from-blue-50/50 hover:to-transparent dark:hover:from-blue-900/20 dark:hover:to-transparent transition-all duration-200"
                   >
                     <td className="px-6 py-4 text-slate-600 dark:text-gray-300 text-sm whitespace-nowrap">
                       {formatDate(sale.saleDate)}
@@ -719,7 +719,7 @@ export default function ProductSalesPage() {
                         {formatPKR(sale.totalOtherIncome)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 dark:text-gray-400 text-sm hidden lg:table-cell max-w-[200px] truncate">
+                    <td className="px-6 py-4 text-slate-500 dark:text-gray-400 text-sm hidden lg:table-cell max-w-50 truncate">
                       {sale.notes || '-'}
                     </td>
                     <td className="px-6 py-4">
@@ -744,7 +744,7 @@ export default function ProductSalesPage() {
                 <tr>
                   <td colSpan={9} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
-                      <div className="p-4 bg-gradient-to-br from-slate-100 to-slate-200/70 dark:from-gray-700 dark:to-gray-600/50 rounded-2xl">
+                      <div className="p-4 bg-linear-to-br from-slate-100 to-slate-200/70 dark:from-gray-700 dark:to-gray-600/50 rounded-2xl">
                         <Package className="w-10 h-10 opacity-50" />
                       </div>
                       <div>
@@ -774,7 +774,7 @@ export default function ProductSalesPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200/60 dark:border-gray-700 bg-gradient-to-r from-slate-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent flex items-center justify-between">
+          <div className="px-6 py-4 border-t border-slate-200/60 dark:border-gray-700 bg-linear-to-r from-slate-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent flex items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-gray-300">
               Page {currentPage} of {totalPages}
             </div>
@@ -894,7 +894,7 @@ function AddSaleModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200/80 dark:border-gray-700/80">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-blue-50/50 to-white dark:from-blue-900/20 dark:to-gray-800/50 rounded-t-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-linear-to-r from-blue-50/50 to-white dark:from-blue-900/20 dark:to-gray-800/50 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
               <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />

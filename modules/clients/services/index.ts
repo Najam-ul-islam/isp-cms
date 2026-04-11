@@ -49,6 +49,7 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
   const clients = await prisma.client.findMany({
     where: whereClause,
     include: {
+      area: true,
       package: {
         include: {
           serviceProvider: true

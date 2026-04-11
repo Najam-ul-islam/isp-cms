@@ -237,41 +237,35 @@ export const getPaymentStatusReport = async (): Promise<PaymentStatusReport> => 
 };
 
 export const getAreaReport = async (): Promise<AreaReport> => {
-  const clients = await prisma.client.groupBy({
-    by: ['area'],
-    _count: {
-      _all: true
-    },
-    _sum: {
-      price: true  // Add this to sum the price field
-    },
-    where: {}
+  // Get all areas with their client counts
+  const areas = await prisma.area.findMany({
+    include: {
+      _count: {
+        select: {
+          clients: true
+        }
+      },
+      clients: {
+        select: {
+          id: true,
+          status: true,
+          price: true
+        }
+      }
+    }
   });
 
   const areaReport: AreaReport = {};
 
-  for (const clientGroup of clients) {
-    if (clientGroup.area) {
-      const activeCount = await prisma.client.count({
-        where: {
-          area: clientGroup.area,
-          status: 'active'
-        }
-      });
+  for (const area of areas) {
+    const activeCount = area.clients.filter(c => c.status === 'active').length;
+    const expiredCount = area.clients.filter(c => c.status === 'expired').length;
 
-      const expiredCount = await prisma.client.count({
-        where: {
-          area: clientGroup.area,
-          status: 'expired'
-        }
-      });
-
-      areaReport[clientGroup.area] = {
-        totalClients: clientGroup._count._all,
-        activeClients: activeCount,
-        expiredClients: expiredCount
-      };
-    }
+    areaReport[area.name] = {
+      totalClients: area._count.clients,
+      activeClients: activeCount,
+      expiredClients: expiredCount
+    };
   }
 
   return areaReport;

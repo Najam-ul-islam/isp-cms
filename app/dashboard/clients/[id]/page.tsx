@@ -6,12 +6,13 @@ import { Client, Package, ServiceProvider, Payment } from '@prisma/client';
 import {
   User, Phone, MapPin, Calendar, CreditCard, IndianRupee,
   Building, Factory, Wifi, Clock, Mail, Hash, ArrowLeft, Edit2,
-  BarChart3, DollarSign, Receipt, AlertTriangle, AtSign
+  BarChart3, DollarSign, Receipt, AlertTriangle, AtSign, ChevronDown, ChevronUp, Globe
 } from 'lucide-react';
 import Link from 'next/link';
 
 interface ClientWithPackage extends Client {
   package: Package & { serviceProvider?: ServiceProvider | null };
+  area?: { id: string; name: string; description: string | null } | null;
 }
 
 interface ExtendedClient extends ClientWithPackage {
@@ -30,6 +31,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ExtendedClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -80,18 +82,13 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/4 mb-4"></div>
-              <div className="space-y-3">
-                <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-full"></div>
-                <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-3/4"></div>
-                <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/2"></div>
-              </div>
-            </div>
+      <div className="h-full bg-gray-50/50 dark:bg-gray-900/50 p-4 lg:p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/60"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="h-32 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/60"></div>
+            <div className="h-32 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/60"></div>
+            <div className="h-32 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/60"></div>
           </div>
         </div>
       </div>
@@ -100,16 +97,14 @@ export default function ClientDetailPage() {
 
   if (error || !client) {
     return (
-      <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-            <h1 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">Error Loading Client</h1>
-            <p className="text-slate-600 dark:text-slate-300">{error || 'Client not found'}</p>
-            <Link href="/dashboard/clients" className="inline-flex items-center gap-2 mt-4 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Clients
-            </Link>
-          </div>
+      <div className="h-full bg-gray-50/50 dark:bg-gray-900/50 p-4 lg:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/60 p-6">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50 mb-2">Error Loading Client</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{error || 'Client not found'}</p>
+          <Link href="/dashboard/clients" className="inline-flex items-center gap-2 mt-4 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Clients
+          </Link>
         </div>
       </div>
     );
@@ -137,18 +132,18 @@ export default function ClientDetailPage() {
   };
 
   const getStatusStyles = (status: string, clientExpired: boolean) => {
-    if (clientExpired) return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+    if (clientExpired) return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200/60 dark:border-red-800/60';
     switch (status) {
-      case 'active': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'suspended': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600';
+      case 'active': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/60';
+      case 'suspended': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/60';
+      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200/60 dark:border-gray-600/60';
     }
   };
 
   const getPaymentStyles = (status: string) => {
     switch (status) {
       case 'paid': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300';
-      case 'unpaid': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300';
+      case 'unpaid': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
       case 'partial': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
       case 'pending': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
       default: return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
@@ -157,314 +152,273 @@ export default function ClientDetailPage() {
 
   const clientExpired = isExpired(client.expiryDate);
 
+  const InfoRow = ({ icon: Icon, label, value, valueClassName }: { icon: any; label: string; value: string; valueClassName?: string }) => (
+    <div className="flex items-center gap-2 min-w-0">
+      <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+      <span className="text-xs text-gray-500 dark:text-gray-300 flex-shrink-0">{label}:</span>
+      <span className={`text-xs font-medium truncate ${valueClassName || 'text-gray-900 dark:text-gray-50'}`}>{value}</span>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50/30 dark:bg-slate-900/20 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <Link href="/dashboard/clients" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                  <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                </Link>
-                <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/20">
-                  <User className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{client.name}</h1>
-                  <p className="text-slate-500 dark:text-slate-400">Client Details</p>
-                </div>
-              </div>
+    <div className="h-full bg-gray-50/50 dark:bg-gray-900/50 p-3 lg:p-5 flex flex-col gap-3 lg:gap-4">
+      {/* Top Row: Header with client identity and actions */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all duration-300 ease-out">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/clients"
+            className="p-2 rounded-lg border border-gray-200/60 dark:border-gray-700/60 hover:border-blue-500/60 dark:hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-400/10 transition-all duration-200 ease-out"
+            aria-label="Back to clients list"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+          </Link>
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
+            <User className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base font-semibold text-gray-900 dark:text-gray-50 truncate">{client.name}</h1>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>
+                {clientExpired ? 'Expired' : client.status || 'unknown'}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPaymentStyles(client.effectivePaymentStatus || client.paymentStatus || 'unknown')}`}>
+                {client.effectivePaymentStatus || client.paymentStatus || 'unknown'}
+              </span>
             </div>
-            <div className="flex gap-3">
-              <Link
-                href={`/dashboard/clients/${client.id}/edit`}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit Client
-              </Link>
-              <Link
-                href={`/dashboard/clients/${client.id}/invoice`}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition-colors"
-              >
-                <Receipt className="w-4 h-4" />
-                View Invoice
-              </Link>
+            <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 dark:text-gray-300">
+              <span className="flex items-center gap-1 truncate">
+                <Phone className="w-3 h-3" />
+                {client.phone}
+              </span>
+              {client.email && (
+                <span className="flex items-center gap-1 truncate hidden sm:inline">
+                  <Mail className="w-3 h-3" />
+                  {client.email}
+                </span>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Client Overview Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Status</p>
-                <p className={`text-sm font-semibold ${clientExpired ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
-                  {clientExpired ? 'Expired' : client.status}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Monthly Fee</p>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{formatPKR(client.price || 0)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Payment Status</p>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                  {client.effectivePaymentStatus || client.paymentStatus || 'unknown'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-rose-100 dark:bg-rose-900/30 rounded-lg">
-                <Calendar className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Expiry Date</p>
-                <p className={`text-sm font-semibold ${clientExpired ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
-                  {formatDate(client.expiryDate)}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <Link
+            href={`/dashboard/clients/${client.id}/edit`}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-500 dark:bg-blue-600 rounded-lg border border-transparent hover:border-blue-400/60 dark:hover:border-blue-300/60 hover:bg-blue-600 dark:hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/20 dark:hover:shadow-blue-400/20 transition-all duration-200 ease-out"
+            aria-label="Edit client"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            Edit
+          </Link>
+          <Link
+            href={`/dashboard/clients/${client.id}/invoice`}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-emerald-500 dark:bg-emerald-600 rounded-lg border border-transparent hover:border-emerald-400/60 dark:hover:border-emerald-300/60 hover:bg-emerald-600 dark:hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 dark:hover:shadow-emerald-400/20 transition-all duration-200 ease-out"
+            aria-label="View invoice"
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            Invoice
+          </Link>
         </div>
+      </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Client Info */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Basic Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Full Name</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Username</p>
-                  {client.username ? (
-                    <p className="text-slate-800 dark:text-white font-medium flex items-center gap-2">
-                      <AtSign className="w-4 h-4 text-blue-500" />{client.username}
-                    </p>
-                  ) : (
-                    <p className="text-slate-400 dark:text-slate-500 italic">Not set</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">CNIC</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.cnic}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Phone Number</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.phone}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Email</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.email || 'Not provided'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">City</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.city}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Area</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.area || 'Not specified'}</p>
-                </div>
-              </div>
+      {/* Middle Row: Three-column grid for Package, Location, Payment */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+        {/* Package Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out hover:border-blue-500/60 dark:hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-400/10 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/30">
+              <Wifi className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-
-            {/* Package Information */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Package Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Package Name</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.package?.name || 'No Package'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Speed</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.package?.speed ? `${client.package.speed} Mbps` : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Service Provider</p>
-                  <p className="text-slate-800 dark:text-white font-medium">{client.package?.serviceProvider?.name || 'Not assigned'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Purchase Price</p>
-                  <p className="text-slate-800 dark:text-white font-medium">
-                    {client.package?.purchasePrice ? formatPKR(client.package.purchasePrice) : 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment History */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Payment History</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-                    <p className="text-sm text-blue-600 dark:text-blue-300">Total Amount</p>
-                    <p className="text-lg font-bold text-blue-700 dark:text-blue-200">{formatPKR(client.totalAmount || 0)}</p>
-                  </div>
-                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4">
-                    <p className="text-sm text-emerald-600 dark:text-emerald-300">Total Paid</p>
-                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-200">{formatPKR(client.totalPaid || 0)}</p>
-                  </div>
-                  <div className={`bg-${
-                    (client.remainingAmount || 0) > 0 ? 'amber-50 dark:bg-amber-900/20' : 'emerald-50 dark:bg-emerald-900/20'
-                  } rounded-xl p-4`}>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">Remaining</p>
-                    <p className={`text-lg font-bold ${
-                      (client.remainingAmount || 0) > 0
-                        ? 'text-amber-700 dark:text-amber-200'
-                        : 'text-emerald-700 dark:text-emerald-200'
-                    }`}>{formatPKR(client.remainingAmount || 0)}</p>
-                  </div>
-                </div>
-
-                {/* Payment History Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-50 dark:bg-slate-700/50">
-                      <tr>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-slate-600 dark:text-slate-300">Date</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-slate-600 dark:text-slate-300">Amount</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-slate-600 dark:text-slate-300">Method</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-slate-600 dark:text-slate-300">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                      {client.payments && client.payments.length > 0 ? (
-                        client.payments.map((payment, index) => (
-                          <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/20">
-                            <td className="py-2 px-3 text-slate-800 dark:text-slate-200">
-                              {formatDate(payment.paymentDate)}
-                            </td>
-                            <td className="py-2 px-3 text-slate-800 dark:text-slate-200">
-                              {formatPKR(payment.amount)}
-                            </td>
-                            <td className="py-2 px-3">
-                              <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
-                                {payment.method}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-600 dark:text-slate-400 text-sm">
-                              {payment.notes || '-'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="py-6 px-3 text-center text-slate-500 dark:text-slate-400">
-                            No payment history available
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Package</h2>
           </div>
-
-          {/* Right Column - Status and Actions */}
-          <div className="space-y-6">
-            {/* Status Badges */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Status</h2>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Client Status</p>
-                  <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>
-                    {clientExpired ? 'Expired' : client.status || 'unknown'}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Payment Status</p>
-                  <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${getPaymentStyles(client.effectivePaymentStatus || client.paymentStatus || 'unknown')}`}>
-                    {client.effectivePaymentStatus || client.paymentStatus || 'unknown'}
-                  </span>
-                </div>
-                {client.totalPaid !== undefined && (
-                  <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Paid</p>
-                    <p className="text-sm font-medium text-slate-800 dark:text-white">{formatPKR(client.totalPaid)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Quick Actions</h2>
-              <div className="space-y-3">
-                <Link
-                  href={`/dashboard/clients/${client.id}/edit`}
-                  className="flex items-center gap-3 w-full p-3 text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
-                >
-                  <Edit2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span>Edit Client</span>
-                </Link>
-                <Link
-                  href={`/dashboard/clients/${client.id}/invoice`}
-                  className="flex items-center gap-3 w-full p-3 text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
-                >
-                  <Receipt className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  <span>View Invoice</span>
-                </Link>
-                <Link
-                  href={`/dashboard/payments?clientId=${client.id}`}
-                  className="flex items-center gap-3 w-full p-3 text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
-                >
-                  <CreditCard className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span>View Payments</span>
-                </Link>
-              </div>
-            </div>
-
-            {/* Expiration Warning */}
-            {clientExpired && (
-              <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl p-6">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-rose-800 dark:text-rose-200">Service Expired</h3>
-                    <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">
-                      This client's service has expired on {formatDate(client.expiryDate)}. Consider renewing their subscription.
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <div className="space-y-2">
+            <InfoRow icon={Building} label="Plan" value={client.package?.name || 'No Package'} />
+            <InfoRow icon={Clock} label="Speed" value={client.package?.speed ? `${client.package.speed} Mbps` : 'N/A'} />
+            <InfoRow icon={IndianRupee} label="Monthly" value={formatPKR(client.price || 0)} />
+            {client.package?.serviceProvider && (
+              <InfoRow icon={Factory} label="Provider" value={client.package.serviceProvider.name} />
             )}
           </div>
         </div>
+
+        {/* Location Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out hover:border-violet-500/60 dark:hover:border-violet-400/60 hover:bg-violet-50/50 dark:hover:bg-violet-900/20 hover:shadow-lg hover:shadow-violet-500/10 dark:hover:shadow-violet-400/10 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-violet-100 dark:bg-violet-900/30">
+              <MapPin className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Location</h2>
+          </div>
+          <div className="space-y-2">
+            <InfoRow icon={MapPin} label="Address" value={client.area?.name || client.areaName || 'Not provided'} />
+            <InfoRow icon={Building} label="City" value={client.city} />
+            <InfoRow icon={Globe} label="Country" value={client.country || 'Not specified'} />
+            <InfoRow icon={Hash} label="CNIC" value={client.cnic} />
+          </div>
+        </div>
+
+        {/* Payment Summary Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out hover:border-emerald-500/60 dark:hover:border-emerald-400/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-400/10 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30">
+              <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Payment Summary</h2>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-300">Total Amount</span>
+              <span className="text-xs font-semibold text-gray-900 dark:text-gray-50">{formatPKR(client.totalAmount || client.price || 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-300">Total Paid</span>
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{formatPKR(client.totalPaid || 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-300">Remaining</span>
+              <span className={`text-xs font-semibold ${(client.remainingAmount || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {formatPKR(client.remainingAmount || 0)}
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  (client.totalPaid || 0) >= (client.totalAmount || client.price || 0)
+                    ? 'bg-emerald-500 dark:bg-emerald-400'
+                    : (client.remainingAmount || 0) > 0
+                    ? 'bg-amber-500 dark:bg-amber-400'
+                    : 'bg-emerald-500 dark:bg-emerald-400'
+                }`}
+                style={{ width: `${Math.min(((client.totalPaid || 0) / (client.totalAmount || client.price || 1)) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Bottom Row: Dates and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+        {/* Dates Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out hover:border-amber-500/60 dark:hover:border-amber-400/60 hover:bg-amber-50/50 dark:hover:bg-amber-900/20 hover:shadow-lg hover:shadow-amber-500/10 dark:hover:shadow-amber-400/10 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30">
+              <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Key Dates</h2>
+          </div>
+          <div className="space-y-2">
+            <InfoRow icon={Calendar} label="Start" value={formatDate(client.startDate)} />
+            <InfoRow
+              icon={Calendar}
+              label="Expiry"
+              value={formatDate(client.expiryDate)}
+              valueClassName={clientExpired ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-50'}
+            />
+          </div>
+          {clientExpired && (
+            <div className="mt-3 flex items-start gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200/60 dark:border-red-800/60">
+              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600 dark:text-red-400">Service expired. Consider renewing.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Username & Contact Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out hover:border-indigo-500/60 dark:hover:border-indigo-400/60 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 hover:shadow-lg hover:shadow-indigo-500/10 dark:hover:shadow-indigo-400/10 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-indigo-100 dark:bg-indigo-900/30">
+              <AtSign className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Contact</h2>
+          </div>
+          <div className="space-y-2">
+            <InfoRow
+              icon={AtSign}
+              label="Username"
+              value={client.username || 'Not set'}
+              valueClassName={!client.username ? 'text-gray-400 dark:text-gray-500 italic' : 'text-gray-900 dark:text-gray-50'}
+            />
+            <InfoRow icon={Phone} label="Phone" value={client.phone} />
+            <InfoRow icon={Mail} label="Email" value={client.email || 'Not provided'} />
+          </div>
+        </div>
+
+        {/* Quick Actions Card */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-gray-100 dark:bg-gray-700/50">
+              <BarChart3 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Quick Actions</h2>
+          </div>
+          <div className="space-y-2">
+            <Link
+              href={`/dashboard/clients/${client.id}/edit`}
+              className="flex items-center gap-2 w-full p-2.5 text-sm text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200/60 dark:border-gray-700/60 hover:border-blue-500/60 dark:hover:border-blue-400/60 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-400/10 transition-all duration-200 ease-out"
+              aria-label="Edit client details"
+            >
+              <Edit2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Edit Client
+            </Link>
+            <Link
+              href={`/dashboard/payments?clientId=${client.id}`}
+              className="flex items-center gap-2 w-full p-2.5 text-sm text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200/60 dark:border-gray-700/60 hover:border-emerald-500/60 dark:hover:border-emerald-400/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-400/10 transition-all duration-200 ease-out"
+              aria-label="View payment history"
+            >
+              <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              View Payments
+            </Link>
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="flex items-center gap-2 w-full p-2.5 text-sm text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200/60 dark:border-gray-700/60 hover:border-violet-500/60 dark:hover:border-violet-400/60 hover:bg-violet-50/50 dark:hover:bg-violet-900/20 hover:shadow-lg hover:shadow-violet-500/10 dark:hover:shadow-violet-400/10 transition-all duration-200 ease-out"
+              aria-expanded={showDetails}
+              aria-label="Toggle detailed information"
+            >
+              {showDetails ? <ChevronUp className="w-4 h-4 text-violet-600 dark:text-violet-400" /> : <ChevronDown className="w-4 h-4 text-violet-600 dark:text-violet-400" />}
+              {showDetails ? 'Hide Details' : 'Show Details'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Expandable Details Section - Payment History & Additional Info */}
+      {showDetails && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom-2">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50 mb-3 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            Payment History
+          </h2>
+          {client.payments && client.payments.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" aria-label="Payment history table">
+                <thead>
+                  <tr className="border-b border-gray-200/60 dark:border-gray-700/60">
+                    <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Date</th>
+                    <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Amount</th>
+                    <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Method</th>
+                    <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                  {client.payments.map((payment, index) => (
+                    <tr key={index} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors duration-200">
+                      <td className="py-2 px-2 text-gray-900 dark:text-gray-50">{formatDate(payment.paymentDate)}</td>
+                      <td className="py-2 px-2 text-emerald-600 dark:text-emerald-400 font-medium">{formatPKR(payment.amount)}</td>
+                      <td className="py-2 px-2">
+                        <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs">
+                          {payment.method}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-600 dark:text-gray-400">{payment.notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-300 py-4 text-center">No payment history available</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
