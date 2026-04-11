@@ -92,47 +92,48 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 px-4 py-12 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
+        <div className="absolute top-20 right-20 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md z-10">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-6 group">
-            <div className="p-3 bg-white/10 backdrop-blur-sm rounded-xl group-hover:bg-white/20 transition-colors">
-              <Wifi className="w-8 h-8 text-white" />
+            <div className="p-4 bg-white/20 backdrop-blur-md rounded-2xl group-hover:bg-white/30 transition-all duration-300 shadow-lg group-hover:shadow-xl border border-white/30">
+              <Wifi className="w-10 h-10 text-white drop-shadow-lg" strokeWidth={2.5} />
             </div>
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-white/80 text-base">Sign in to your account to continue</p>
+          <h1 className="text-4xl font-extrabold text-white mb-3 drop-shadow-lg">Welcome Back</h1>
+          <p className="text-white/90 text-lg font-medium">Sign in to your account to continue</p>
         </div>
 
         {/* Login Form Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 space-y-6">
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 space-y-6 border border-white/20 dark:border-gray-700/50">
           {/* Error/Success Messages */}
           {error && (
             <div
-              className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
+              className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300"
               role="alert"
               aria-live="polite"
             >
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" strokeWidth={2.5} />
+              <p className="text-base font-medium text-red-700 dark:text-red-300">{error}</p>
             </div>
           )}
 
           {success && (
             <div
-              className="flex items-start gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl"
+              className="flex items-start gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300"
               role="status"
               aria-live="polite"
             >
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">{success}</p>
+              <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" strokeWidth={2.5} />
+              <p className="text-base font-medium text-emerald-700 dark:text-emerald-300">{success}</p>
             </div>
           )}
 
@@ -147,7 +148,7 @@ function LoginForm() {
               onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
               disabled={loading}
               error={emailError || (touched.email && !email ? 'Email is required' : '')}
-              leftIcon={<Mail className="w-5 h-5" />}
+              leftIcon={<Mail className="w-6 h-6" strokeWidth={2.5} />}
               autoComplete="email"
               required
               aria-required="true"
@@ -164,17 +165,17 @@ function LoginForm() {
                 onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
                 disabled={loading}
                 error={passwordError || (touched.password && !password ? 'Password is required' : '')}
-                leftIcon={<Lock className="w-5 h-5" />}
+                leftIcon={<Lock className="w-6 h-6" strokeWidth={2.5} />}
                 rightIcon={
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={loading}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+                    className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-all duration-200 disabled:opacity-50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     tabIndex={-1}
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="w-6 h-6" strokeWidth={2.5} /> : <Eye className="w-6 h-6" strokeWidth={2.5} />}
                   </button>
                 }
                 autoComplete="current-password"
@@ -192,18 +193,18 @@ function LoginForm() {
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   disabled={loading}
-                  className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
+                  className="h-5 w-5 rounded-lg border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer disabled:opacity-50 transition-all"
                 />
                 <label
                   htmlFor="remember-me"
-                  className="ml-2 block text-sm text-gray-700 dark:text-gray-200 cursor-pointer select-none"
+                  className="ml-3 block text-base text-gray-700 dark:text-gray-200 cursor-pointer select-none font-medium"
                 >
                   Remember me
                 </label>
               </div>
               <a
                 href="#"
-                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium hover:underline"
+                className="text-base text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold hover:underline transition-all"
               >
                 Forgot password?
               </a>
@@ -213,7 +214,7 @@ function LoginForm() {
             <Button
               type="submit"
               loading={loading}
-              className="w-full h-12 text-base"
+              className="w-full h-13 text-base font-bold shadow-lg hover:shadow-xl transition-all duration-300"
               size="lg"
             >
               {loading ? 'Signing in...' : 'Sign In'}
@@ -221,11 +222,11 @@ function LoginForm() {
           </form>
 
           {/* Sign Up Link */}
-          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-center text-base text-gray-600 dark:text-gray-400 font-medium">
             Don't have an account?{' '}
             <Link
               href="/signup"
-              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline"
+              className="text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-all text-lg"
             >
               Sign up
             </Link>
@@ -233,7 +234,7 @@ function LoginForm() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-white/70 mt-6">
+        <p className="text-center text-base text-white/80 mt-8 font-medium">
           © {new Date().getFullYear()} ISP Manager. All rights reserved.
         </p>
       </div>

@@ -38,7 +38,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative group">
           {leftIcon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none transition-colors group-focus-within:text-blue-500 dark:group-focus-within:text-blue-400">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300 pointer-events-none transition-all duration-200 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 flex items-center justify-center">
               {leftIcon}
             </div>
           )}
@@ -47,13 +47,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             className={`
               w-full rounded-xl border bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-sm
-              px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100
+              px-4 py-3 text-base text-gray-900 dark:text-gray-100
               placeholder-gray-400 dark:placeholder-gray-500
               transition-all duration-200 ease-in-out
               focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:bg-white dark:focus:bg-gray-900
               disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed
-              ${leftIcon ? 'pl-10' : ''}
-              ${rightIcon ? 'pr-10' : ''}
+              ${leftIcon ? 'pl-11' : ''}
+              ${rightIcon ? 'pr-11' : ''}
               ${error 
                 ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500 hover:border-red-600' 
                 : 'border-gray-300/80 dark:border-gray-600/80 hover:border-gray-400 dark:hover:border-gray-500'
@@ -66,7 +66,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-blue-500 dark:group-focus-within:text-blue-400">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300 transition-all duration-200 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 flex items-center justify-center">
               {rightIcon}
             </div>
           )}
