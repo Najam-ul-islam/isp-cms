@@ -118,15 +118,58 @@ export async function DELETE(
     await prisma.refreshToken.deleteMany({ where: { userId: id } });
     await prisma.session.deleteMany({ where: { userId: id } });
 
+    // Handle packages created by this admin
+    const packagesCount = await prisma.package.count({
+      where: { createdBy: id }
+    });
+
+    if (packagesCount > 0) {
+      // Option 1: Reassign packages to the company owner or super admin
+      // Find another admin from the same company (preferably SUPER_ADMIN or ADMIN)
+      const fallbackAdmin = await prisma.admin.findFirst({
+        where: {
+          companyId: adminToDelete.companyId,
+          id: { not: id }, // Exclude the admin being deleted
+          role: { in: ['SUPER_ADMIN', 'ADMIN'] }
+        },
+        orderBy: {
+          role: 'asc' // Prefer SUPER_ADMIN over ADMIN
+        }
+      });
+
+      if (fallbackAdmin) {
+        // Reassign packages to the fallback admin
+        await prisma.package.updateMany({
+          where: { createdBy: id },
+          data: { createdBy: fallbackAdmin.id }
+        });
+      } else {
+        // No fallback admin found, delete the packages
+        await prisma.package.deleteMany({
+          where: { createdBy: id }
+        });
+      }
+    }
+
     // Hard delete the admin
     await prisma.admin.delete({ where: { id } });
 
     return NextResponse.json({ message: "Admin deleted successfully" });
   } catch (error: any) {
     console.error("Delete Admin Error:", error);
+    
+    // Handle specific Prisma errors
     if (error.code === "P2025") {
       return NextResponse.json({ error: "Admin not found" }, { status: 404 });
     }
+    
+    if (error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete admin: They have related records that cannot be deleted or reassigned" },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: error.message || "Failed to delete admin" },
       { status: 500 }
