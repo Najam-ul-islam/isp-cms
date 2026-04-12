@@ -61,8 +61,8 @@ export class PaymentService {
         referenceType: metadata.referenceType || "invoice",
         referenceId: metadata.referenceId || null,
         companyId: metadata.companyId,
-        clientId: metadata.clientId || null,
-        invoiceId: metadata.invoiceId || null,
+        clientId: metadata.clientId || "",
+        invoiceId: metadata.invoiceId || "",
         notes: description,
       },
     });

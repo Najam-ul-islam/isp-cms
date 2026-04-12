@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       // Convert status string to proper enum value
       const statusEnum = status.toUpperCase();
       if (['OPEN', 'IN_PROGRESS', 'RESOLVED'].includes(statusEnum)) {
-        complaints = await getComplaintsByStatus(statusEnum as any);
+        complaints = await getComplaintsByStatus(statusEnum as any, admin.companyId);
       } else {
         return NextResponse.json(
           { error: 'Invalid status. Valid values: open, in_progress, resolved' },
@@ -35,7 +35,8 @@ export async function GET(request: Request) {
         );
       }
     } else {
-      complaints = await getAllComplaints();
+      // Always filter by company for multi-tenant isolation
+      complaints = await getAllComplaints(admin.companyId);
     }
 
     return NextResponse.json(complaints);

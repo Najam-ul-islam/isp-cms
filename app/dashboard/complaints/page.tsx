@@ -16,6 +16,19 @@ interface Complaint {
   clientName?: string;
   clientUsername?: string;
   clientPhone?: string;
+  assignedToId?: string;
+  assignedTo?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  } | null;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email?: string;
 }
 
 export default function ComplaintsPage() {
@@ -24,6 +37,9 @@ export default function ComplaintsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | 'low' | 'medium' | 'high'>('all');
+  const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newComplaint, setNewComplaint] = useState({
     clientId: '',
@@ -146,6 +162,28 @@ export default function ComplaintsPage() {
     fetchComplaints();
   }, [router]);
 
+  // Fetch employees for assignment dropdown
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
 
   // Fetch clients when create modal is opened
   useEffect(() => {
@@ -163,8 +201,11 @@ export default function ComplaintsPage() {
 
     const matchesStatus = filterStatus === 'all' || complaint.status === filterStatus;
     const matchesPriority = filterPriority === 'all' || complaint.priority === filterPriority;
+    const matchesAssigned = filterAssigned === 'all' || 
+      (filterAssigned === 'assigned' && complaint.assignedToId) ||
+      (filterAssigned === 'unassigned' && !complaint.assignedToId);
 
-    return matchesSearch && matchesStatus && matchesPriority;
+    return matchesSearch && matchesStatus && matchesPriority && matchesAssigned;
   });
 
   // Create new complaint
@@ -241,6 +282,44 @@ export default function ComplaintsPage() {
     } catch (error: any) {
       console.error('Error updating complaint:', error);
       showNotification('error', error.message || 'Failed to update complaint');
+    }
+  };
+
+  // Assign complaint to employee
+  const assignComplaint = async (complaintId: string, employeeId: string | null) => {
+    setAssigningId(complaintId);
+    try {
+      const response = await fetch(`/api/complaints/${complaintId}/assign`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ employeeId })
+      });
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to assign complaint');
+      }
+
+      const updatedComplaint = await response.json();
+      setComplaints(complaints.map(c => c.id === complaintId ? {
+        ...c,
+        assignedToId: updatedComplaint.assignedToId,
+        assignedTo: updatedComplaint.assignedTo
+      } : c));
+      showNotification('success', employeeId ? 'Complaint assigned successfully' : 'Complaint unassigned');
+    } catch (error: any) {
+      console.error('Error assigning complaint:', error);
+      showNotification('error', error.message || 'Failed to assign complaint');
+    } finally {
+      setAssigningId(null);
     }
   };
 
@@ -388,20 +467,34 @@ export default function ComplaintsPage() {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
+
+          {/* Assignment Filter */}
+          <div className="relative">
+            <select
+              value={filterAssigned}
+              onChange={(e) => setFilterAssigned(e.target.value as any)}
+              className="appearance-none pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white cursor-pointer min-w-35"
+            >
+              <option value="all">All Assignments</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
         </div>
       </div>
 
       {/* Complaints Table */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 overflow-hidden">
         {/* Table Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-indigo-50/50 to-transparent dark:from-indigo-900/10">
+        <div className="px-4 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-indigo-50/50 to-transparent dark:from-indigo-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <MessageCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <MessageCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <h2 className="font-semibold text-slate-800 dark:text-white">All Complaints</h2>
-              <p className="text-sm text-slate-500 dark:text-gray-400">
+              <h2 className="font-semibold text-sm text-slate-800 dark:text-white">All Complaints</h2>
+              <p className="text-xs text-slate-500 dark:text-gray-400">
                 {filteredComplaints.length} complaint{filteredComplaints.length !== 1 ? 's' : ''} found
               </p>
             </div>
@@ -412,14 +505,15 @@ export default function ComplaintsPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
-              <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
-                <th className="px-6 py-4">Complaint</th>
-                <th className="px-6 py-4">Username</th>
-                <th className="px-6 py-4">Client</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Priority</th>
-                <th className="px-6 py-4">Created</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+              <tr className="text-left text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-3">Complaint</th>
+                <th className="px-4 py-3">Username</th>
+                <th className="px-4 py-3">Client</th>
+                <th className="px-4 py-3">Assigned To</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
@@ -431,40 +525,78 @@ export default function ComplaintsPage() {
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     {/* Complaint Info */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-800 dark:text-white">{complaint.title}</p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400 line-clamp-2">
+                    <td className="px-4 py-3">
+                      <div className="space-y-0.5 max-w-xs">
+                        <p className="font-semibold text-xs text-slate-800 dark:text-white truncate">{complaint.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2">
                           {complaint.description}
                         </p>
                       </div>
                     </td>
 
                     {/* Username */}
-                    <td className="px-6 py-4">
-                      <span className="text-slate-600 dark:text-gray-300 font-mono text-sm">
+                    <td className="px-4 py-3">
+                      <span className="text-slate-600 dark:text-gray-300 font-mono text-xs">
                         {complaint.clientUsername || 'N/A'}
                       </span>
                     </td>
 
                     {/* Client Info */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-700 dark:text-gray-200">
+                    <td className="px-4 py-3">
+                      <div className="space-y-0.5">
+                        <p className="font-medium text-xs text-slate-700 dark:text-gray-200">
                           {complaint.clientName || 'N/A'}
                         </p>
-                        <p className="text-sm text-slate-500 dark:text-gray-400">
+                        <p className="text-xs text-slate-500 dark:text-gray-400">
                           {complaint.clientPhone || 'N/A'}
                         </p>
                       </div>
                     </td>
 
+                    {/* Assigned To */}
+                    <td className="px-4 py-3">
+                      <div className="relative">
+                        <select
+                          value={complaint.assignedToId || ''}
+                          onChange={(e) => assignComplaint(complaint.id, e.target.value || null)}
+                          disabled={assigningId === complaint.id}
+                          className={`appearance-none w-full pl-2 pr-6 py-1 text-xs rounded-md border transition-all cursor-pointer ${
+                            complaint.assignedToId
+                              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
+                          } ${assigningId === complaint.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <option value="">Unassigned</option>
+                          {employees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                        {complaint.assignedToId && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
+                              {complaint.assignedTo?.name || 'Assigned'}
+                            </span>
+                          </div>
+                        )}
+                        {!complaint.assignedToId && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                            <span className="text-[10px] text-rose-500 dark:text-rose-400">
+                              Unassigned
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
                     {/* Status */}
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <select
                         value={complaint.status}
                         onChange={(e) => updateComplaintStatus(complaint.id, e.target.value as any)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${getStatusStyles(complaint.status)}`}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize ${getStatusStyles(complaint.status)}`}
                       >
                         <option value="open">Open</option>
                         <option value="in_progress">In Progress</option>
@@ -473,32 +605,32 @@ export default function ComplaintsPage() {
                     </td>
 
                     {/* Priority */}
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border capitalize ${getPriorityStyles(complaint.priority)}`}>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize ${getPriorityStyles(complaint.priority)}`}>
                         {complaint.priority}
                       </span>
                     </td>
 
                     {/* Created Date */}
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-500 dark:text-gray-400">
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
                         {new Date(complaint.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
                           month: 'short',
-                          day: 'numeric'
+                          day: 'numeric',
+                          year: '2-digit'
                         })}
                       </span>
                     </td>
 
                     {/* Actions */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => deleteComplaint(complaint.id)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors group/btn"
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-md transition-colors group/btn"
                           title="Delete complaint"
                         >
-                          <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                          <Trash2 className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
                         </button>
                       </div>
                     </td>
@@ -506,25 +638,25 @@ export default function ComplaintsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
-                      <div className="p-4 bg-slate-100 dark:bg-gray-800 rounded-full">
-                        <MessageCircle className="w-12 h-12 opacity-50" />
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-gray-500">
+                      <div className="p-3 bg-slate-100 dark:bg-gray-800 rounded-full">
+                        <MessageCircle className="w-10 h-10 opacity-50" />
                       </div>
                       <div>
-                        <p className="font-semibold text-lg">No complaints found</p>
-                        <p className="text-sm mt-1">
-                          {searchTerm || filterStatus !== 'all' || filterPriority !== 'all'
+                        <p className="font-semibold text-base text-slate-600 dark:text-gray-400">No complaints found</p>
+                        <p className="text-xs mt-1 text-slate-500 dark:text-gray-500">
+                          {searchTerm || filterStatus !== 'all' || filterPriority !== 'all' || filterAssigned !== 'all'
                             ? 'Try adjusting your filters or search terms'
                             : 'Get started by adding your first complaint'}
                         </p>
                       </div>
-                      {!searchTerm && filterStatus === 'all' && filterPriority === 'all' && (
+                      {!searchTerm && filterStatus === 'all' && filterPriority === 'all' && filterAssigned === 'all' && (
                         <button
                           onClick={() => setShowCreateModal(true)}
-                          className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-xs"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3.5 h-3.5" />
                           Add Complaint
                         </button>
                       )}

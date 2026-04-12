@@ -85,6 +85,17 @@ export default function ProductSalesPage() {
 
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  
+  // Inventory state
+  const [inventoryItems, setInventoryItems] = useState<Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+  }>>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [stockAlert, setStockAlert] = useState<{ type: 'warning' | 'error' | 'success'; message: string } | null>(null);
 
   // Refs to prevent duplicate fetches
   const isMounted = useRef(false);
@@ -95,6 +106,91 @@ export default function ProductSalesPage() {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
   }, []);
+
+  // Fetch inventory items
+  const fetchInventory = useCallback(async (signal: AbortSignal) => {
+    try {
+      setInventoryLoading(true);
+      const res = await fetch('/api/inventory', {
+        credentials: 'include',
+        cache: 'no-store',
+        signal,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryItems(data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit || 'piece',
+          unitPrice: item.unitPrice,
+        })));
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Error fetching inventory:', err);
+      }
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, []);
+
+  // Check product availability in inventory
+  const checkProductAvailability = useCallback((productName: string, requestedQuantity: number): { available: boolean; currentStock: number } => {
+    const normalizedProductName = productName.toLowerCase().trim();
+    
+    const matchingItem = inventoryItems.find(item => 
+      item.name.toLowerCase().trim() === normalizedProductName
+    );
+
+    if (!matchingItem) {
+      // Product not in inventory - allow sale (might be a service)
+      return { available: true, currentStock: -1 };
+    }
+
+    if (matchingItem.quantity >= requestedQuantity) {
+      return { available: true, currentStock: matchingItem.quantity };
+    }
+
+    return { available: false, currentStock: matchingItem.quantity };
+  }, [inventoryItems]);
+
+  // Deduct from inventory
+  const deductFromInventory = useCallback(async (productName: string, quantity: number) => {
+    const normalizedProductName = productName.toLowerCase().trim();
+    const matchingItem = inventoryItems.find(item => 
+      item.name.toLowerCase().trim() === normalizedProductName
+    );
+
+    if (!matchingItem) return;
+
+    try {
+      // Create inventory transaction (OUT type)
+      await fetch('/api/inventory/transactions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: matchingItem.id,
+          type: 'OUT',
+          quantity: quantity,
+          note: `Product sale: ${productName} x ${quantity}`,
+        }),
+      });
+
+      // Update local state
+      setInventoryItems(prev => 
+        prev.map(item => 
+          item.id === matchingItem.id 
+            ? { ...item, quantity: item.quantity - quantity }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error('Error deducting from inventory:', error);
+    }
+  }, [inventoryItems]);
 
   // Fetch clients for dropdown
   const fetchClients = useCallback(async (signal: AbortSignal) => {
@@ -225,6 +321,7 @@ export default function ProductSalesPage() {
 
         await Promise.all([
           fetchClients(controller.signal),
+          fetchInventory(controller.signal),
           fetchSummary(controller.signal),
           fetchTodaySales(controller.signal),
           fetchSales(controller.signal),
@@ -302,8 +399,8 @@ export default function ProductSalesPage() {
       return;
     }
 
-    if (!formData.quantity || Number(formData.quantity) < 1 || !Number.isInteger(Number(formData.quantity))) {
-      setFormError('Quantity must be a whole number >= 1');
+    if (!formData.quantity || Number(formData.quantity) < 0.01) {
+      setFormError('Quantity must be greater than 0');
       return;
     }
 
@@ -312,14 +409,48 @@ export default function ProductSalesPage() {
       return;
     }
 
+    // ✅ Check inventory availability before creating sale
+    const productName = formData.productName.trim();
+    const quantity = Number(formData.quantity);
+    const availability = checkProductAvailability(productName, quantity);
+
+    if (!availability.available) {
+      const matchingItem = inventoryItems.find(item => 
+        item.name.toLowerCase().trim() === productName.toLowerCase().trim()
+      );
+      const unitLabel = matchingItem?.unit || 'units';
+      
+      setStockAlert({
+        type: 'error',
+        message: `❌ Insufficient stock! "${productName}" has only ${availability.currentStock} ${unitLabel} available, but you're trying to sell ${quantity} ${unitLabel}.`
+      });
+      setFormError('Product not available in inventory');
+      return;
+    }
+
+    // Show warning if stock is low
+    if (availability.currentStock > 0 && availability.currentStock < quantity * 2) {
+      const matchingItem = inventoryItems.find(item => 
+        item.name.toLowerCase().trim() === productName.toLowerCase().trim()
+      );
+      const unitLabel = matchingItem?.unit || 'units';
+      
+      setStockAlert({
+        type: 'warning',
+        message: `⚠️ Low stock alert! "${productName}" has only ${availability.currentStock} ${unitLabel} remaining after this sale.`
+      });
+    } else {
+      setStockAlert(null);
+    }
+
     setFormLoading(true);
 
     try {
       const body: any = {
-        productName: formData.productName.trim(),
+        productName: productName,
         actualPrice: Number(formData.actualPrice),
         sellingPrice: Number(formData.sellingPrice),
-        quantity: Number(formData.quantity),
+        quantity: quantity,
         saleDate: formData.saleDate,
       };
 
@@ -339,6 +470,11 @@ export default function ProductSalesPage() {
       });
 
       if (res.ok) {
+        // ✅ Deduct from inventory if product exists
+        if (availability.currentStock > 0) {
+          await deductFromInventory(productName, quantity);
+        }
+
         showNotification('success', 'Product sale added successfully');
         setShowForm(false);
         setFormData({
@@ -350,6 +486,7 @@ export default function ProductSalesPage() {
           notes: '',
           saleDate: new Date().toISOString().split('T')[0],
         });
+        setStockAlert(null);
         // Refresh data
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -845,9 +982,13 @@ export default function ProductSalesPage() {
           formError={formError}
           unitProfit={unitProfit}
           totalOtherIncome={totalOtherIncome}
+          inventoryItems={inventoryItems}
+          inventoryLoading={inventoryLoading}
+          stockAlert={stockAlert}
           onClose={() => {
             setShowForm(false);
             setFormError(null);
+            setStockAlert(null);
             setFormData({
               clientId: '',
               productName: '',
@@ -875,6 +1016,9 @@ function AddSaleModal({
   formError,
   unitProfit,
   totalOtherIncome,
+  inventoryItems,
+  inventoryLoading,
+  stockAlert,
   onClose,
   onChange,
   onSubmit,
@@ -886,10 +1030,22 @@ function AddSaleModal({
   formError: string | null;
   unitProfit: number;
   totalOtherIncome: number;
+  inventoryItems: Array<{ id: string; name: string; quantity: number; unit: string; unitPrice: number }>;
+  inventoryLoading: boolean;
+  stockAlert: { type: 'warning' | 'error' | 'success'; message: string } | null;
   onClose: () => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onSubmit: (e: React.FormEvent) => void;
 }) {
+  // Get the unit for the selected product
+  const selectedProductUnit = inventoryItems.find(
+    item => item.name.toLowerCase().trim() === formData.productName.toLowerCase().trim()
+  )?.unit || 'unit';
+
+  // Check if actualPrice is auto-filled from inventory
+  const isAutoFilled = !!inventoryItems.find(
+    item => item.name.toLowerCase().trim() === formData.productName.toLowerCase().trim()
+  ) && !!formData.actualPrice;
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200/80 dark:border-gray-700/80">
@@ -920,20 +1076,46 @@ function AddSaleModal({
             </div>
           )}
 
-          {/* Product Name */}
+          {/* Product Name with Searchable Dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Product Name <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
-              name="productName"
+            <SearchableProductSelect
+              inventoryItems={inventoryItems}
               value={formData.productName}
-              onChange={onChange}
-              required
-              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500"
-              placeholder="e.g., Router TP-Link AX3000"
+              onChange={(value) => {
+                // Set the product name
+                onChange({
+                  target: { name: 'productName', value }
+                } as React.ChangeEvent<HTMLInputElement>);
+
+                // Auto-populate actualPrice from inventory unitPrice
+                const matchedItem = inventoryItems.find(
+                  item => item.name.toLowerCase().trim() === value.toLowerCase().trim()
+                );
+                if (matchedItem) {
+                  onChange({
+                    target: { name: 'actualPrice', value: matchedItem.unitPrice.toString() }
+                  } as React.ChangeEvent<HTMLInputElement>);
+                } else {
+                  // Clear actualPrice if product not in inventory
+                  onChange({
+                    target: { name: 'actualPrice', value: '' }
+                  } as React.ChangeEvent<HTMLInputElement>);
+                }
+              }}
+              placeholder="Type to search or add new product..."
             />
+            {/* Stock availability indicator */}
+            {formData.productName && (
+              <StockIndicator
+                productName={formData.productName}
+                quantity={Number(formData.quantity) || 0}
+                inventoryItems={inventoryItems}
+                inventoryLoading={inventoryLoading}
+              />
+            )}
           </div>
 
           {/* Client (optional) */}
@@ -962,7 +1144,10 @@ function AddSaleModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                Actual Price <span className="text-slate-400 dark:text-gray-500 font-normal">(cost)</span>
+                Actual Price <span className="text-slate-400 dark:text-gray-500 font-normal">(cost per {selectedProductUnit})</span>
+                {isAutoFilled && (
+                  <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">✓ Auto-filled</span>
+                )}
               </label>
               <div className="relative">
                 <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -971,10 +1156,15 @@ function AddSaleModal({
                   name="actualPrice"
                   value={formData.actualPrice}
                   onChange={onChange}
+                  readOnly={isAutoFilled}
                   required
                   min="0"
                   step="0.01"
-                  className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500"
+                  className={`w-full pl-9 pr-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500 ${
+                    isAutoFilled
+                      ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 cursor-not-allowed'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+                  }`}
                   placeholder="0.00"
                 />
               </div>
@@ -982,7 +1172,7 @@ function AddSaleModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                Selling Price <span className="text-slate-400 dark:text-gray-500 font-normal">(to client)</span>
+                Selling Price <span className="text-slate-400 dark:text-gray-500 font-normal">(per {selectedProductUnit})</span>
               </label>
               <div className="relative">
                 <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -1005,7 +1195,7 @@ function AddSaleModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                Quantity <span className="text-slate-400 dark:text-gray-500 font-normal">(units)</span>
+                Quantity <span className="text-slate-400 dark:text-gray-500 font-normal">({selectedProductUnit}s)</span>
               </label>
               <input
                 type="number"
@@ -1013,10 +1203,10 @@ function AddSaleModal({
                 value={formData.quantity}
                 onChange={onChange}
                 required
-                min="1"
-                step="1"
+                min="0.01"
+                step="0.01"
                 className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
-                placeholder="1"
+                placeholder="1.5"
               />
             </div>
 
@@ -1106,6 +1296,195 @@ function formatPKR(amount: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// Stock Indicator Component
+function StockIndicator({ 
+  productName, 
+  quantity, 
+  inventoryItems, 
+  inventoryLoading 
+}: { 
+  productName: string; 
+  quantity: number;
+  inventoryItems: Array<{ id: string; name: string; quantity: number; unit: string; unitPrice: number }>;
+  inventoryLoading: boolean;
+}) {
+  const normalizedProductName = productName.toLowerCase().trim();
+  const matchingItem = inventoryItems.find(item => 
+    item.name.toLowerCase().trim() === normalizedProductName
+  );
+
+  if (inventoryLoading) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+        <span>Checking stock...</span>
+      </div>
+    );
+  }
+
+  if (!matchingItem) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Not in inventory - will be treated as a service</span>
+      </div>
+    );
+  }
+
+  const isAvailable = matchingItem.quantity >= quantity;
+  const isLowStock = matchingItem.quantity < quantity * 2;
+  const unitLabel = matchingItem.unit || 'piece';
+
+  if (isAvailable && isLowStock) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>Low stock: {matchingItem.quantity} {unitLabel}(s) available</span>
+      </div>
+    );
+  }
+
+  if (isAvailable) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>
+        <span>In stock: {matchingItem.quantity} {unitLabel}(s) available</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+      </svg>
+      <span>Out of stock: Only {matchingItem.quantity} {unitLabel}(s) available</span>
+    </div>
+  );
+}
+
+// Searchable Product Select Component
+function SearchableProductSelect({
+  inventoryItems,
+  value,
+  onChange,
+  placeholder,
+}: {
+  inventoryItems: Array<{ id: string; name: string; quantity: number; unit: string; unitPrice: number }>;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(value);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter inventory items based on search query
+  const filteredItems = inventoryItems.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Handle selecting an item
+  const handleSelect = (itemName: string) => {
+    onChange(itemName);
+    setSearchQuery(itemName);
+    setIsOpen(false);
+  };
+
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setSearchQuery(newValue);
+    onChange(newValue);
+    setIsOpen(true);
+  };
+
+  // Handle input focus
+  const handleInputFocus = () => {
+    setIsOpen(true);
+  };
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={handleInputChange}
+          onFocus={handleInputFocus}
+          required
+          className="w-full px-4 py-2.5 pr-10 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white dark:placeholder-gray-500"
+          placeholder={placeholder || "Type to search or add new product..."}
+        />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Dropdown */}
+      {isOpen && filteredItems.length > 0 && (
+        <div className="absolute z-50 mt-2 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+          {filteredItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleSelect(item.name)}
+              className={`w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                item.name === value ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {item.name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Stock: {item.quantity} {item.unit}(s) • Rs. {item.unitPrice}/{item.unit}
+                  </p>
+                </div>
+                {item.name === value && (
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* No results message when searching */}
+      {isOpen && searchQuery && filteredItems.length === 0 && (
+        <div className="absolute z-50 mt-2 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-4 text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No products found. Typing will create a new product.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Skeleton Loading Component

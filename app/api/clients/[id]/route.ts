@@ -75,6 +75,8 @@ export async function GET(
       overpaidAmount: paymentSummary.overpaidAmount,
       totalAmount: paymentSummary.total,
       effectivePaymentStatus: paymentSummary.effectivePaymentStatus,
+      packageAmount: paymentSummary.packageAmount || client?.price || 0,
+      otherIncome: paymentSummary.otherIncome || 0,
       latestPaymentDate,
       payments: allClientPayments, // Include payment history
       invoices: clientInvoices // Include invoice details with payment summaries

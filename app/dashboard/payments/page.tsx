@@ -13,14 +13,18 @@ import {
   Download,
   Filter,
   IndianRupee,
+  TrendingUp,
 } from "lucide-react";
 
+// ✅ Type definition for payment records
+// All fields must be primitive types (string, number) - NEVER objects
 interface Payment {
   id: string;
   clientName: string;
   clientUsername?: string;
   clientId: string;
-  area?: string;
+  invoiceId?: string; // Required - all payments must be linked to an invoice
+  area?: string; // ⚠️ Must be area NAME string, NOT area object
   amount: number;
   date: string;
   method: string;
@@ -42,6 +46,24 @@ export default function PaymentsPage() {
     end: "",
   });
   const [selectedClientDetails, setSelectedClientDetails] = useState<Payment | null>(null);
+  
+  // Notification state for payment actions
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+  
+  // Real-time stats state
+  const [pendingRecovery, setPendingRecovery] = useState<number>(0);
+  const [showPendingClients, setShowPendingClients] = useState(false);
+  const [pendingClientsList, setPendingClientsList] = useState<Array<{
+    id: string;
+    name: string;
+    phone?: string;
+    totalAmount: number;
+    totalPaid: number;
+    remaining: number;
+  }>>([]);
 
   const router = useRouter();
 
@@ -53,6 +75,90 @@ export default function PaymentsPage() {
     "Debit Card",
     "Mobile Payment",
   ];
+
+  // Auto-dismiss notification after 4 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotification({ type, message });
+  };
+
+  // Calculate pending recovery by fetching actual client data with payment summaries
+  const calculatePendingRecovery = useCallback(async () => {
+    try {
+      // Fetch all clients first
+      const clientsResponse = await fetch('/api/clients', {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!clientsResponse.ok) {
+        console.error('Failed to fetch clients');
+        return;
+      }
+
+      const clients = await clientsResponse.json();
+      
+      // Fetch payment summary for each client
+      const pendingClients: Array<{
+        id: string;
+        name: string;
+        phone?: string;
+        totalAmount: number;
+        totalPaid: number;
+        remaining: number;
+      }> = [];
+
+      let totalPending = 0;
+
+      // Fetch payment summaries in parallel for better performance
+      const paymentSummaries = await Promise.all(
+        clients.map(async (client: any) => {
+          try {
+            const response = await fetch(`/api/clients/${client.id}`, {
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+            });
+            
+            if (response.ok) {
+              const clientData = await response.json();
+              return {
+                id: clientData.id,
+                name: clientData.name,
+                phone: clientData.phone,
+                totalAmount: clientData.totalAmount || 0,
+                totalPaid: clientData.totalPaid || 0,
+                remaining: clientData.remainingAmount || 0,
+              };
+            }
+          } catch (error) {
+            console.error(`Error fetching payment summary for client ${client.id}:`, error);
+          }
+          return null;
+        })
+      );
+
+      // Filter and calculate pending amounts
+      for (const clientData of paymentSummaries) {
+        if (clientData && clientData.remaining > 0) {
+          totalPending += clientData.remaining;
+          pendingClients.push(clientData);
+        }
+      }
+
+      setPendingRecovery(totalPending);
+      setPendingClientsList(pendingClients.sort((a, b) => b.remaining - a.remaining));
+    } catch (error) {
+      console.error('Error calculating pending recovery:', error);
+    }
+  }, []);
 
   // Use refs to prevent duplicate API calls
   const isMounted = useRef(false)
@@ -104,15 +210,20 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = p.client?.name || "Unknown Client";
 
-          // Total amount is based on the client's package price
-          const totalAmount = p.client?.price || 0;
+          // ✅ FIX: Use the CORRECT total amount from API response
+          // This includes package price + product sales + additional charges
+          // NOT just the client's package price
+          const totalAmount = p.totalAmount || p.client?.price || 0;
+
+          // Extract area name instead of the entire area object
+          const areaName = p.client?.area?.name || p.client?.areaName || "-";
 
           return {
             id: p.id,
             clientName,
             clientUsername: p.client?.username || undefined,
             clientId: p.clientId,
-            area: p.client?.area || "-",
+            area: areaName,
             amount: p.amount,
             date: p.paymentDate,
             method: p.method || "Cash",
@@ -125,6 +236,7 @@ export default function PaymentsPage() {
         
         if (isMounted.current) {
           setPayments(mappedPayments);
+          calculatePendingRecovery();
           setLoading(false);
         }
       } else if (response.status === 401) {
@@ -216,14 +328,15 @@ export default function PaymentsPage() {
 
         if (response.ok) {
           setPayments(payments.filter((payment) => payment.id !== id));
+          showNotification('success', 'Payment deleted successfully');
         } else if (response.status === 401) {
           router.push("/login");
         } else {
-          alert("Failed to delete payment");
+          showNotification('error', 'Failed to delete payment. Please try again.');
         }
       } catch (error) {
         console.error("Error deleting payment:", error);
-        router.push("/login"); // Redirect to login on error
+        showNotification('error', 'Failed to delete payment. Please try again.');
       }
     }
   };
@@ -248,14 +361,18 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = updatedPayment.client?.name || "Unknown Client";
 
-          // Total amount is based on the client's package price
-          const totalAmount = updatedPayment.client?.price || 0;
+          // ✅ FIX: Use the CORRECT total amount from API response
+          // This includes package price + product sales + additional charges
+          const totalAmount = updatedPayment.totalAmount || updatedPayment.client?.price || 0;
+
+          // ✅ FIX: Extract area NAME string, not the full area object
+          const areaName = updatedPayment.client?.area?.name || updatedPayment.client?.areaName || "-";
 
           const mappedPayment = {
             id: updatedPayment.id,
             clientName,
             clientId: updatedPayment.clientId,
-            area: updatedPayment.client?.area || "-",
+            area: areaName,
             amount: updatedPayment.amount,
             date: updatedPayment.paymentDate,
             method: updatedPayment.method || "Cash",
@@ -283,10 +400,11 @@ export default function PaymentsPage() {
             ),
           );
           setShowForm(false);
+          showNotification('success', `Payment updated successfully for ${clientName}`);
         } else if (response.status === 401) {
           router.push("/login");
         } else {
-          alert("Failed to update payment");
+          showNotification('error', 'Failed to update payment. Please try again.');
         }
       } else {
         // Add new payment
@@ -305,14 +423,18 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = newPayment.client?.name || "Unknown Client";
 
-          // Total amount is based on the client's package price
-          const totalAmount = newPayment.client?.price || 0;
+          // ✅ FIX: Use the CORRECT total amount from API response
+          // This includes package price + product sales + additional charges
+          const totalAmount = newPayment.totalAmount || newPayment.client?.price || 0;
+
+          // ✅ FIX: Extract area NAME string, not the full area object
+          const areaName = newPayment.client?.area?.name || newPayment.client?.areaName || "-";
 
           const mappedNewPayment = {
             id: newPayment.id,
             clientName,
             clientId: newPayment.clientId,
-            area: newPayment.client?.area || "-",
+            area: areaName,
             amount: newPayment.amount,
             date: newPayment.paymentDate,
             method: newPayment.method || "Cash",
@@ -339,16 +461,17 @@ export default function PaymentsPage() {
           // Add the new payment to the list
           setPayments([...updatedPayments, mappedNewPayment]);
           setShowForm(false);
+          showNotification('success', `Payment of Rs. ${newPayment.amount.toLocaleString('en-PK')} added for ${clientName}`);
         } else if (response.status === 401) {
           router.push("/login");
         } else {
-          alert("Failed to add payment");
+          showNotification('error', 'Failed to add payment. Please try again.');
         }
 
       }
     } catch (error) {
       console.error("Error saving payment:", error);
-      alert("Failed to save payment");
+      showNotification('error', 'Failed to save payment. Please try again.');
     }
   };
 
@@ -359,7 +482,42 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6">
       {/* Notification Toast */}
-      {/* Note: This is a placeholder - you may want to implement a proper notification system */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg border transition-all transform animate-slide-in-right ${
+          notification.type === 'success'
+            ? 'bg-green-50 dark:bg-green-900/90 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200'
+            : notification.type === 'error'
+            ? 'bg-red-50 dark:bg-red-900/90 border-red-200 dark:border-red-700 text-red-800 dark:text-red-200'
+            : 'bg-blue-50 dark:bg-blue-900/90 border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              {notification.type === 'success' ? (
+                <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              ) : notification.type === 'error' ? (
+                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              )}
+            </div>
+            <p className="text-sm font-medium">{notification.message}</p>
+            <button
+              onClick={() => setNotification(null)}
+              className="shrink-0 ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -381,7 +539,7 @@ export default function PaymentsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-3">
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Total Payments</p>
@@ -406,7 +564,7 @@ export default function PaymentsPage() {
           <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">Payment records</p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-3">
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Avg. Payment</p>
             <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
@@ -422,6 +580,29 @@ export default function PaymentsPage() {
               : "0"}
           </div>
           <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">Per payment average</p>
+        </div>
+
+        {/* Pending Recovery Card - Clickable */}
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-200/60 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer hover:border-orange-300 dark:hover:border-orange-700"
+          onClick={() => setShowPendingClients(true)}
+        >
+          <div className="flex justify-between items-start mb-3">
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300">Pending Recovery</p>
+            <div className="p-2 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className={`text-2xl font-bold ${
+            pendingRecovery > 0 
+              ? 'text-orange-600 dark:text-orange-400' 
+              : 'text-green-600 dark:text-green-400'
+          }`}>
+            Rs {pendingRecovery.toLocaleString("en-PK")}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-2">
+            {pendingRecovery > 0 ? `${pendingClientsList.length} client${pendingClientsList.length > 1 ? 's' : ''} pending` : 'All cleared'}
+          </p>
         </div>
       </div>
 
@@ -743,6 +924,140 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+      {/* Pending Clients Modal */}
+      {showPendingClients && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Pending Recovery Details
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Clients with outstanding balances
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPendingClients(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {pendingClientsList.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="inline-block p-4 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">All Clear!</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No pending recoveries</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingClientsList.map((client, index) => (
+                    <div
+                      key={client.id}
+                      className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs font-bold">
+                              {index + 1}
+                            </span>
+                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                              {client.name}
+                            </h3>
+                          </div>
+                          {client.phone && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 ml-8">
+                              📞 {client.phone}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                            Rs {client.remaining.toLocaleString('en-PK')}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Pending
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">Total Amount</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            Rs {client.totalAmount.toLocaleString('en-PK')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">Total Paid</p>
+                          <p className="font-semibold text-green-600 dark:text-green-400">
+                            Rs {client.totalPaid.toLocaleString('en-PK')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => {
+                            setShowPendingClients(false);
+                            router.push(`/dashboard/clients/${client.id}/invoice`);
+                          }}
+                          className="flex-1 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                        >
+                          View Invoice
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowPendingClients(false);
+                            const paymentData: Payment = {
+                              id: '',
+                              clientName: client.name,
+                              clientId: client.id,
+                              amount: client.remaining,
+                              date: new Date().toISOString().split('T')[0],
+                              method: 'Cash',
+                              totalAmount: client.totalAmount,
+                              totalPaid: client.totalPaid,
+                              remainingAmount: client.remaining,
+                            };
+                            setEditingPayment(paymentData);
+                            setShowForm(true);
+                          }}
+                          className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        >
+                          Add Payment
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {pendingClientsList.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    Total Pending ({pendingClientsList.length} clients)
+                  </p>
+                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                    Rs {pendingRecovery.toLocaleString('en-PK')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -764,13 +1079,16 @@ function PaymentFormModal({
   const [formData, setFormData] = useState({
     clientName: payment?.clientName || "",
     clientId: payment?.clientId || "",
+    invoiceId: payment?.invoiceId || "",
     amount: payment?.amount || 0,
     date: payment?.date || new Date().toISOString().split("T")[0],
     method: payment?.method || paymentMethods[0],
   });
 
   const [clients, setClients] = useState<{ id: string; name: string; packageName: string; packagePrice: number }[]>([]);
+  const [invoices, setInvoices] = useState<Array<{ id: string; amount: number; status: string; totalAmount: number; totalPaid: number; remainingAmount: number }>>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
@@ -877,17 +1195,26 @@ function PaymentFormModal({
         ...prev,
         [name]: value,
         clientId: selectedClient ? selectedClient.id : "",
-        // Auto-fill amount based on client's remaining amount
-        amount: selectedClient ? selectedClient.packagePrice : prev.amount,
+        invoiceId: "", // Reset invoice when client changes
+        amount: 0, // Reset amount
       }));
 
-      // Fetch client payment summary when client is selected
+      // Fetch client payment summary and invoices when client is selected
       if (selectedClient) {
         setClientPaymentSummary(prev => ({ ...prev, isLoading: true }));
         setProductSalesLoading(true);
+        setLoadingInvoices(true);
         try {
           // Fetch client data with payment summary
           const response = await fetch(`/api/clients/${selectedClient.id}`, {
+            credentials: 'include',
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          // Fetch invoices for this client
+          const invoicesRes = await fetch(`/api/invoices?clientId=${selectedClient.id}`, {
             credentials: 'include',
             headers: {
               "Content-Type": "application/json",
@@ -911,13 +1238,22 @@ function PaymentFormModal({
               otherIncome: clientData.otherIncome || 0,
               isLoading: false,
             });
-            
+
             // Set product sales data
             if (productSalesRes.ok) {
               const salesData = await productSalesRes.json();
               if (salesData.data && Array.isArray(salesData.data)) {
                 setProductSales(salesData.data);
               }
+            }
+
+            // Set invoices (only unpaid/partial)
+            if (invoicesRes.ok) {
+              const invoicesData = await invoicesRes.json();
+              const unpaidInvoices = invoicesData.filter((inv: any) => 
+                inv.status === 'unpaid' || inv.status === 'partial'
+              );
+              setInvoices(unpaidInvoices);
             }
           } else {
             setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
@@ -927,11 +1263,21 @@ function PaymentFormModal({
           setClientPaymentSummary(prev => ({ ...prev, isLoading: false }));
         } finally {
           setProductSalesLoading(false);
+          setLoadingInvoices(false);
         }
       } else {
         setClientPaymentSummary({ totalAmount: 0, remainingAmount: 0, packageAmount: 0, otherIncome: 0, isLoading: false });
         setProductSales([]);
+        setInvoices([]);
       }
+    } else if (name === "invoiceId") {
+      // When invoice is selected, auto-fill the remaining amount
+      const selectedInvoice = invoices.find(inv => inv.id === value);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        amount: selectedInvoice ? selectedInvoice.remainingAmount : prev.amount,
+      }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -1023,124 +1369,136 @@ function PaymentFormModal({
             </select>
           </div>
 
-          {/* Payment Summary Card */}
+          {/* Invoice Selection - REQUIRED */}
           {formData.clientId && (
-            <div className="bg-linear-to-br from-slate-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 p-5 rounded-xl border border-slate-200/60 dark:border-gray-500">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  Client Payment Summary
-                </h3>
-              </div>
-              {clientPaymentSummary.isLoading ? (
-                <div className="space-y-3 animate-pulse">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-32"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-28"></div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                Invoice <span className="text-red-500">*</span>
+              </label>
+              {loadingInvoices ? (
+                <div className="h-12 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse"></div>
+              ) : invoices.length === 0 ? (
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    ⚠️ No unpaid invoices found for this client. Please create an invoice first.
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Package Amount */}
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-gray-500">
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Package Amount</p>
-                    <p className="text-base font-bold text-gray-900 dark:text-white">
-                      Rs. {clientPaymentSummary.packageAmount.toLocaleString('en-PK')}
-                    </p>
+                <select
+                  name="invoiceId"
+                  value={formData.invoiceId}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
+                >
+                  <option value="">Select an invoice</option>
+                  {invoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      Invoice #{invoice.id.slice(0, 8).toUpperCase()} - Rs. {invoice.remainingAmount.toLocaleString('en-PK')} remaining ({invoice.status})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Compact Payment Summary Card */}
+          {formData.clientId && (
+            <div className="bg-linear-to-br from-slate-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 p-3 rounded-lg border border-slate-200/60 dark:border-gray-500">
+              <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                📊 Client Payment Summary
+              </h3>
+              {clientPaymentSummary.isLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-28"></div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {/* Compact Grid Layout */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {/* Package Amount */}
+                    <div className="bg-white/50 dark:bg-gray-800/30 p-2 rounded">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Package</p>
+                      <p className="font-bold text-gray-900 dark:text-white">
+                        Rs. {(clientPaymentSummary.packageAmount || 0).toLocaleString('en-PK')}
+                      </p>
+                    </div>
+
+                    {/* Total Due */}
+                    <div className="bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded border border-blue-200/40 dark:border-blue-700/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Total Due</p>
+                      <p className="font-bold text-blue-700 dark:text-blue-300">
+                        Rs. {(clientPaymentSummary.totalAmount || 0).toLocaleString('en-PK')}
+                      </p>
+                    </div>
+
+                    {/* Total Paid */}
+                    <div className="bg-green-50/50 dark:bg-green-900/10 p-2 rounded border border-green-200/40 dark:border-green-700/30">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Total Paid</p>
+                      <p className="font-bold text-green-700 dark:text-green-300">
+                        Rs. {(clientPaymentSummary.totalAmount - clientPaymentSummary.remainingAmount).toLocaleString('en-PK')}
+                      </p>
+                    </div>
+
+                    {/* Pending Recovery */}
+                    <div className={`p-2 rounded border ${
+                      clientPaymentSummary.remainingAmount > 0
+                        ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200/40 dark:border-red-700/30'
+                        : 'bg-green-50/50 dark:bg-green-900/10 border-green-200/40 dark:border-green-700/30'
+                    }`}>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Pending Recovery</p>
+                      <p className={`font-bold ${
+                        clientPaymentSummary.remainingAmount > 0
+                          ? 'text-red-700 dark:text-red-300'
+                          : 'text-green-700 dark:text-green-300'
+                      }`}>
+                        Rs. {clientPaymentSummary.remainingAmount.toLocaleString('en-PK')}
+                      </p>
+                    </div>
                   </div>
-                  
-                  {/* Other Income (Product Sales) */}
+
+                  {/* Product Sales (if any) */}
                   {clientPaymentSummary.otherIncome > 0 && (
-                    <div className="pb-2 border-b border-slate-200/60 dark:border-gray-500">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                          Other Income (Product Sales)
-                          <span className="block text-[10px] text-gray-500 dark:text-gray-400 font-normal">Router, cable, accessories, etc.</span>
-                        </p>
-                        <p className="text-base font-bold text-purple-600 dark:text-purple-400">
+                    <div className="mt-2 bg-purple-50/50 dark:bg-purple-900/10 p-2 rounded border border-purple-200/40 dark:border-purple-700/30">
+                      <div className="flex justify-between items-center text-xs">
+                        <p className="text-[10px] text-gray-600 dark:text-gray-300">📦 Product Sales</p>
+                        <p className="font-bold text-purple-700 dark:text-purple-300">
                           Rs. {clientPaymentSummary.otherIncome.toLocaleString('en-PK')}
                         </p>
                       </div>
-                      
-                      {/* Product Sales Breakdown */}
                       {productSalesLoading ? (
-                        <div className="animate-pulse space-y-2 ml-2">
-                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
-                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
-                        </div>
-                      ) : productSales.length > 0 ? (
-                        <div className="ml-2 space-y-1.5 bg-purple-50/50 dark:bg-purple-900/10 p-2 rounded-lg border border-purple-200/60 dark:border-purple-700/50">
-                          <p className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide mb-1.5">
-                            Product Sales Breakdown
-                          </p>
-                          {productSales.map((sale) => (
-                            <div key={sale.id} className="flex justify-between items-start text-xs">
-                              <div className="flex-1 pr-2">
-                                <p className="text-gray-700 dark:text-gray-300 font-medium">
-                                  {sale.productName} × {sale.quantity}
-                                </p>
-                                {sale.notes && (
-                                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {sale.notes}
-                                  </p>
-                                )}
-                              </div>
-                              <p className="text-gray-700 dark:text-gray-300 font-semibold whitespace-nowrap">
-                                Rs. {sale.totalOtherIncome.toLocaleString('en-PK')}
-                              </p>
+                        <div className="animate-pulse mt-1.5 h-3 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+                      ) : productSales.length > 0 && (
+                        <div className="mt-1.5 space-y-1">
+                          {productSales.slice(0, 2).map((sale) => (
+                            <div key={sale.id} className="flex justify-between text-[10px]">
+                              <span className="text-gray-600 dark:text-gray-300">
+                                {sale.productName} × {sale.quantity}
+                              </span>
+                              <span className="font-medium text-gray-700 dark:text-gray-200">
+                                Rs. {(sale.sellingPrice * sale.quantity).toLocaleString('en-PK')}
+                              </span>
                             </div>
                           ))}
+                          {productSales.length > 2 && (
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 italic">
+                              +{productSales.length - 2} more...
+                            </p>
+                          )}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   )}
-                  
-                  {/* Total Amount */}
-                  <div className="flex justify-between items-center pb-3 border-b border-blue-200/60 dark:border-blue-500/50 bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Total Amount</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">
-                      Rs. {clientPaymentSummary.totalAmount.toLocaleString('en-PK')}
-                    </p>
+
+                  {/* Status Badge */}
+                  <div className={`mt-2 p-1.5 rounded text-center text-[10px] font-semibold ${
+                    clientPaymentSummary.remainingAmount > 0
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                      : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                  }`}>
+                    {clientPaymentSummary.remainingAmount > 0 ? '⏳ Balance Due' : '✅ Paid in Full'}
                   </div>
-                  
-                  {/* Total Paid */}
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-200/60 dark:border-gray-500">
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Paid</p>
-                    <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                      Rs. {(clientPaymentSummary.totalAmount - clientPaymentSummary.remainingAmount).toLocaleString('en-PK')}
-                    </p>
-                  </div>
-                  
-                  {/* Remaining Amount */}
-                  <div className="flex justify-between items-center pt-1">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Remaining Amount</p>
-                    <p className={`text-xl font-bold ${
-                      clientPaymentSummary.remainingAmount > 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : clientPaymentSummary.remainingAmount < 0
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-green-600 dark:text-green-400'
-                    }`}>
-                      Rs. {clientPaymentSummary.remainingAmount.toLocaleString('en-PK')}
-                    </p>
-                  </div>
-                  {clientPaymentSummary.remainingAmount > 0 && (
-                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/60 dark:border-amber-800/50">
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        💡 Client still has an outstanding balance
-                      </p>
-                    </div>
-                  )}
-                  {clientPaymentSummary.remainingAmount <= 0 && (
-                    <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200/60 dark:border-green-800/50">
-                      <p className="text-xs text-green-700 dark:text-green-300">
-                        ✅ Client has paid in full
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -1226,6 +1584,31 @@ function PaymentFormModal({
       </div>
     </div>
   );
+}
+
+// Add CSS animation for notifications
+if (typeof document !== 'undefined') {
+  const styleId = 'payment-notification-style';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes slide-in-right {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      .animate-slide-in-right {
+        animation: slide-in-right 0.3s ease-out;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 }
 
 /* ==================== SKELETON LOADING ==================== */

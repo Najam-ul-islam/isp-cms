@@ -61,6 +61,7 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     todayExpenses,
     otherIncome,
     pendingRecovery,
+    totalReceivableFromClients,
 
     // Other service calls
     accountSummary,
@@ -234,6 +235,17 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     // Pending recovery (all unpaid clients)
     getPendingRecovery(admin.companyId),
 
+    // Total receivable from clients (unpaid + partial)
+    prisma.client.aggregate({
+      _sum: { price: true },
+      where: {
+        companyId: admin.companyId,
+        paymentStatus: {
+          in: [PaymentStatus.unpaid, PaymentStatus.partial]
+        }
+      }
+    }),
+
     // Other service calls
     getAccountSummary(admin.companyId),
     getAreaInsights(admin.companyId),
@@ -279,10 +291,10 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     ),
 
     // Phase 3 additions
-    totalReceivable: accountSummary.totalReceivable,
+    totalReceivable: totalReceivableFromClients._sum.price || 0,
     totalPayable: accountSummary.totalPayable,
     netBalance: accountSummary.netBalance,
-    rechargeTarget: accountSummary.totalReceivable || 0,
+    rechargeTarget: totalReceivableFromClients._sum.price || 0,
     areaInsights: areaInsights,
 
     // New inventory and employee stats
@@ -300,10 +312,11 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
   const whereClause: any = {
     client: {
       companyId
-    }
+    },
+    status: 'success' // Only count successful payments
   };
 
-  if (paymentStatus) {
+  if (paymentStatus && paymentStatus !== 'success') {
     whereClause.status = paymentStatus;
   }
 
@@ -333,13 +346,15 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
   });
 };
 
-// Get pending recovery (all unpaid clients)
+// Get pending recovery (all unpaid and partial clients)
 const getPendingRecovery = async (companyId: string) => {
   return await prisma.client.aggregate({
     _sum: { price: true },
     where: {
       companyId,
-      paymentStatus: PaymentStatus.unpaid,
+      paymentStatus: {
+        in: [PaymentStatus.unpaid, PaymentStatus.partial],
+      },
     },
   });
 };

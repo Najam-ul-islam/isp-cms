@@ -62,24 +62,54 @@ export async function GET(request: Request) {
 
     const totalArrears = arrearsClients._sum.price || 0;
 
-    // 4. TODAY'S RECOVERY - Payments received today
-    // Use payment table for accurate daily tracking
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(today);
-    endOfToday.setHours(23, 59, 59, 999);
+    // Calculate today's date range in UTC (used for both recovery and expenses)
+    const now = new Date();
+    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const endOfTodayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
+    console.log('[Financial Summary] Query params:', {
+      companyId,
+      todayUTC: todayUTC.toISOString(),
+      endOfTodayUTC: endOfTodayUTC.toISOString(),
+      now: now.toISOString()
+    });
+
+    // Debug: Get all payments for this company to see what's in the database
+    const allPayments = await prisma.payment.findMany({
+      where: { companyId },
+      orderBy: { paymentDate: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        amount: true,
+        status: true,
+        paymentDate: true,
+        client: { select: { name: true } }
+      }
+    });
+
+    console.log('[Financial Summary] Recent payments:', allPayments.map(p => ({
+      id: p.id,
+      amount: p.amount,
+      status: p.status,
+      paymentDate: p.paymentDate.toISOString(),
+      client: p.client?.name
+    })));
+
+    // 4. TODAY'S RECOVERY - Payments received today
     const todaysRecoveryResult = await prisma.payment.aggregate({
       _sum: { amount: true },
       where: {
         companyId,
         status: 'success', // Only successful payments
         paymentDate: {
-          gte: today,
-          lte: endOfToday,
+          gte: todayUTC,
+          lte: endOfTodayUTC,
         },
       },
     });
+
+    console.log('[Financial Summary] Today\'s recovery:', todaysRecoveryResult._sum.amount);
 
     // 5. TODAY'S EXPENSE - Expenses recorded today
     const todaysExpenseResult = await prisma.expense.aggregate({
@@ -87,8 +117,8 @@ export async function GET(request: Request) {
       where: {
         companyId,
         date: {
-          gte: today,
-          lte: endOfToday,
+          gte: todayUTC,
+          lte: endOfTodayUTC,
         },
       },
     });

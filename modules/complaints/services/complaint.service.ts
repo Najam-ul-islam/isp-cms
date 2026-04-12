@@ -7,7 +7,8 @@ import {
   getComplaintsByClientId as getComplaintsByClientIdRepo,
   updateComplaint as updateComplaintRepo,
   deleteComplaint as deleteComplaintRepo,
-  getComplaintsByStatus as getComplaintsByStatusRepo
+  getComplaintsByStatus as getComplaintsByStatusRepo,
+  assignComplaintToEmployee as assignComplaintRepo
 } from '../repository/complaint.repository';
 import {prisma} from '@/lib/prisma';
 import { AdminWithPackages } from '@/lib/jwt';
@@ -26,8 +27,8 @@ export const getComplaint = async (id: string) => {
   return await getComplaintByIdRepo(id);
 };
 
-export const getAllComplaints = async () => {
-  return await getAllComplaintsRepo();
+export const getAllComplaints = async (companyId?: string) => {
+  return await getAllComplaintsRepo(companyId);
 };
 
 export const getComplaintsByClient = async (clientId: string) => {
@@ -42,8 +43,44 @@ export const deleteComplaint = async (id: string) => {
   return await deleteComplaintRepo(id);
 };
 
-export const getComplaintsByStatus = async (status: ComplaintStatus) => {
-  return await getComplaintsByStatusRepo(status);
+export const getComplaintsByStatus = async (status: ComplaintStatus, companyId?: string) => {
+  return await getComplaintsByStatusRepo(status, companyId);
+};
+
+export const assignComplaintToEmployee = async (
+  complaintId: string,
+  employeeId: string | null,
+  companyId: string
+) => {
+  // Validate complaint exists and belongs to company
+  const complaint = await prisma.complaint.findUnique({
+    where: { id: complaintId }
+  });
+
+  if (!complaint) {
+    throw new Error('Complaint not found');
+  }
+
+  if (complaint.companyId !== companyId) {
+    throw new Error('Complaint does not belong to your company');
+  }
+
+  // If assigning to employee, validate employee exists and belongs to company
+  if (employeeId) {
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId }
+    });
+
+    if (!employee) {
+      throw new Error('Employee not found');
+    }
+
+    if (employee.companyId !== companyId) {
+      throw new Error('Employee does not belong to your company');
+    }
+  }
+
+  return await assignComplaintRepo(complaintId, employeeId);
 };
 
 export const getRecentComplaints = async (admin: AdminWithPackages, limit: number = 5) => {
@@ -60,6 +97,13 @@ export const getRecentComplaints = async (admin: AdminWithPackages, limit: numbe
           id: true,
           name: true,
           phone: true,
+        }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true
         }
       }
     },

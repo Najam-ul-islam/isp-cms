@@ -154,6 +154,20 @@ export const getOtherIncomeByClient = async (
 };
 
 /**
+ * Get a single product sale by ID
+ */
+export const getProductSaleById = async (id: string, companyId: string) => {
+  return prisma.productSale.findFirst({
+    where: { id, companyId },
+    include: {
+      client: {
+        select: { id: true, name: true, username: true },
+      },
+    },
+  });
+};
+
+/**
  * List product sales with pagination
  */
 export const listProductSales = async (

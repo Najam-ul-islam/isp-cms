@@ -1,4 +1,4 @@
-// proxy.ts - Next.js 16+ Proxy Layer (replaces deprecated middleware.ts)
+// proxy.ts - Next.js 16+ Authentication Middleware
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
@@ -89,5 +89,13 @@ export async function proxy(request: NextRequest) {
 
 // ✅ Only run middleware on these paths
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/saas/:path*", "/api/:path*"],
+  matcher: [
+    '/dashboard/:path*',
+    '/admin/:path*', 
+    '/saas/:path*',
+    '/api/:path*',
+    '/', // Root path
+    '/login',
+    '/signup',
+  ],
 };

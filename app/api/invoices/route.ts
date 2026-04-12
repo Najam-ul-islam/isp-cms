@@ -156,6 +156,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Client not found or does not belong to company' }, { status: 404 });
     }
 
+    // ✅ PREVENT DUPLICATE INVOICES: Check for existing unpaid invoice
+    const existingUnpaidInvoice = await prisma.invoice.findFirst({
+      where: {
+        clientId,
+        companyId: admin.companyId,
+        status: 'unpaid'
+      },
+      orderBy: {
+        issuedDate: 'desc'
+      }
+    });
+
+    if (existingUnpaidInvoice) {
+      return NextResponse.json({ 
+        error: 'Client already has an unpaid invoice',
+        existingInvoice: existingUnpaidInvoice
+      }, { status: 409 });
+    }
+
     // Create invoice with additional charges
     const invoice = await prisma.invoice.create({
       data: {

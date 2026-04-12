@@ -28,19 +28,38 @@ export const getComplaintById = async (id: string) => {
           phone: true,
           email: true
         }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true
+        }
       }
     }
   });
 };
 
-export const getAllComplaints = async () => {
+export const getAllComplaints = async (companyId?: string) => {
+  const whereClause = companyId ? { companyId } : {};
+  
   return await prisma.complaint.findMany({
+    where: whereClause,
     include: {
       client: {
         select: {
           id: true,
           name: true,
           username: true,
+          phone: true
+        }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
           phone: true
         }
       }
@@ -54,6 +73,15 @@ export const getAllComplaints = async () => {
 export const getComplaintsByClientId = async (clientId: string) => {
   return await prisma.complaint.findMany({
     where: { clientId },
+    include: {
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    },
     orderBy: {
       createdAt: 'desc'
     }
@@ -79,7 +107,14 @@ export const updateComplaint = async (id: string, complaintData: UpdateComplaint
     where: { id },
     data: updateData,
     include: {
-      client: true
+      client: true,
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
     }
   });
 };
@@ -90,15 +125,56 @@ export const deleteComplaint = async (id: string) => {
   });
 };
 
-export const getComplaintsByStatus = async (status: ComplaintStatus) => {
+export const getComplaintsByStatus = async (status: ComplaintStatus, companyId?: string) => {
+  const whereClause: any = { status };
+  if (companyId) {
+    whereClause.companyId = companyId;
+  }
+  
   return await prisma.complaint.findMany({
-    where: { status },
+    where: whereClause,
     include: {
       client: {
         select: {
           id: true,
           name: true,
           username: true
+        }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+};
+
+export const assignComplaintToEmployee = async (
+  complaintId: string,
+  employeeId: string | null, // null to unassign
+) => {
+  return await prisma.complaint.update({
+    where: { id: complaintId },
+    data: {
+      assignedToId: employeeId
+    },
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          phone: true
+        }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true
         }
       }
     }

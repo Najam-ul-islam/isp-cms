@@ -38,15 +38,51 @@ export interface InvoiceWithPayments {
 
 /**
  * Creates a new invoice for a client
+ * ✅ Prevents duplicate unpaid invoices for the same client
  */
-export async function createInvoiceForClient(clientId: string, amount: number, dueDate: Date, companyId: string, description?: string): Promise<InvoiceWithPayments> {
+export async function createInvoiceForClient(
+  clientId: string, 
+  amount: number, 
+  dueDate: Date, 
+  companyId: string, 
+  description?: string,
+  options?: { allowDuplicate?: boolean }
+): Promise<InvoiceWithPayments> {
+  
+  // ✅ PREVENT DUPLICATES: Check for existing unpaid invoice (unless explicitly allowed)
+  if (!options?.allowDuplicate) {
+    const existingUnpaidInvoice = await prisma.invoice.findFirst({
+      where: {
+        clientId,
+        companyId,
+        status: 'unpaid'
+      },
+      orderBy: {
+        issuedDate: 'desc'
+      }
+    });
+
+    if (existingUnpaidInvoice) {
+      throw new Error(
+        `Client already has an unpaid invoice (ID: ${existingUnpaidInvoice.id}). ` +
+        `Use options.allowDuplicate = true to create another invoice.`
+      );
+    }
+  }
+
+  // ✅ Auto-set billing month/year from due date
+  const billingMonth = dueDate.getMonth() + 1; // getMonth() is 0-indexed
+  const billingYear = dueDate.getFullYear();
+
   // Create the invoice
   const invoice = await InvoiceRepository.create({
     clientId,
     amount,
     dueDate,
     description,
-    companyId
+    companyId,
+    billingMonth,
+    billingYear,
   });
 
   // Return the invoice with payment details (initially no payments)
@@ -154,8 +190,13 @@ export async function updateInvoiceStatus(invoiceId: string, companyId: string):
 
 /**
  * Generates an invoice based on client's package price
+ * ✅ Prevents duplicate unpaid invoices
  */
-export async function generateInvoiceFromClient(clientId: string, companyId: string, description?: string): Promise<InvoiceWithPayments> {
+export async function generateInvoiceFromClient(
+  clientId: string, 
+  companyId: string, 
+  description?: string
+): Promise<InvoiceWithPayments> {
   // Get client details to determine the invoice amount
   const client = await prisma.client.findUnique({
     where: { id: clientId }
@@ -165,12 +206,32 @@ export async function generateInvoiceFromClient(clientId: string, companyId: str
     throw new Error(`Client with id ${clientId} not found`);
   }
 
+  // ✅ Check for existing unpaid invoice first
+  const existingUnpaidInvoice = await prisma.invoice.findFirst({
+    where: {
+      clientId,
+      companyId,
+      status: 'unpaid'
+    },
+    orderBy: {
+      issuedDate: 'desc'
+    }
+  });
+
+  if (existingUnpaidInvoice) {
+    throw new Error(
+      `Client already has an unpaid invoice for ${existingUnpaidInvoice.amount}. ` +
+      `No new invoice will be created.`
+    );
+  }
+
   // Create invoice based on client's price
   return await createInvoiceForClient(
     clientId,
     client.price,
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Due in 30 days
     companyId,
-    description || `Invoice for ${client.name}'s internet package`
+    description || `Invoice for ${client.name}'s internet package`,
+    { allowDuplicate: false } // Explicitly prevent duplicates
   );
 }

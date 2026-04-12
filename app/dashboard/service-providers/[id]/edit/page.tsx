@@ -32,17 +32,11 @@ export default function EditServiceProviderPage() {
 
   // Load service provider data
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     const fetchServiceProvider = async () => {
       try {
         const res = await fetch(`/api/service-providers/${id}`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -86,16 +80,13 @@ export default function EditServiceProviderPage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
       const res = await fetch(`/api/service-providers/${id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           name,
           contactInfo,

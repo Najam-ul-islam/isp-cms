@@ -108,6 +108,22 @@ export function useCurrentUser(): UseCurrentUserResult {
       }
 
       if (!res.ok) {
+        // Log 404s at warn level since they may occur during dev/hot-reload
+        const logLevel = res.status === 404 ? 'warn' : 'error';
+        console[logLevel](`[useCurrentUser] HTTP ${res.status} from /api/auth/check`);
+        
+        // Don't throw on 404 - treat as unauthorized
+        if (res.status === 404 || res.status === 401 || res.status === 403) {
+          if (!userRef.current) {
+            setUser(null);
+          }
+          setError(null);
+          if (!userRef.current) {
+            setIsLoading(false);
+          }
+          return;
+        }
+        
         throw new Error(`HTTP ${res.status}: Failed to fetch user`);
       }
 

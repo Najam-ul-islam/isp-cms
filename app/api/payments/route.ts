@@ -82,11 +82,11 @@ export async function GET(request: Request) {
       },
     });
 
-    // Enhance payments with invoice and payment summary data
+    // Enhance payments with invoice summary data
     const paymentsWithSummary = await Promise.all(
       payments.map(async (payment) => {
-        // Skip client summary if clientId is null
-        if (!payment.clientId) {
+        // 🧾 FIX: All payments MUST have an invoiceId
+        if (!payment.invoiceId) {
           return {
             ...payment,
             totalAmount: 0,
@@ -97,52 +97,32 @@ export async function GET(request: Request) {
           };
         }
 
-        // If the payment has an associated invoice, get its summary
-        if (payment.invoiceId) {
-          try {
-            const invoiceSummary = await getInvoicePaymentSummary(
-              payment.invoiceId,
-            );
-            return {
-              ...payment,
-              totalAmount: invoiceSummary.total,
-              totalPaid: invoiceSummary.totalPaid,
-              remainingAmount: invoiceSummary.remainingAmount,
-              overpaidAmount: invoiceSummary.overpaidAmount,
-              effectivePaymentStatus: invoiceSummary.effectivePaymentStatus,
-              invoice: {
-                id: payment.invoiceId,
-                ...invoiceSummary,
-              },
-            };
-          } catch (error) {
-            console.error(
-              `Error getting invoice summary for invoice ${payment.invoiceId}:`,
-              error,
-            );
-            // If invoice summary fails, fall back to client summary
-            const clientSummary = await getClientPaymentSummary(
-              payment.clientId,
-            );
-            return {
-              ...payment,
-              totalAmount: clientSummary.total,
-              totalPaid: clientSummary.totalPaid,
-              remainingAmount: clientSummary.remainingAmount,
-              overpaidAmount: clientSummary.overpaidAmount,
-              effectivePaymentStatus: clientSummary.effectivePaymentStatus,
-            };
-          }
-        } else {
-          // If no invoice is associated, use client summary
-          const clientSummary = await getClientPaymentSummary(payment.clientId);
+        // ✅ Use ONLY invoice summary for payment data
+        try {
+          const invoiceSummary = await getInvoicePaymentSummary(
+            payment.invoiceId,
+          );
           return {
             ...payment,
-            totalAmount: clientSummary.total,
-            totalPaid: clientSummary.totalPaid,
-            remainingAmount: clientSummary.remainingAmount,
-            overpaidAmount: clientSummary.overpaidAmount,
-            effectivePaymentStatus: clientSummary.effectivePaymentStatus,
+            totalAmount: invoiceSummary.total,
+            totalPaid: invoiceSummary.totalPaid,
+            remainingAmount: invoiceSummary.remainingAmount,
+            overpaidAmount: invoiceSummary.overpaidAmount,
+            effectivePaymentStatus: invoiceSummary.effectivePaymentStatus,
+          };
+        } catch (error) {
+          console.error(
+            `Error getting invoice summary for invoice ${payment.invoiceId}:`,
+            error,
+          );
+          // Return zeroed summary on error
+          return {
+            ...payment,
+            totalAmount: 0,
+            totalPaid: 0,
+            remainingAmount: 0,
+            overpaidAmount: 0,
+            effectivePaymentStatus: "unpaid" as const,
           };
         }
       }),
@@ -178,7 +158,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clientId, amount, method, notes, invoiceId } = body; // Added invoiceId
+    const { clientId, amount, method, notes, invoiceId } = body;
+
+    // 🔒 ENFORCE INVOICE-ONLY PAYMENTS
+    if (!invoiceId) {
+      return NextResponse.json(
+        { error: "Invoice ID is required for all payments. Payments must be linked to an invoice." },
+        { status: 400 },
+      );
+    }
 
     if (!clientId || !amount) {
       return NextResponse.json(
@@ -194,100 +182,55 @@ export async function POST(request: Request) {
       );
     }
 
+    // 🛑 PREVENT OVERPAYMENT: Check invoice remaining before creating payment
+    const invoiceSummary = await getInvoicePaymentSummary(invoiceId);
+    if (parseFloat(amount) > invoiceSummary.remainingAmount) {
+      return NextResponse.json(
+        { 
+          error: `Payment amount exceeds remaining invoice amount. Remaining: Rs. ${invoiceSummary.remainingAmount.toLocaleString('en-PK')}`,
+          remainingAmount: invoiceSummary.remainingAmount
+        },
+        { status: 400 },
+      );
+    }
+
+    // Verify invoice belongs to client
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId, clientId },
+    });
+
+    if (!invoice) {
+      return NextResponse.json(
+        { error: "Invoice not found or does not belong to client" },
+        { status: 404 },
+      );
+    }
+
     // Start a transaction for critical operations only
     const { payment, targetInvoiceId, totalPaid, invoiceAmount } =
       await prisma.$transaction(
         async (tx) => {
-          // First, get the client to check their details
-          const client = await tx.client.findUnique({
-            where: { id: clientId },
-          });
-
-          if (!client) {
-            throw new Error("Client not found");
-          }
-
-          let targetInvoiceId: string | null = null;
-          let invoiceAmount = 0;
+          // Get additional charges for this invoice
           let invoiceAdditionalCharges = 0;
-
-          // If invoiceId is provided, use that invoice
-          if (invoiceId) {
-            const invoice = await tx.invoice.findUnique({
-              where: { id: invoiceId, clientId },
-            });
-
-            if (!invoice) {
-              throw new Error("Invoice not found or does not belong to client");
-            }
-
-            targetInvoiceId = invoice.id;
-            // Get additional charges (part of total bill)
-            if (invoice.additionalCharges) {
-              try {
-                const charges =
-                  typeof invoice.additionalCharges === "string"
-                    ? JSON.parse(invoice.additionalCharges)
-                    : invoice.additionalCharges;
-                if (Array.isArray(charges)) {
-                  invoiceAdditionalCharges = charges.reduce(
-                    (sum: number, charge: any) => sum + (charge.amount || 0),
-                    0,
-                  );
-                }
-              } catch (error) {
-                console.error("Error parsing additional charges:", error);
+          if (invoice.additionalCharges) {
+            try {
+              const charges =
+                typeof invoice.additionalCharges === "string"
+                  ? JSON.parse(invoice.additionalCharges)
+                  : invoice.additionalCharges;
+              if (Array.isArray(charges)) {
+                invoiceAdditionalCharges = charges.reduce(
+                  (sum: number, charge: any) => sum + (charge.amount || 0),
+                  0,
+                );
               }
-            }
-            invoiceAmount = invoice.amount + invoiceAdditionalCharges;
-          } else {
-            // If no invoiceId is provided, find the latest unpaid or partially paid invoice
-            const latestUnpaidInvoice = await tx.invoice.findFirst({
-              where: {
-                clientId,
-                status: { in: ["unpaid", "partial"] },
-              },
-              orderBy: {
-                issuedDate: "desc",
-              },
-            });
-
-            if (latestUnpaidInvoice) {
-              targetInvoiceId = latestUnpaidInvoice.id;
-              // Get additional charges (treated as credits)
-              if (latestUnpaidInvoice.additionalCharges) {
-                try {
-                  const charges =
-                    typeof latestUnpaidInvoice.additionalCharges === "string"
-                      ? JSON.parse(latestUnpaidInvoice.additionalCharges)
-                      : latestUnpaidInvoice.additionalCharges;
-                  if (Array.isArray(charges)) {
-                    invoiceAdditionalCharges = charges.reduce(
-                      (sum: number, charge: any) => sum + (charge.amount || 0),
-                      0,
-                    );
-                  }
-                } catch (error) {
-                  console.error("Error parsing additional charges:", error);
-                }
-              }
-              invoiceAmount =
-                latestUnpaidInvoice.amount + invoiceAdditionalCharges;
-            } else {
-              // If no unpaid/partial invoices exist, create a new one based on client price
-              const newInvoice = await tx.invoice.create({
-                data: {
-                  clientId,
-                  amount: client.price, // Use client price as invoice amount
-                  dueDate: new Date(), // Set due date to current date initially
-                  description: `Automatic invoice for client package`,
-                  companyId: admin.companyId,
-                },
-              });
-              targetInvoiceId = newInvoice.id;
-              invoiceAmount = newInvoice.amount;
+            } catch (error) {
+              console.error("Error parsing additional charges:", error);
             }
           }
+
+          const targetInvoiceId = invoice.id;
+          const invoiceAmount = invoice.amount + invoiceAdditionalCharges;
 
           // Create the payment
           const newPayment = await tx.payment.create({
@@ -297,6 +240,7 @@ export async function POST(request: Request) {
               amount: parseFloat(amount),
               method: method || "CASH",
               notes: notes || "",
+              status: "success", // Set status to success for manual payments
               companyId: admin.companyId,
             },
             include: {
@@ -365,14 +309,27 @@ export async function POST(request: Request) {
 
     // Post-transaction operations (outside transaction to avoid timeout)
     try {
+      // 🛍️ FIX PRODUCT SALES SETTLEMENT: Use client summary to determine if all dues are paid
+      const clientSummary = await getClientPaymentSummary(clientId);
+
       // Update client's payment status
-      const updatedSummary = await getClientPaymentSummary(clientId);
       await prisma.client.update({
         where: { id: clientId },
         data: {
-          paymentStatus: updatedSummary.effectivePaymentStatus,
+          paymentStatus: clientSummary.effectivePaymentStatus,
         },
       });
+
+      // ✅ Mark product sales as "paid" when client has no remaining balance
+      if (clientSummary.remainingAmount <= 0) {
+        await prisma.productSale.updateMany({
+          where: {
+            clientId,
+            status: 'unpaid'
+          },
+          data: { status: 'paid' }
+        });
+      }
 
       // If the invoice is now fully paid, extend expiry date
       if (targetInvoiceId && totalPaid >= invoiceAmount) {

@@ -295,136 +295,174 @@ export default function DashboardPage() {
   }, [loadDashboardData]);
 
   // ─────────────────────────────────────────────────────────
-  // Real-time Updates via Server-Sent Events
+  // Real-time Updates via Server-Sent Events (SSE)
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout;
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 10;
+    let connectionStartTime = Date.now();
 
     const connectSSE = () => {
       try {
+        connectionStartTime = Date.now();
+        console.log('[Dashboard] 🔄 Attempting SSE connection to /api/dashboard/stream...');
+        console.log('[Dashboard] Cookies present:', document.cookie.length > 0 ? 'YES' : 'NO');
+        console.log('[Dashboard] Cookie names:', document.cookie.split(';').map(c => c.trim().split('=')[0]).join(', '));
+        console.log('[Dashboard] Creating EventSource...');
+        
         eventSource = new EventSource('/api/dashboard/stream');
+        console.log('[Dashboard] EventSource created, readyState:', eventSource.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSED)');
 
         eventSource.onopen = () => {
-          console.log('[Dashboard] Connected to real-time updates');
-          reconnectAttempts = 0; // Reset on successful connection
+          const connectTime = Date.now() - connectionStartTime;
+          console.log('[Dashboard] ✅ SSE connection OPENED in', connectTime + 'ms');
+          console.log('[Dashboard] readyState:', eventSource?.readyState);
+          reconnectAttempts = 0;
         };
 
         eventSource.addEventListener('connected', (event) => {
-          const data = JSON.parse(event.data);
-          console.log('[Dashboard] SSE connected:', data.message);
+          try {
+            const data = JSON.parse(event.data);
+            console.log('[Dashboard] ✅ Server confirmed connection');
+            console.log('[Dashboard] Message:', data.message);
+            console.log('[Dashboard] Client ID:', data.clientId);
+            console.log('[Dashboard] Timestamp:', data.timestamp);
+          } catch (error) {
+            console.error('[Dashboard] Error parsing connected event:', error);
+          }
         });
 
         eventSource.onmessage = (event) => {
           try {
+            console.log('[Dashboard] 📨 Raw SSE message received');
+            console.log('[Dashboard] Message length:', event.data.length);
+            console.log('[Dashboard] Message preview:', event.data.substring(0, 150));
+            
             const dashboardEvent = JSON.parse(event.data);
-            console.log('[Dashboard] Received event:', dashboardEvent.type);
+            console.log('[Dashboard] ✅ Parsed event successfully');
+            console.log('[Dashboard] 📨 Event TYPE:', dashboardEvent.type.toUpperCase());
+            console.log('[Dashboard] 📨 Event DATA:', JSON.stringify(dashboardEvent.data, null, 2));
+            console.log('[Dashboard] 📨 Event TIMESTAMP:', dashboardEvent.timestamp);
 
-            // Handle different event types
             switch (dashboardEvent.type) {
               case 'payment_created':
-                console.log('[Dashboard] New payment received:', dashboardEvent.data);
-                if (document.visibilityState === 'visible') {
-                  loadDashboardData();
-                }
+                console.log('[Dashboard] 💰 PAYMENT_CREATED event detected!');
+                console.log('[Dashboard] Payment amount:', dashboardEvent.data?.amount);
+                console.log('[Dashboard] Client name:', dashboardEvent.data?.clientName);
+                console.log('[Dashboard] Calling loadDashboardData() immediately...');
+                loadDashboardData();
+                console.log('[Dashboard] loadDashboardData() call completed');
                 break;
 
               case 'expense_created':
-                console.log('[Dashboard] New expense created:', dashboardEvent.data);
-                if (document.visibilityState === 'visible') {
-                  loadDashboardData();
-                }
+                console.log('[Dashboard] 💸 EXPENSE_CREATED event detected - refreshing dashboard');
+                loadDashboardData();
                 break;
 
               case 'client_created':
-                console.log('[Dashboard] New client created:', dashboardEvent.data);
-                if (document.visibilityState === 'visible') {
-                  loadDashboardData();
-                }
+                console.log('[Dashboard] 👤 CLIENT_CREATED event detected - refreshing dashboard');
+                loadDashboardData();
                 break;
 
               case 'client_updated':
               case 'client_expired':
               case 'complaint_created':
               case 'complaint_updated':
-                if (document.visibilityState === 'visible') {
-                  loadDashboardData();
-                }
+                console.log('[Dashboard] 🔄 Client/complaint change detected - refreshing dashboard');
+                loadDashboardData();
                 break;
+
+              default:
+                console.log('[Dashboard] ⚠️ Unknown SSE event type:', dashboardEvent.type);
             }
           } catch (error) {
-            console.error('[Dashboard] Error parsing SSE event:', error);
+            console.error('[Dashboard] ❌ CRITICAL ERROR parsing SSE event:', error);
+            console.error('[Dashboard] Raw event data (full):', event.data);
           }
         };
 
         eventSource.onerror = (error) => {
-          // EventSource readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
           const readyState = eventSource?.readyState;
-          
+          const connectionDuration = Date.now() - connectionStartTime;
+
+          console.log('[Dashboard] ⚠️ SSE onerror handler triggered');
+          console.log('[Dashboard] Error object:', error);
+          console.log('[Dashboard] readyState:', readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSED)');
+          console.log('[Dashboard] Connection lasted:', connectionDuration + 'ms');
+          console.log('[Dashboard] Reconnect attempts:', reconnectAttempts);
+
           if (readyState === 2) {
-            // Connection was closed
-            console.warn('[Dashboard] SSE connection closed');
+            console.warn('[Dashboard] ❌ SSE connection was CLOSED by server');
             return;
           }
 
-          // Only log error if it's not a normal reconnect
           if (readyState === 0) {
-            console.debug('[Dashboard] SSE connecting...');
+            console.debug('[Dashboard] 🔄 SSE still in CONNECTING state, ignoring error');
             return;
           }
 
-          // readyState === 1 means connection was open and now errored
           reconnectAttempts++;
-          
+
           if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-            console.error('[Dashboard] Max SSE reconnection attempts reached. Please refresh the page.');
+            console.error('[Dashboard] ❌❌❌ MAX SSE RECONNECTION ATTEMPTS REACHED (', MAX_RECONNECT_ATTEMPTS, ') ❌❌❌');
+            console.error('[Dashboard] Please refresh the page manually');
             eventSource?.close();
             return;
           }
 
-          console.warn(`[Dashboard] SSE connection error (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}):`, error);
+          const delay = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
+          console.warn(`[Dashboard] ⚠️ Will attempt reconnect in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
           eventSource?.close();
 
-          // Exponential backoff: 2s, 4s, 8s, max 30s
-          const delay = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
-          
           reconnectTimeout = setTimeout(() => {
             if (isMounted.current && document.visibilityState === 'visible') {
-              console.log(`[Dashboard] Reconnecting to SSE (attempt ${reconnectAttempts})...`);
+              console.log(`[Dashboard] 🔄 Executing SSE reconnect (attempt ${reconnectAttempts})...`);
               connectSSE();
             }
           }, delay);
         };
+
+        console.log('[Dashboard] ✅ SSE EventSource setup complete - awaiting connection');
       } catch (error) {
-        console.error('[Dashboard] Failed to create SSE connection:', error);
+        console.error('[Dashboard] ❌❌❌ FAILED to create SSE EventSource:', error);
+        console.error('[Dashboard] Error type:', error instanceof Error ? error.name : typeof error);
+        console.error('[Dashboard] Error message:', error instanceof Error ? error.message : String(error));
       }
     };
 
+    console.log('[Dashboard] 🚀🚀🚀 INITIALIZING SSE CONNECTION 🚀🚀🚀');
     connectSSE();
 
-    // Handle page visibility changes - reconnect when page becomes visible
     const handleVisibilityChange = () => {
+      console.log('[Dashboard] 👁️ Visibility changed:', document.visibilityState);
       if (document.visibilityState === 'visible') {
+        console.log('[Dashboard] Page is visible - checking SSE connection...');
+        console.log('[Dashboard] EventSource exists:', !!eventSource);
+        console.log('[Dashboard] EventSource readyState:', eventSource?.readyState);
         if (!eventSource || eventSource.readyState === 2) {
-          console.log('[Dashboard] Page visible, reconnecting SSE...');
+          console.log('[Dashboard] SSE connection closed - reconnecting...');
           connectSSE();
+        } else {
+          console.log('[Dashboard] SSE connection is active - no action needed');
         }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup on unmount
     return () => {
+      console.log('[Dashboard] 🧹 Cleaning up SSE connection (component unmount or dependency change)');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
+        console.log('[Dashboard] Cleared pending reconnect timeout');
+      }
+      if (eventSource) {
+        console.log('[Dashboard] 🛑 Closing EventSource, readyState:', eventSource.readyState);
+        eventSource.close();
+        eventSource = null;
       }
     };
   }, [loadDashboardData]);
@@ -701,7 +739,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => router.push("/dashboard/payments")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Today's Recovery: Rs ${(stats.financialTodaysRecovery ?? stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}`}
+                aria-label={`Today's Recovery: Rs ${(stats.financialTodaysRecovery ?? 0).toLocaleString()}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today&apos;s Recovery</p>
@@ -710,13 +748,13 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
-                  Rs {(stats.financialTodaysRecovery ?? stats.todayRecovery ?? stats.paidToday ?? 0).toLocaleString()}
+                  Rs {(stats.financialTodaysRecovery ?? 0).toLocaleString()}
                 </p>
               </button>
               <button
                 onClick={() => router.push("/dashboard/expenses")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-rose-200/60 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50/80 dark:hover:bg-rose-500/5 hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Today's Expense: Rs ${(stats.financialTodaysExpense ?? stats.todayExpenses ?? 0).toLocaleString()}`}
+                aria-label={`Today's Expense: Rs ${(stats.financialTodaysExpense ?? 0).toLocaleString()}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today&apos;s Expense</p>
@@ -725,7 +763,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-semibold bg-linear-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
-                  Rs {(stats.financialTodaysExpense ?? stats.todayExpenses ?? 0).toLocaleString()}
+                  Rs {(stats.financialTodaysExpense ?? 0).toLocaleString()}
                 </p>
               </button>
               <OtherIncomeCard />
@@ -783,22 +821,22 @@ export default function DashboardPage() {
               message={
                 stats.expireToday
                   ? "Immediate action required"
-                  : "All clear! 🎉"
+                  : ""
               }
               onClick={() => router.push("/dashboard/clients?expiring=today")}
             />
             <AlertCard
-              title="Next 3 Days"
+              title="Expires in Next 3 Days"
               value={stats.expireNext3Days ?? 0}
               urgency="high"
-              message="Plan renewals ahead"
+              message=""
               onClick={() => router.push("/dashboard/clients?expiring=3days")}
             />
             <AlertCard
-              title="Next 7 Days"
+              title="Expires in Next 7 Days"
               value={stats.expireNext7Days ?? 0}
               urgency="medium"
-              message="Prepare follow-ups"
+              message=""
               onClick={() => router.push("/dashboard/clients?expiring=7days")}
             />
           </div>
@@ -830,7 +868,7 @@ export default function DashboardPage() {
               value={stats.totalInventoryValue ?? 0}
               icon={<DollarSign className="w-6 h-6" />}
               color="emerald"
-              subtitle="Rs"
+              subtitle=""
               onClick={() => router.push("/dashboard/inventory")}
             />
           </div>
@@ -1118,7 +1156,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-rose-50/50 to-transparent dark:from-rose-900/10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-linear-to-r from-rose-50/50 to-transparent dark:from-rose-900/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl">
                   <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
@@ -1206,7 +1244,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-linear-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
                   <DollarSign className="w-5 h-5 text-amber-600 dark:text-amber-400" />

@@ -13,12 +13,40 @@ export default function AddInventoryItem() {
     name: "",
     category: "",
     quantity: "0",
+    unit: "piece",
     unitPrice: "0",
   });
+
+  // Auto-detect unit based on product name
+  const detectUnit = (productName: string): string => {
+    const name = productName.toLowerCase();
+    if (name.includes("cable") || name.includes("wire") || name.includes("cord")) {
+      return "meter";
+    }
+    if (name.includes("roll")) {
+      return "roll";
+    }
+    if (name.includes("kg") || name.includes("kilogram")) {
+      return "kg";
+    }
+    if (name.includes("box")) {
+      return "box";
+    }
+    if (name.includes("pack")) {
+      return "pack";
+    }
+    return "piece";
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Auto-detect unit when name changes
+    if (name === "name") {
+      const detectedUnit = detectUnit(value);
+      setFormData((prev) => ({ ...prev, unit: detectedUnit }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +63,7 @@ export default function AddInventoryItem() {
           name: formData.name,
           category: formData.category,
           quantity: parseFloat(formData.quantity),
+          unit: formData.unit,
           unitPrice: parseFloat(formData.unitPrice),
         }),
       });
@@ -117,7 +146,7 @@ export default function AddInventoryItem() {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Quantity
@@ -128,15 +157,39 @@ export default function AddInventoryItem() {
                 value={formData.quantity}
                 onChange={handleChange}
                 className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
-                min="0"
-                step="1"
+                min="0.01"
+                step="0.01"
                 required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                Unit Price (PKR)
+                Unit
+              </label>
+              <select
+                name="unit"
+                value={formData.unit}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white appearance-none cursor-pointer"
+              >
+                <option value="piece">Piece</option>
+                <option value="meter">Meter</option>
+                <option value="feet">Feet</option>
+                <option value="roll">Roll</option>
+                <option value="kg">Kilogram (kg)</option>
+                <option value="box">Box</option>
+                <option value="pack">Pack</option>
+                <option value="set">Set</option>
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Auto-detected from product name
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                Unit Price (PKR per {formData.unit})
               </label>
               <input
                 type="number"
@@ -144,7 +197,7 @@ export default function AddInventoryItem() {
                 value={formData.unitPrice}
                 onChange={handleChange}
                 className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
-                min="0"
+                min="0.01"
                 step="0.01"
                 required
               />

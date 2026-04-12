@@ -159,20 +159,22 @@ model Client {
 }
 
 model Invoice {
-  id          String      @id @default(cuid())
-  clientId    String
-  amount      Float
-  issuedDate  DateTime    @default(now())
-  dueDate     DateTime
-  status      InvoiceStatus @default(unpaid)
-  description String?
-  additionalCharges Json? // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  companyId   String
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments    Payment[]
+  id            String      @id @default(cuid())
+  clientId      String
+  amount        Float
+  issuedDate    DateTime    @default(now())
+  dueDate       DateTime
+  status        InvoiceStatus @default(unpaid)
+  description   String?
+  billingMonth  Int?        // 1-12: Month this invoice covers
+  billingYear   Int?        // YYYY: Year this invoice covers
+  additionalCharges Json?   // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  companyId     String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments      Payment[]
 
   @@map("invoices")
   @@index([clientId])
@@ -181,12 +183,14 @@ model Invoice {
   @@index([dueDate])
   @@index([clientId, issuedDate])
   @@index([companyId, issuedDate])
+  @@index([clientId, billingMonth, billingYear])
+  @@index([companyId, billingMonth, billingYear])
 }
 
 model Payment {
   id            String   @id @default(cuid())
-  clientId      String?  // Optional - not all payments need a client
-  invoiceId     String?  // Optional link to invoice
+  clientId      String   // Required - all payments must be linked to a client
+  invoiceId     String   // Required - all payments must be linked to an invoice
   amount        Float
   paymentDate   DateTime @default(now())
   method        String?  // Legacy field, use gateway
@@ -199,8 +203,8 @@ model Payment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   companyId     String
-  client        Client?  @relation(fields: [clientId], references: [id])
-  invoice       Invoice? @relation(fields: [invoiceId], references: [id]) // Optional relation to invoice
+  client        Client   @relation(fields: [clientId], references: [id])
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
   company       Company  @relation(fields: [companyId], references: [id])
 
   @@map("payments")
@@ -243,14 +247,17 @@ model Complaint {
   priority    String          @default("medium")
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  assignedToId String?
   companyId   String
   client      Client          @relation(fields: [clientId], references: [id])
   company     Company         @relation(fields: [companyId], references: [id])
+  assignedTo  Employee?       @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
 
   @@map("complaints")
   @@index([companyId])
   @@index([status])
   @@index([companyId, status])
+  @@index([assignedToId])
 }
 
 model AuditLog {
@@ -310,7 +317,8 @@ model InventoryItem {
   id           String                 @id @default(cuid())
   name         String
   category     String
-  quantity     Int                    @default(0)
+  quantity     Float                  @default(0)
+  unit         String                 @default("piece")  // meter, feet, roll, piece, kg, etc.
   unitPrice    Float
   totalValue   Float                  @default(0)
   companyId    String
@@ -326,7 +334,7 @@ model InventoryTransaction {
   id        String        @id @default(cuid())
   itemId    String
   type      String
-  quantity  Int
+  quantity  Float
   note      String?
   companyId String
   createdAt DateTime      @default(now())
@@ -348,6 +356,7 @@ model Employee {
   updatedAt   DateTime           @updatedAt
   permissions Json?
   activities  EmployeeActivity[]
+  complaints  Complaint[]        @relation("ComplaintAssignee")
   company     Company            @relation(fields: [companyId], references: [id])
 
   @@map("employees")
@@ -444,6 +453,7 @@ model ProductSale {
   quantity           Int      @default(1)
   unitProfit         Float
   totalOtherIncome   Float
+  status             ProductSaleStatus @default(unpaid)
   notes              String?
   saleDate           DateTime @default(now())
   createdAt          DateTime @default(now())
@@ -457,6 +467,11 @@ model ProductSale {
   @@index([companyId, saleDate])
   @@index([clientId])
   @@map("product_sales")
+}
+
+enum ProductSaleStatus {
+  unpaid
+  paid
 }
 
 enum InvoiceStatus {

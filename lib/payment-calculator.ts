@@ -129,17 +129,39 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
     }
   }
 
-  // Get all product sales for the client and sum totalOtherIncome
+  // Get all product sales for the client and calculate total selling price (what client owes)
+  // ✅ Only count UNPAID product sales to avoid double-counting after payment
   const productSales = await prisma.productSale.findMany({
-    where: { clientId },
-    select: { totalOtherIncome: true }
+    where: { 
+      clientId,
+      status: 'unpaid'  // Only include unpaid product sales
+    },
+    select: {
+      sellingPrice: true,
+      quantity: true,
+      actualPrice: true,
+      unitProfit: true,
+      totalOtherIncome: true
+    }
   });
 
-  // Calculate total other income from product sales
-  const totalOtherIncome = productSales.reduce((sum, sale) => sum + sale.totalOtherIncome, 0);
+  // Calculate total selling price (what client should pay) vs profit
+  // ⚠️ CRITICAL: Client owes the FULL selling price, NOT just the profit
+  // totalOtherIncome = profit (sellingPrice - actualPrice) * quantity - FOR INTERNAL USE ONLY
+  // sellingPrice * quantity = what client actually pays
+  const totalProductSelling = productSales.reduce(
+    (sum, sale) => sum + (sale.sellingPrice * sale.quantity), 0
+  );
+  
+  // Profit calculation for analytics/reports only - NEVER used in invoices or payments
+  const totalProductProfit = productSales.reduce(
+    (sum, sale) => sum + sale.totalOtherIncome, 0
+  );
 
-  // Total = invoice total (package + additional charges) + product sales other income
-  const total = invoiceTotal + totalOtherIncome;
+  // ✅ TOTAL CALCULATION
+  // Total = invoice total (package + additional charges) + product sales SELLING PRICE
+  // 🚫 NEVER include profit in total or remaining amount
+  const total = invoiceTotal + totalProductSelling;
 
   // Get ALL payments for the client (ONLY actual payments, not additional charges)
   const allClientPayments = await prisma.payment.findMany({
@@ -154,6 +176,33 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
   const remaining = Math.max(total - totalPaid, 0);
   const overpaid = Math.max(totalPaid - total, 0);
 
+  // DEBUG: Log breakdown for investigation
+  console.log(`[Payment Calculator] Client ${clientId} breakdown:`, {
+    invoiceCount: invoices.length,
+    invoiceTotal,
+    invoices: invoices.map(inv => ({
+      id: inv.id,
+      amount: inv.amount,
+      additionalCharges: inv.additionalCharges,
+      chargesTotal: calculateAdditionalChargesTotal(inv)
+    })),
+    productSalesCount: productSales.length,
+    totalProductSelling, // What client owes (FULL selling price)
+    totalProductProfit,  // Your profit margin
+    productSales: productSales.map(sale => ({
+      sellingPrice: sale.sellingPrice,
+      quantity: sale.quantity,
+      totalSelling: sale.sellingPrice * sale.quantity,
+      actualPrice: sale.actualPrice,
+      profit: sale.totalOtherIncome
+    })),
+    total,
+    paymentCount: allClientPayments.length,
+    totalPaid,
+    remaining,
+    overpaid
+  });
+
   // Determine overall payment status
   let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
   if (totalPaid === 0) {
@@ -164,15 +213,23 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
     effectivePaymentStatus = 'paid';
   }
 
+  // Get client's package price
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { price: true, packageId: true }
+  });
+
+  const packageAmount = client?.price || 0;
+
   return {
     total,
     totalPaid,
     remainingAmount: remaining,
     overpaidAmount: overpaid,
     effectivePaymentStatus,
-    packageAmount: invoiceTotal,
+    packageAmount: packageAmount,  // ✅ Actual package price
     additionalCharges: 0, // This would need to be calculated separately if needed
-    otherIncome: totalOtherIncome
+    otherIncome: totalProductSelling  // ✅ Full selling price (what client owes), NOT profit
   };
 }
 

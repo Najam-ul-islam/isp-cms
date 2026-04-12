@@ -120,6 +120,16 @@ export const listProductSales = async (
 };
 
 /**
+ * Get a single product sale by ID
+ */
+export const getProductSaleById = async (
+  id: string,
+  companyId: string
+) => {
+  return repository.getProductSaleById(id, companyId);
+};
+
+/**
  * Calculate unit profit for display purposes (without persisting)
  */
 export const calculateUnitProfit = (

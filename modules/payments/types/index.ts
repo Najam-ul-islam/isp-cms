@@ -22,6 +22,7 @@ export type PaymentWithClient = Prisma.PaymentGetPayload<{
 // Input types
 export interface CreatePaymentInput {
   clientId: string;
+  invoiceId: string; // Required - all payments must be linked to an invoice
   amount: number;
   method?: string;
   notes?: string;

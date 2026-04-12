@@ -35,6 +35,7 @@ export default function ClientInvoicePage() {
   const [client, setClient] = useState<ExtendedClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [additionalCharges, setAdditionalCharges] = useState<
     Array<{ name: string; amount: number }>
   >([]);
@@ -43,6 +44,56 @@ export default function ClientInvoicePage() {
   >([]);
   const [showAddCharges, setShowAddCharges] = useState(false);
   const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
+
+  // Create Invoice Handler
+  const handleCreateInvoice = async () => {
+    if (!client) return;
+    
+    setCreatingInvoice(true);
+    try {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30); // Due in 30 days
+
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          clientId: client.id,
+          amount: client.price || 0,
+          dueDate: dueDate.toISOString().split('T')[0],
+          description: `Invoice for ${client.name}'s internet package`,
+          additionalCharges: additionalCharges.length > 0 ? additionalCharges : undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const newInvoice = await response.json();
+        // Refresh client data to show new invoice
+        const res = await fetch(`/api/clients/${id}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setClient(data);
+        }
+        alert('✅ Invoice created successfully!');
+      } else {
+        const error = await response.json();
+        if (response.status === 409) {
+          alert('⚠️ Client already has an unpaid invoice. Please pay that invoice first or mark it as paid.');
+        } else {
+          alert(`❌ Failed to create invoice: ${error.error || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      alert('❌ Failed to create invoice. Please try again.');
+    } finally {
+      setCreatingInvoice(false);
+    }
+  };
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -151,10 +202,10 @@ export default function ClientInvoicePage() {
 
   const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount || 0), 0);
   
-  // Calculate total other income from product sales
-  const productSalesTotal = productSales.reduce((sum, sale) => sum + sale.totalOtherIncome, 0);
-  
-  // Total = package price + additional charges + product sales other income
+  // Calculate total selling price from product sales (what client actually pays)
+  const productSalesTotal = productSales.reduce((sum, sale) => sum + (sale.sellingPrice * sale.quantity), 0);
+
+  // Total = package price + additional charges + product sales (selling price)
   const total = packagePrice + additionalTotal + productSalesTotal;
   
   // Use dynamic values from API (client.totalPaid is calculated from actual payments)
@@ -281,6 +332,13 @@ Please clear your dues. Thank you!
     <div className="min-h-screen bg-linear-to-br from-indigo-50 to-blue-50 flex flex-col items-center justify-center p-4 gap-3">
       {/* Action Buttons */}
       <div className="flex gap-2 flex-wrap justify-center">
+        <button
+          onClick={handleCreateInvoice}
+          disabled={creatingInvoice}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+        >
+          {creatingInvoice ? '⏳ Creating...' : '📄 Create Invoice'}
+        </button>
         <button
           onClick={sendWhatsApp}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
@@ -458,19 +516,22 @@ Please clear your dues. Thank you!
                 <span className="text-slate-700 font-semibold text-sm">Product Sales</span>
               </div>
               {productSales.map((sale) => (
-                <div key={sale.id} className="flex justify-between items-center py-0.5 pl-2">
-                  <div className="flex-1">
-                    <span className="text-slate-600 text-xs leading-tight">
-                      {sale.productName} x {sale.quantity}
+                <div key={sale.id} className="flex justify-between items-start py-0.5 pl-2">
+                  <div className="flex-1 pr-2">
+                    <span className="text-slate-600 text-xs leading-tight font-medium">
+                      {sale.productName}
+                    </span>
+                    <span className="text-slate-500 text-[10px] leading-tight ml-1">
+                      × {sale.quantity} @ {formatPKR(sale.sellingPrice)}/unit
                     </span>
                     {sale.notes && (
-                      <span className="block text-[10px] text-slate-500 leading-tight">
+                      <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">
                         {sale.notes}
                       </span>
                     )}
                   </div>
-                  <span className="text-slate-800 font-normal text-xs leading-tight">
-                    {formatPKR(sale.totalOtherIncome)}
+                  <span className="text-slate-800 font-semibold text-xs leading-tight whitespace-nowrap">
+                    {formatPKR(sale.sellingPrice * sale.quantity)}
                   </span>
                 </div>
               ))}

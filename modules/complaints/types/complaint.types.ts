@@ -9,6 +9,7 @@ export interface Complaint {
   priority: string;
   createdAt: Date;
   updatedAt: Date;
+  assignedToId?: string;
   clientName?: string; // Optional field for displaying client name
 }
 
@@ -24,4 +25,9 @@ export interface UpdateComplaintInput {
   status?: ComplaintStatus;
   priority?: string;
   description?: string;
+}
+
+export interface AssignComplaintInput {
+  employeeId: string;
+  companyId: string;
 }

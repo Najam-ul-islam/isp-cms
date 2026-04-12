@@ -7,6 +7,8 @@ export interface CreateInvoiceData {
   dueDate: Date;
   description?: string;
   companyId: string;
+  billingMonth?: number;  // 1-12
+  billingYear?: number;   // YYYY
 }
 
 export interface UpdateInvoiceData {
@@ -14,6 +16,8 @@ export interface UpdateInvoiceData {
   dueDate?: Date;
   description?: string;
   status?: 'unpaid' | 'partial' | 'paid';
+  billingMonth?: number;
+  billingYear?: number;
 }
 
 export class InvoiceRepository {
@@ -28,6 +32,8 @@ export class InvoiceRepository {
         dueDate: data.dueDate,
         description: data.description,
         companyId: data.companyId,
+        billingMonth: data.billingMonth,
+        billingYear: data.billingYear,
       }
     });
   }

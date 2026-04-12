@@ -109,6 +109,25 @@ export async function POST(
       );
     }
 
+    // ✅ PREVENT DUPLICATES: Check for existing unpaid invoice
+    const existingUnpaidInvoice = await prisma.invoice.findFirst({
+      where: {
+        clientId: firstClient.id,
+        companyId: id,
+        status: "unpaid",
+      },
+      orderBy: {
+        issuedDate: "desc",
+      },
+    });
+
+    if (existingUnpaidInvoice) {
+      return NextResponse.json({
+        error: "Company already has an unpaid invoice for this client",
+        existingInvoice: existingUnpaidInvoice,
+      }, { status: 409 });
+    }
+
     // Create the invoice
     const invoice = await prisma.invoice.create({
       data: {
@@ -119,6 +138,8 @@ export async function POST(
         issuedDate: new Date(),
         dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: "unpaid",
+        billingMonth: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).getMonth() + 1,
+        billingYear: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).getFullYear(),
       },
     });
 

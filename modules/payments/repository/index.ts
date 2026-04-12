@@ -6,6 +6,7 @@ export const createPayment = async (data: CreatePaymentInput) => {
   return await prisma.payment.create({
     data: {
       clientId: data.clientId,
+      invoiceId: data.invoiceId,
       amount: data.amount,
       method: data.method || 'CASH',
       notes: data.notes || '',
@@ -112,66 +113,6 @@ export const getPayments = async (filters?: PaymentFilters, companyId?: string) 
 
   return await prisma.payment.findMany(queryOptions);
 };
-
-// export const getPayments = async (filters?: PaymentFilters) => {
-//   // const whereClause: any = {};
-//   const whereClause: Prisma.PaymentWhereInput = {};
-
-//   if (filters?.clientId) {
-//     whereClause.clientId = filters.clientId;
-//   }
-
-//   if (filters?.startDate && filters?.endDate) {
-//     whereClause.paymentDate = {
-//       gte: filters.startDate,
-//       lte: filters.endDate,
-//     };
-//   } else if (filters?.startDate) {
-//     whereClause.paymentDate = {
-//       gte: filters.startDate,
-//     };
-//   } else if (filters?.endDate) {
-//     whereClause.paymentDate = {
-//       lte: filters.endDate,
-//     };
-//   }
-
-//   if (filters?.method) {
-//     whereClause.method = filters.method;
-//   }
-
-//   // const orderByClause: any = {};
-//   // const orderByClause: Prisma.PaymentOrderByWithRelationInput = {};
-//   // if (filters?.sortBy) {
-//   //   orderByClause[filters.sortBy] = filters.sortOrder || 'desc';
-//   const orderByClause: Prisma.PaymentOrderByWithRelationInput =
-//   filters?.sortBy
-//     ? { [filters.sortBy]: filters.sortOrder || 'desc' }
-//     : { paymentDate: 'desc' };
-//   } else {
-//     orderByClause.paymentDate = 'desc';
-//   }
-
-//   const queryOptions: any = {
-//     where: whereClause,
-//     include: {
-//       client: {
-//         select: {
-//           id: true,
-//           name: true,
-//           phone: true,
-//         }
-//       }
-//     },
-//     orderBy: orderByClause
-//   };
-
-//   if (filters?.limit) {
-//     queryOptions.take = filters.limit;
-//   }
-
-//   return await prisma.payment.findMany(queryOptions);
-// };
 
 export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
   const { amount, method, notes } = data;
