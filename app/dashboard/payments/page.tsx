@@ -45,8 +45,7 @@ export default function PaymentsPage() {
     start: "",
     end: "",
   });
-  const [selectedClientDetails, setSelectedClientDetails] = useState<Payment | null>(null);
-  
+
   // Notification state for payment actions
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
@@ -64,6 +63,11 @@ export default function PaymentsPage() {
     totalPaid: number;
     remaining: number;
   }>>([]);
+
+  // Client details modal state
+  const [selectedClientDetails, setSelectedClientDetails] = useState<Payment | null>(null);
+  const [fullClientDetails, setFullClientDetails] = useState<any>(null);
+  const [clientDetailsLoading, setClientDetailsLoading] = useState(false);
 
   const router = useRouter();
 
@@ -157,6 +161,33 @@ export default function PaymentsPage() {
       setPendingClientsList(pendingClients.sort((a, b) => b.remaining - a.remaining));
     } catch (error) {
       console.error('Error calculating pending recovery:', error);
+    }
+  }, []);
+
+  // Handler to fetch full client details when clicking on a client name
+  const handleClientClick = useCallback(async (payment: Payment) => {
+    try {
+      setClientDetailsLoading(true);
+      setSelectedClientDetails(payment);
+      
+      // Fetch full client details from API
+      const response = await fetch(`/api/clients/${payment.clientId}`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const clientData = await response.json();
+        setFullClientDetails(clientData);
+      } else {
+        console.error('Failed to fetch client details');
+        setFullClientDetails(null);
+      }
+    } catch (error) {
+      console.error('Error fetching client details:', error);
+      setFullClientDetails(null);
+    } finally {
+      setClientDetailsLoading(false);
     }
   }, []);
 
@@ -722,7 +753,7 @@ export default function PaymentsPage() {
                     <td className="px-3 py-4">
                       <div
                         className="font-semibold text-slate-800 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 underline"
-                        onClick={() => setSelectedClientDetails(payment)}
+                        onClick={() => handleClientClick(payment)}
                         title="Click to view client payment details"
                       >
                         {payment.clientName}
@@ -847,76 +878,280 @@ export default function PaymentsPage() {
 
       {/* Client Details Modal */}
       {selectedClientDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
-                Client Payment Details
-              </h2>
-              <button
-                onClick={() => setSelectedClientDetails(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                ×
-              </button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                    {selectedClientDetails.clientName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+                      Client Payment Details
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-gray-400">
+                      Complete payment breakdown
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedClientDetails(null);
+                    setFullClientDetails(null);
+                  }}
+                  className="p-2 hover:bg-white/60 dark:hover:bg-gray-700/60 rounded-xl transition-colors text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <h3 className="font-semibold text-gray-800 mb-2">{selectedClientDetails.clientName}</h3>
-                {selectedClientDetails.area && selectedClientDetails.area !== "-" && (
-                  <p className="text-gray-600 text-sm">Area: {selectedClientDetails.area}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                  <p className="text-sm text-indigo-600 font-medium">Total Amount</p>
-                  <p className="text-2xl font-bold text-indigo-800">
-                    Rs {(selectedClientDetails.totalAmount || 0).toLocaleString("en-PK")}
-                  </p>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto">
+              {clientDetailsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                    <p className="mt-4 text-slate-500 dark:text-gray-400">Loading client details...</p>
+                  </div>
                 </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  {/* Client Information Section */}
+                  <div className="bg-gradient-to-br from-slate-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-2xl p-5 border border-slate-200 dark:border-gray-600">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Client Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Full Name</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-white">{fullClientDetails?.name || selectedClientDetails.clientName}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Username</p>
+                        <p className="text-base font-mono font-semibold text-slate-800 dark:text-white">{fullClientDetails?.username || selectedClientDetails.clientUsername || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Phone</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-white">{fullClientDetails?.phone || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Email</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-white">{fullClientDetails?.email || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">CNIC</p>
+                        <p className="text-base font-mono font-semibold text-slate-800 dark:text-white">{fullClientDetails?.cnic || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">City</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-white">{fullClientDetails?.city || selectedClientDetails.area || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Package</p>
+                        <p className="text-base font-semibold text-slate-800 dark:text-white">{fullClientDetails?.package?.name || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Status</p>
+                        <p className="text-base font-semibold">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${
+                            fullClientDetails?.status === 'active'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : fullClientDetails?.status === 'expired'
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                              : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${
+                              fullClientDetails?.status === 'active' ? 'bg-green-600' : 
+                              fullClientDetails?.status === 'expired' ? 'bg-red-600' : 'bg-yellow-600'
+                            }`}></span>
+                            {fullClientDetails?.status || 'N/A'}
+                          </span>
+                        </p>
+                      </div>
+                      {fullClientDetails?.startDate && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Start Date</p>
+                          <p className="text-base font-semibold text-slate-800 dark:text-white">
+                            {new Date(fullClientDetails.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </p>
+                        </div>
+                      )}
+                      {fullClientDetails?.expiryDate && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Expiry Date</p>
+                          <p className="text-base font-semibold text-slate-800 dark:text-white">
+                            {new Date(fullClientDetails.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                  <p className="text-sm text-emerald-600 font-medium">Total Paid</p>
-                  <p className="text-2xl font-bold text-emerald-800">
-                    Rs {(selectedClientDetails.totalPaid || 0).toLocaleString("en-PK")}
-                  </p>
-                </div>
+                  {/* Payment Summary Section */}
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-2xl p-5 border border-indigo-200 dark:border-indigo-800">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Payment Summary
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-indigo-100 dark:border-indigo-900">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Total Amount</p>
+                        </div>
+                        <p className="text-3xl font-bold text-indigo-700 dark:text-indigo-300">
+                          Rs {(fullClientDetails?.totalAmount || selectedClientDetails.totalAmount || 0).toLocaleString("en-PK")}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">Package + Charges</p>
+                      </div>
 
-                <div className={`p-4 rounded-xl border ${
-                  (selectedClientDetails.remainingAmount || 0) > 0
-                    ? 'bg-rose-50 border-rose-100'
-                    : 'bg-emerald-50 border-emerald-100'
-                }`}>
-                  <p className="text-sm font-medium mb-1">
-                    {selectedClientDetails.remainingAmount && (selectedClientDetails.remainingAmount || 0) > 0
-                      ? 'Remaining Amount'
-                      : 'Payment Status'}
-                  </p>
-                  <p className={`text-2xl font-bold ${
-                    (selectedClientDetails.remainingAmount || 0) > 0
-                      ? 'text-rose-600'
-                      : 'text-emerald-600'
-                  }`}>
-                    Rs {(selectedClientDetails.remainingAmount || 0).toLocaleString("en-PK")}
-                  </p>
-                  {selectedClientDetails.remainingAmount && (selectedClientDetails.remainingAmount || 0) <= 0 && (
-                    <p className="text-emerald-600 text-sm mt-1">✅ Fully Paid</p>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Total Paid</p>
+                        </div>
+                        <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                          Rs {(fullClientDetails?.totalPaid || selectedClientDetails.totalPaid || 0).toLocaleString("en-PK")}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">All Payments</p>
+                      </div>
+
+                      <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border ${
+                        (fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0
+                          ? 'border-rose-100 dark:border-rose-900'
+                          : 'border-emerald-100 dark:border-emerald-900'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className={`w-5 h-5 ${
+                            (fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0
+                              ? 'text-rose-600'
+                              : 'text-emerald-600'
+                          }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={
+                              (fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0
+                                ? "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                : "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            } />
+                          </svg>
+                          <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                            {(fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0 ? 'Remaining' : 'Status'}
+                          </p>
+                        </div>
+                        <p className={`text-3xl font-bold ${
+                          (fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0
+                            ? 'text-rose-700 dark:text-rose-300'
+                            : 'text-emerald-700 dark:text-emerald-300'
+                        }`}>
+                          Rs {(fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0).toLocaleString("en-PK")}
+                        </p>
+                        {(fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) <= 0 && (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">✅ Fully Paid</p>
+                        )}
+                        {(fullClientDetails?.remainingAmount || selectedClientDetails.remainingAmount || 0) > 0 && (
+                          <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">Outstanding</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Details */}
+                  {fullClientDetails && (
+                    <div className="bg-gradient-to-br from-slate-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-2xl p-5 border border-slate-200 dark:border-gray-600">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Additional Details
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Package Amount</p>
+                          <p className="text-lg font-semibold text-slate-800 dark:text-white">
+                            Rs {(fullClientDetails.packageAmount || fullClientDetails.price || 0).toLocaleString("en-PK")}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Additional Charges</p>
+                          <p className="text-lg font-semibold text-slate-800 dark:text-white">
+                            Rs {((fullClientDetails.additionalCharges || 0)).toLocaleString("en-PK")}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Product Sales (Unpaid)</p>
+                          <p className="text-lg font-semibold text-slate-800 dark:text-white">
+                            Rs {(fullClientDetails.otherIncome || 0).toLocaleString("en-PK")}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">Overpaid Amount</p>
+                          <p className="text-lg font-semibold text-slate-800 dark:text-white">
+                            Rs {(fullClientDetails.overpaidAmount || 0).toLocaleString("en-PK")}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="pt-4">
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedClientDetails(null);
+                    setFullClientDetails(null);
+                    router.push(`/dashboard/clients/${selectedClientDetails.clientId}`);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  View Full Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedClientDetails(null);
+                    setFullClientDetails(null);
+                    router.push(`/dashboard/clients/${selectedClientDetails.clientId}/invoice`);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View Invoices
+                </button>
                 <button
                   onClick={() => {
                     // Pre-fill payment form for this client
                     setEditingPayment(selectedClientDetails);
                     setShowForm(true);
                     setSelectedClientDetails(null);
+                    setFullClientDetails(null);
                   }}
-                  className="w-full px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+                  className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
                 >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                   Add Payment
                 </button>
               </div>
