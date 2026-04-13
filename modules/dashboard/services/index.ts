@@ -6,6 +6,7 @@ import { getAreaInsights } from '../../areas/services';
 import { getInventoryStats } from '../../inventory/services';
 import { getEmployeeStats } from '../../employees/services';
 import { AdminWithPackages } from '@/lib/jwt';
+import { getClientPaymentSummary } from '@/lib/payment-calculator';
 
 export const getDashboardStats = async (admin: AdminWithPackages) => {
   const today = new Date();
@@ -347,16 +348,33 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
 };
 
 // Get pending recovery (all unpaid and partial clients)
+// Uses real-time calculation based on actual payments, invoices, additional charges, and product sales
+// Same logic as Payments page to ensure consistency
 const getPendingRecovery = async (companyId: string) => {
-  return await prisma.client.aggregate({
-    _sum: { price: true },
-    where: {
-      companyId,
-      paymentStatus: {
-        in: [PaymentStatus.unpaid, PaymentStatus.partial],
-      },
-    },
+  // Fetch all clients for the company
+  const clients = await prisma.client.findMany({
+    where: { companyId },
+    select: { id: true }
   });
+
+  // Calculate remaining amount for each client in parallel
+  const paymentSummaries = await Promise.all(
+    clients.map(async (client) => {
+      try {
+        const summary = await getClientPaymentSummary(client.id);
+        return summary.remainingAmount;
+      } catch (error) {
+        console.error(`Error calculating payment summary for client ${client.id}:`, error);
+        return 0;
+      }
+    })
+  );
+
+  // Sum up all remaining amounts
+  const totalPendingRecovery = paymentSummaries.reduce((sum, remaining) => sum + remaining, 0);
+
+  // Return in same format as original aggregate query
+  return { _sum: { price: totalPendingRecovery } };
 };
 
 const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {
