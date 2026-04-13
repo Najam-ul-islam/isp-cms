@@ -241,10 +241,8 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = p.client?.name || "Unknown Client";
 
-          // ✅ FIX: Use the CORRECT total amount from API response
-          // This includes package price + product sales + additional charges
-          // NOT just the client's package price
-          const totalAmount = p.totalAmount || p.client?.price || 0;
+          // ✅ Use totalAmount from API - already includes invoices + charges + product sales
+          const totalAmount = p.totalAmount ?? 0;
 
           // Extract area name instead of the entire area object
           const areaName = p.client?.area?.name || p.client?.areaName || "-";
@@ -260,8 +258,8 @@ export default function PaymentsPage() {
             method: p.method || "Cash",
             notes: p.notes || "",
             totalAmount,
-            totalPaid: p.totalPaid || 0,
-            remainingAmount: p.remainingAmount || 0,
+            totalPaid: p.totalPaid ?? 0,
+            remainingAmount: Math.max(p.remainingAmount ?? 0, 0), // ✅ Ensure never negative
           };
         });
         
@@ -392,9 +390,8 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = updatedPayment.client?.name || "Unknown Client";
 
-          // ✅ FIX: Use the CORRECT total amount from API response
-          // This includes package price + product sales + additional charges
-          const totalAmount = updatedPayment.totalAmount || updatedPayment.client?.price || 0;
+          // ✅ Use totalAmount from API - already includes invoices + charges + product sales
+          const totalAmount = updatedPayment.totalAmount ?? 0;
 
           // ✅ FIX: Extract area NAME string, not the full area object
           const areaName = updatedPayment.client?.area?.name || updatedPayment.client?.areaName || "-";
@@ -409,8 +406,8 @@ export default function PaymentsPage() {
             method: updatedPayment.method || "Cash",
             notes: updatedPayment.notes || "",
             totalAmount,
-            totalPaid: updatedPayment.totalPaid || 0,
-            remainingAmount: updatedPayment.remainingAmount || 0,
+            totalPaid: updatedPayment.totalPaid ?? 0,
+            remainingAmount: Math.max(updatedPayment.remainingAmount ?? 0, 0), // ✅ Ensure never negative
           };
 
           // Update all payments for this client with the new totalPaid values
@@ -454,9 +451,8 @@ export default function PaymentsPage() {
           // Client name without area
           const clientName = newPayment.client?.name || "Unknown Client";
 
-          // ✅ FIX: Use the CORRECT total amount from API response
-          // This includes package price + product sales + additional charges
-          const totalAmount = newPayment.totalAmount || newPayment.client?.price || 0;
+          // ✅ Use totalAmount from API - already includes invoices + charges + product sales
+          const totalAmount = newPayment.totalAmount ?? 0;
 
           // ✅ FIX: Extract area NAME string, not the full area object
           const areaName = newPayment.client?.area?.name || newPayment.client?.areaName || "-";
@@ -471,8 +467,8 @@ export default function PaymentsPage() {
             method: newPayment.method || "Cash",
             notes: newPayment.notes || "",
             totalAmount,
-            totalPaid: newPayment.totalPaid || 0,
-            remainingAmount: newPayment.remainingAmount || 0,
+            totalPaid: newPayment.totalPaid ?? 0,
+            remainingAmount: Math.max(newPayment.remainingAmount ?? 0, 0), // ✅ Ensure never negative
           };
 
           // Update all payments for this client with the new totalPaid values

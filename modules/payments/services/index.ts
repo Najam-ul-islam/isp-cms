@@ -114,17 +114,14 @@ export const updatePayment = async (id: string, data: UpdatePaymentInput) => {
     return updatedPayment;
   });
 
-  // Calculate totals for response
-  const clientPayments = await getPaymentsRepo({ clientId: updatedPayment.clientId || undefined }, updatedPayment.companyId);
-  const totalPaid = clientPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
-  const totalDue = updatedPayment.client?.price || 0; // Client's package price is what they owe
-  const remainingAmount = totalDue - totalPaid;
+  // ✅ FIX: Use getClientPaymentSummary instead of client.price
+  const summary = await getClientPaymentSummary(updatedPayment.clientId!);
 
   const paymentWithTotals = {
     ...updatedPayment,
-    totalDue: totalDue,
-    totalPaid: totalPaid,
-    remainingAmount: remainingAmount
+    totalDue: summary.total,
+    totalPaid: summary.totalPaid,
+    remainingAmount: summary.remainingAmount
   };
 
   return paymentWithTotals;

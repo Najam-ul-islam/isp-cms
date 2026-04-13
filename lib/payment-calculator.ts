@@ -117,17 +117,9 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
       // Each invoice total = base amount + one-time charges
       invoiceTotal += invoice.amount + calculateAdditionalChargesTotal(invoice);
     }
-  } else {
-    // If no invoices exist, use client price as base
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { price: true }
-    });
-
-    if (client) {
-      invoiceTotal = client.price;
-    }
   }
+  // ✅ REMOVED: No fallback to client.price - if no invoices, total is 0
+
 
   // Get all product sales for the client and calculate total selling price (what client owes)
   // ✅ Only count UNPAID product sales to avoid double-counting after payment
