@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFromToken } from "@/lib/jwt";
-import { prisma } from "@/lib/prisma";
+import {
+  getSaaSInvoicesByCompany,
+  getSaaSInvoiceStats,
+  createSaaSInvoice,
+  recordSaaSPayment,
+  getSaaSInvoiceById,
+} from "@/lib/saas/invoiceService";
 
-// GET all invoices for a company
+// GET all SaaS invoices for a company
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,46 +19,23 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // SUPER_ADMIN can access any company, ADMIN can only access their own company
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status") || "all";
 
-    // Verify company exists
-    const company = await prisma.company.findUnique({
-      where: { id },
-    });
-
-    if (!company) {
-      return NextResponse.json({ error: "Company not found" }, { status: 404 });
-    }
-
-    // Check permissions: SUPER_ADMIN can access any company, ADMIN can only access their own
+    // SUPER_ADMIN can access any company, ADMIN can only access their own company
     if (admin.role !== "SUPER_ADMIN" && admin.companyId !== id) {
-      return NextResponse.json({ error: "Forbidden: You can only access your own company's invoices" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Get invoices for this company
-    const invoices = await prisma.invoice.findMany({
-      where: { companyId: id },
-      orderBy: { issuedDate: "desc" },
-      take: 50,
-    });
+    const [invoices, stats] = await Promise.all([
+      getSaaSInvoicesByCompany(id, status),
+      getSaaSInvoiceStats(id),
+    ]);
 
-    // Get company stats for suggested invoice amount
-    const companyStats = await prisma.client.aggregate({
-      where: { companyId: id },
-      _sum: { price: true },
-      _count: true,
-    });
-
-    return NextResponse.json({
-      invoices,
-      stats: {
-        totalClients: companyStats._count || 0,
-        totalAmountDue: companyStats._sum.price || 0,
-      },
-    });
+    return NextResponse.json({ invoices, stats });
   } catch (error) {
-    console.error("Get Company Invoices Error:", error);
+    console.error("Get SaaS Invoices Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch invoices" },
       { status: 500 }
@@ -60,7 +43,7 @@ export async function GET(
   }
 }
 
-// POST - Create invoice for a company
+// POST - Create SaaS invoice or record payment
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -73,85 +56,45 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { amount, description, dueDate } = body;
+    const { action, ...data } = body;
 
-    if (!amount || amount <= 0) {
-      return NextResponse.json(
-        { error: "Valid amount is required" },
-        { status: 400 }
-      );
-    }
-
-    // Verify company exists
-    const company = await prisma.company.findUnique({
-      where: { id },
-    });
-
-    if (!company) {
-      return NextResponse.json({ error: "Company not found" }, { status: 404 });
-    }
-
-    // Check permissions: SUPER_ADMIN can create for any company, ADMIN can only create for their own
+    // Check permissions
     if (admin.role !== "SUPER_ADMIN" && admin.companyId !== id) {
-      return NextResponse.json({ error: "Forbidden: You can only create invoices for your own company" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Find first client for this company (invoices require clientId)
-    const firstClient = await prisma.client.findFirst({
-      where: { companyId: id },
-      orderBy: { createdAt: "asc" },
-    });
+    // Handle payment recording
+    if (action === "recordPayment") {
+      const payment = await recordSaaSPayment({
+        invoiceId: data.invoiceId,
+        amount: data.amount,
+        method: data.method,
+        notes: data.notes,
+        gateway: data.gateway,
+        transactionId: data.transactionId,
+      });
 
-    if (!firstClient) {
-      return NextResponse.json(
-        { error: "Company must have at least one client to create invoices" },
-        { status: 400 }
-      );
+      return NextResponse.json(payment, { status: 201 });
     }
 
-    // ✅ PREVENT DUPLICATES: Check for existing unpaid invoice
-    const existingUnpaidInvoice = await prisma.invoice.findFirst({
-      where: {
-        clientId: firstClient.id,
-        companyId: id,
-        status: "unpaid",
-      },
-      orderBy: {
-        issuedDate: "desc",
-      },
+    // Handle invoice creation
+    const invoice = await createSaaSInvoice({
+      companyId: id,
+      amount: data.amount,
+      dueDate: data.dueDate,
+      description: data.description,
+      billingPeriod: data.billingPeriod,
+      planId: data.planId,
+      additionalCharges: data.additionalCharges,
     });
 
-    if (existingUnpaidInvoice) {
-      return NextResponse.json({
-        error: "Company already has an unpaid invoice for this client",
-        existingInvoice: existingUnpaidInvoice,
-      }, { status: 409 });
+    if ((invoice as any).error) {
+      return NextResponse.json(invoice, { status: 409 });
     }
-
-    // Create the invoice
-    const invoice = await prisma.invoice.create({
-      data: {
-        clientId: firstClient.id,
-        companyId: id,
-        amount: parseFloat(amount),
-        description: description || `Invoice for ${company.name}`,
-        issuedDate: new Date(),
-        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        status: "unpaid",
-        billingMonth: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).getMonth() + 1,
-        billingYear: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).getFullYear(),
-      },
-    });
 
     return NextResponse.json(invoice, { status: 201 });
   } catch (error: any) {
-    console.error("Create Company Invoice Error:", error);
-    if (error.code === "P2002") {
-      return NextResponse.json(
-        { error: "Duplicate invoice detected" },
-        { status: 409 }
-      );
-    }
+    console.error("Create SaaS Invoice Error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to create invoice" },
       { status: 500 }

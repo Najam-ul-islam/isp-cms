@@ -29,63 +29,42 @@ export async function GET(request: Request) {
     let invoices;
 
     if (clientId) {
-      // Get invoices for a specific client
+      // Get invoices for a specific client (includes items)
       invoices = await getInvoicesForClient(clientId, admin.companyId);
-    } else {
-      // Get invoices for the entire company with optional filters
-      invoices = await InvoiceRepository.findByCompanyId(admin.companyId, {
-        status,
-        startDate,
-        endDate
-      });
+      // getInvoicesForClient already includes payment summaries and items
+      return NextResponse.json(invoices);
     }
 
-    // Add payment summaries to each invoice
+    // Get invoices for the entire company with optional filters
+    const rawInvoices = await InvoiceRepository.findByCompanyId(admin.companyId, {
+      status,
+      startDate,
+      endDate
+    });
+
+    // Fetch full data with items and payments for each invoice
     const invoicesWithPayments = await Promise.all(
-      invoices.map(async (invoice) => {
-        // We need to get the payment details separately since they weren't included in the repository query
-        const invoiceWithPayments = await prisma.invoice.findUnique({
+      rawInvoices.map(async (invoice) => {
+        const invoiceWithDetails = await prisma.invoice.findUnique({
           where: { id: invoice.id },
           include: {
-            payments: {
-              orderBy: {
-                paymentDate: 'desc'
-              }
-            }
+            items: { orderBy: { createdAt: 'asc' } },
+            payments: { orderBy: { paymentDate: 'desc' } }
           }
         });
 
-        if (!invoiceWithPayments) return invoice;
+        if (!invoiceWithDetails) return invoice;
 
-        // Calculate one-time charges (part of total, not payments)
-        let oneTimeChargesTotal = 0;
-        if (invoiceWithPayments.additionalCharges) {
-          try {
-            const charges = typeof invoiceWithPayments.additionalCharges === 'string'
-              ? JSON.parse(invoiceWithPayments.additionalCharges)
-              : invoiceWithPayments.additionalCharges;
-            if (Array.isArray(charges)) {
-              oneTimeChargesTotal = charges.reduce((sum: number, charge: any) =>
-                sum + (charge.amount || 0), 0
-              );
-            }
-          } catch (error) {
-            console.error('Error parsing additional charges:', error);
-          }
-        }
-
-        // Total = base amount + one-time charges
-        const totalAmount = invoiceWithPayments.amount + oneTimeChargesTotal;
+        // Use totalAmount if set, otherwise fall back to amount
+        const effectiveTotal = invoiceWithDetails.totalAmount ?? invoiceWithDetails.amount;
 
         // Calculate payment summary (ONLY actual payments)
-        const payments = invoiceWithPayments.payments;
-        const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
-        
-        const remaining = Math.max(totalAmount - totalPaid, 0);
-        const overpaid = Math.max(totalPaid - totalAmount, 0);
+        const totalPaid = invoiceWithDetails.payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const remaining = Math.max(effectiveTotal - totalPaid, 0);
+        const overpaid = Math.max(totalPaid - effectiveTotal, 0);
 
         let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
-        if (totalPaid >= totalAmount) {
+        if (totalPaid >= effectiveTotal) {
           effectivePaymentStatus = 'paid';
         } else if (totalPaid > 0) {
           effectivePaymentStatus = 'partial';
@@ -94,8 +73,8 @@ export async function GET(request: Request) {
         }
 
         return {
-          ...invoiceWithPayments,
-          totalAmount,
+          ...invoiceWithDetails,
+          totalAmount: effectiveTotal,
           totalPaid,
           remainingAmount: remaining,
           overpaidAmount: overpaid,
@@ -125,23 +104,26 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clientId, amount, dueDate, description, additionalCharges } = body;
+    const {
+      clientId,
+      // New items-based fields
+      items,
+      description,
+      // Legacy fields (for backward compatibility)
+      amount,
+      dueDate,
+      additionalCharges,
+      billingMonth,
+      carryForwardAmount,
+      creditUsed,
+      previousInvoiceId,
+      // Options
+      appendToExisting,
+      allowDuplicate,
+    } = body;
 
-    if (!clientId || !amount) {
-      return NextResponse.json({ error: 'Client ID and amount are required' }, { status: 400 });
-    }
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ error: 'Amount must be a positive number' }, { status: 400 });
-    }
-
-    if (!dueDate) {
-      return NextResponse.json({ error: 'Due date is required' }, { status: 400 });
-    }
-
-    const parsedDueDate = new Date(dueDate);
-    if (isNaN(parsedDueDate.getTime())) {
-      return NextResponse.json({ error: 'Invalid due date format' }, { status: 400 });
+    if (!clientId) {
+      return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
     }
 
     // Verify client exists and belongs to the company
@@ -156,36 +138,142 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Client not found or does not belong to company' }, { status: 404 });
     }
 
-    // ✅ PREVENT DUPLICATE INVOICES: Check for existing unpaid invoice
+    // Check for existing unpaid invoice
     const existingUnpaidInvoice = await prisma.invoice.findFirst({
       where: {
         clientId,
         companyId: admin.companyId,
         status: 'unpaid'
       },
-      orderBy: {
-        issuedDate: 'desc'
-      }
+      orderBy: { issuedDate: 'desc' }
     });
 
-    if (existingUnpaidInvoice) {
-      return NextResponse.json({ 
+    // Import service function for items-based creation
+    const { createInvoiceWithItems } = await import('@/modules/invoices/services');
+
+    // CASE 1: New items-based invoice creation
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Validate items
+      for (const item of items) {
+        if (!item.name || typeof item.amount !== 'number' || item.amount <= 0) {
+          return NextResponse.json({
+            error: 'Each item must have a name and a positive amount'
+          }, { status: 400 });
+        }
+      }
+
+      const parsedDueDate = dueDate ? new Date(dueDate) : undefined;
+      if (dueDate && isNaN(parsedDueDate!.getTime())) {
+        return NextResponse.json({ error: 'Invalid due date format' }, { status: 400 });
+      }
+
+      // If client has unpaid invoice and user wants to append
+      if (existingUnpaidInvoice && appendToExisting) {
+        const updatedInvoice = await createInvoiceWithItems(
+          {
+            clientId,
+            items,
+            dueDate: parsedDueDate,
+            description: description || `Added to invoice for ${client.name}`,
+            billingMonth,
+            carryForwardAmount,
+            creditUsed,
+            previousInvoiceId,
+          },
+          admin.companyId,
+          { appendToExistingUnpaid: true }
+        );
+
+        return NextResponse.json({
+          ...updatedInvoice,
+          appendedToExisting: true,
+          existingInvoiceId: existingUnpaidInvoice.id,
+        });
+      }
+
+      // If client has unpaid invoice and user didn't specify append, ask them
+      if (existingUnpaidInvoice && !allowDuplicate) {
+        return NextResponse.json({
+          error: 'Client already has an unpaid invoice',
+          existingInvoice: {
+            id: existingUnpaidInvoice.id,
+            amount: existingUnpaidInvoice.amount,
+            totalAmount: existingUnpaidInvoice.totalAmount ?? existingUnpaidInvoice.amount,
+            issuedDate: existingUnpaidInvoice.issuedDate,
+            status: existingUnpaidInvoice.status,
+          },
+          action: 'ask_user',
+          message: 'Client already has an unpaid invoice. Do you want to append to it or create a new one?'
+        }, { status: 409 });
+      }
+
+      // Create new invoice with items
+      const invoice = await createInvoiceWithItems(
+        {
+          clientId,
+          items,
+          dueDate: parsedDueDate,
+          description: description || `Invoice for ${client.name}`,
+          billingMonth,
+          carryForwardAmount,
+          creditUsed,
+          previousInvoiceId,
+        },
+        admin.companyId,
+        { allowDuplicate: allowDuplicate }
+      );
+
+      return NextResponse.json(invoice);
+    }
+
+    // CASE 2: Legacy amount-based invoice creation (backward compatibility)
+    if (!amount) {
+      return NextResponse.json({ error: 'Either items array or amount is required' }, { status: 400 });
+    }
+
+    if (typeof amount !== 'number' || amount <= 0) {
+      return NextResponse.json({ error: 'Amount must be a positive number' }, { status: 400 });
+    }
+
+    const parsedDueDate = dueDate ? new Date(dueDate) : new Date();
+    if (isNaN(parsedDueDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid due date format' }, { status: 400 });
+    }
+
+    // If client has unpaid invoice and user didn't specify duplicate
+    if (existingUnpaidInvoice && !allowDuplicate) {
+      return NextResponse.json({
         error: 'Client already has an unpaid invoice',
-        existingInvoice: existingUnpaidInvoice
+        existingInvoice: {
+          id: existingUnpaidInvoice.id,
+          amount: existingUnpaidInvoice.amount,
+          totalAmount: existingUnpaidInvoice.totalAmount ?? existingUnpaidInvoice.amount,
+          issuedDate: existingUnpaidInvoice.issuedDate,
+          status: existingUnpaidInvoice.status,
+        },
+        action: 'ask_user',
+        message: 'Client already has an unpaid invoice. Do you want to append to it or create a new one?'
       }, { status: 409 });
     }
 
-    // Create invoice with additional charges
-    const invoice = await prisma.invoice.create({
-      data: {
-        clientId,
-        amount,
-        dueDate: parsedDueDate,
-        description: description || `Invoice for ${client.name}`,
-        additionalCharges: additionalCharges || null,
-        companyId: admin.companyId
+    // Create legacy-style invoice with additional charges
+    const { createInvoiceForClient } = await import('@/modules/invoices/services');
+
+    const invoice = await createInvoiceForClient(
+      clientId,
+      amount,
+      parsedDueDate,
+      admin.companyId,
+      description || `Invoice for ${client.name}`,
+      {
+        allowDuplicate: allowDuplicate,
+        billingMonth,
+        carryForwardAmount,
+        creditUsed,
+        previousInvoiceId,
+        additionalCharges,
       }
-    });
+    );
 
     return NextResponse.json(invoice);
   } catch (error: any) {

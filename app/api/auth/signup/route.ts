@@ -60,9 +60,10 @@ export async function POST(request: Request) {
       }
     });
 
-    // If this is the first user signing up, make them a SUPER_ADMIN
-    // Otherwise, default to EMPLOYEE role
-    const role = adminCount === 0 ? 'SUPER_ADMIN' : 'EMPLOYEE';
+    // Only superadmin@isp.com gets SUPER_ADMIN role on first signup
+    // All other users get EMPLOYEE role
+    const SUPER_ADMIN_EMAIL = 'superadmin@isp.com';
+    const role = (adminCount === 0 && email === SUPER_ADMIN_EMAIL) ? 'SUPER_ADMIN' : 'EMPLOYEE';
 
     // Create admin with appropriate role and assign to company
     const admin = await prisma.admin.create({

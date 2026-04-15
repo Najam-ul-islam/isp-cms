@@ -64,58 +64,63 @@ export async function GET(request: Request) {
             username: true,
             phone: true,
             email: true,
-            area: true, // Include area for client display
+            area: true,
             packageId: true,
-            price: true, // This is the price the client pays (might be different from package price)
+            price: true,
             package: {
               select: {
                 id: true,
                 name: true,
-                price: true, // This is the actual package price
+                price: true,
               },
             },
           },
         },
+        invoice: {
+          select: {
+            id: true,
+            amount: true,
+            additionalCharges: true,
+            carryForwardAmount: true,
+          }
+        }
       },
       orderBy: {
         paymentDate: "desc",
       },
     });
 
-    // Enhance payments with invoice summary data
+    // Enhance payments with invoice-specific data
     const paymentsWithSummary = await Promise.all(
       payments.map(async (payment) => {
-        // 🧾 FIX: All payments MUST have an invoiceId
-        if (!payment.invoiceId) {
-          return {
-            ...payment,
-            totalAmount: 0,
-            totalPaid: 0,
-            remainingAmount: 0,
-            overpaidAmount: 0,
-            effectivePaymentStatus: "unpaid" as const,
-          };
-        }
-
-        // ✅ Use ONLY invoice summary for payment data
         try {
-          const invoiceSummary = await getInvoicePaymentSummary(
-            payment.invoiceId,
-          );
+          const clientSummary = await getClientPaymentSummary(payment.clientId);
+
+          // ✅ Calculate the SPECIFIC invoice total that this payment is linked to
+          let invoiceTotal = 0;
+          if (payment.invoice) {
+            const chargesTotal = payment.invoice.additionalCharges
+              ? (typeof payment.invoice.additionalCharges === 'string'
+                  ? JSON.parse(payment.invoice.additionalCharges)
+                  : payment.invoice.additionalCharges
+                ).reduce((sum: number, c: any) => sum + (c.amount || 0), 0)
+              : 0;
+            invoiceTotal = payment.invoice.amount + chargesTotal + (payment.invoice.carryForwardAmount || 0);
+          }
+
           return {
             ...payment,
-            totalAmount: invoiceSummary.total,
-            totalPaid: invoiceSummary.totalPaid,
-            remainingAmount: invoiceSummary.remainingAmount,
-            overpaidAmount: invoiceSummary.overpaidAmount,
-            effectivePaymentStatus: invoiceSummary.effectivePaymentStatus,
+            totalAmount: invoiceTotal > 0 ? invoiceTotal : clientSummary.total, // Show specific invoice total, fallback to client total
+            totalPaid: clientSummary.totalPaid,
+            remainingAmount: clientSummary.remainingAmount,
+            overpaidAmount: clientSummary.overpaidAmount,
+            effectivePaymentStatus: clientSummary.effectivePaymentStatus,
           };
         } catch (error) {
           console.error(
-            `Error getting invoice summary for invoice ${payment.invoiceId}:`,
+            `Error getting client summary for client ${payment.clientId}:`,
             error,
           );
-          // Return zeroed summary on error
           return {
             ...payment,
             totalAmount: 0,

@@ -26,6 +26,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const invoice = await getInvoiceWithPayments(invoiceId, admin.companyId);
 
+    // Check if invoice exists
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
     // Verify that the invoice belongs to the admin's company
     if (invoice.companyId !== admin.companyId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

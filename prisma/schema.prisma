@@ -32,6 +32,7 @@ model Company {
   providers             ServiceProvider[]
   productSales          ProductSale[]
   subscription          Subscription?
+  saasInvoices          SaaSInvoice[]  // SaaS-specific invoices (isolated from client invoices)
 
   @@map("companies")
 }
@@ -159,22 +160,32 @@ model Client {
 }
 
 model Invoice {
-  id            String      @id @default(cuid())
-  clientId      String
-  amount        Float
-  issuedDate    DateTime    @default(now())
-  dueDate       DateTime
-  status        InvoiceStatus @default(unpaid)
-  description   String?
-  billingMonth  Int?        // 1-12: Month this invoice covers
-  billingYear   Int?        // YYYY: Year this invoice covers
-  additionalCharges Json?   // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  companyId     String
-  client        Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  company       Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments      Payment[]
+  id                String      @id @default(cuid())
+  clientId          String
+  amount            Float       // DEPRECATED: Use totalAmount for new invoices; kept for backward compatibility
+  totalAmount       Float?      // New field: sum of all line items (null for legacy invoices - computed from amount)
+  issuedDate        DateTime    @default(now())
+  dueDate           DateTime
+  status            InvoiceStatus @default(unpaid)
+  description       String?
+  billingMonth      String?     // Format: "2026-04" (YYYY-MM)
+  source            InvoiceSource @default(manual)  // Track invoice origin: package, product_sale, or manual
+  carryForwardAmount Float      @default(0)  // Amount carried from previous invoice
+  creditUsed        Float       @default(0)  // Credits/overpayments applied
+  additionalCharges Json?       // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  companyId         String
+
+  // Invoice chaining relations
+  previousInvoiceId String?
+  previousInvoice   Invoice?    @relation("InvoiceChain", fields: [previousInvoiceId], references: [id])
+  nextInvoices      Invoice[]   @relation("InvoiceChain")
+
+  client            Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments          Payment[]
+  items             InvoiceItem[]
 
   @@map("invoices")
   @@index([clientId])
@@ -183,8 +194,24 @@ model Invoice {
   @@index([dueDate])
   @@index([clientId, issuedDate])
   @@index([companyId, issuedDate])
-  @@index([clientId, billingMonth, billingYear])
-  @@index([companyId, billingMonth, billingYear])
+  @@index([clientId, billingMonth])
+  @@index([companyId, billingMonth])
+  @@index([previousInvoiceId])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  name        String
+  description String?
+  amount      Float
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+  @@index([invoiceId])
 }
 
 model Payment {
@@ -420,6 +447,7 @@ model Plan {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   subscriptions Subscription[]
+  saasInvoices SaaSInvoice[]  // SaaS invoices for this plan
 
   @@map("plans")
 }
@@ -442,6 +470,74 @@ model Subscription {
   @@index([status])
   @@index([endDate])
   @@map("subscriptions")
+}
+
+// SaaS-specific Invoice (isolated from client invoices)
+model SaaSInvoice {
+  id                String          @id @default(cuid())
+  companyId         String
+  amount            Float
+  issuedDate        DateTime        @default(now())
+  dueDate           DateTime
+  status            SaaSInvoiceStatus @default(unpaid)
+  description       String?
+  billingPeriod     String?         // Format: "2026-Q1" or "2026-04" (YYYY-MM)
+  carryForwardAmount Float          @default(0)
+  creditUsed        Float           @default(0)
+  additionalCharges Json?           // { items: [{name: "Extra Users", amount: 5000}, {name: "Storage", amount: 2000}] }
+  planId            String?         // The plan this invoice is for
+  plan              Plan?           @relation(fields: [planId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Invoice chaining relations
+  previousInvoiceId String?
+  previousInvoice   SaaSInvoice?    @relation("SaaSInvoiceChain", fields: [previousInvoiceId], references: [id])
+  nextInvoices      SaaSInvoice[]   @relation("SaaSInvoiceChain")
+
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payments          SaaSPayment[]
+
+  @@map("saas_invoices")
+  @@index([companyId])
+  @@index([issuedDate])
+  @@index([dueDate])
+  @@index([companyId, issuedDate])
+  @@index([companyId, billingPeriod])
+  @@index([previousInvoiceId])
+  @@index([planId])
+}
+
+// SaaS-specific Payment (isolated from client payments)
+model SaaSPayment {
+  id            String          @id @default(cuid())
+  invoiceId     String
+  amount        Float
+  paymentDate   DateTime        @default(now())
+  method        String?         // bank_transfer, credit_card, jazzcash, easypaisa
+  notes         String?
+  gateway       String?         // stripe, jazzcash, easypaisa
+  transactionId String?
+  status        String          @default("pending") // pending, success, failed, refunded
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  invoice       SaaSInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("saas_payments")
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([gateway])
+  @@index([status])
+  @@index([transactionId])
+}
+
+enum SaaSInvoiceStatus {
+  unpaid
+  partial
+  paid
+  overdue
+  cancelled
 }
 
 model ProductSale {
@@ -478,6 +574,12 @@ enum InvoiceStatus {
   unpaid
   partial
   paid
+}
+
+enum InvoiceSource {
+  package       // Monthly subscription package
+  product_sale  // Auto-generated from product sale
+  manual        // Manually created invoice
 }
 
 enum PaymentStatus {

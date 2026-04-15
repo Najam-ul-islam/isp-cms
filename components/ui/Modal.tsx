@@ -59,18 +59,29 @@ export function Modal({
 
     document.addEventListener('keydown', handleKeyDown)
 
-    // Focus first focusable element
-    const firstFocusable = modalRef.current?.querySelector(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    ) as HTMLElement
-    firstFocusable?.focus()
+    // Only focus first element on initial open, not on every render
+    const modal = modalRef.current
+    if (modal) {
+      const firstFocusable = modal.querySelector(
+        'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
+      ) as HTMLElement
+      // Only auto-focus if nothing inside the modal is already focused
+      if (firstFocusable && !modal.contains(document.activeElement)) {
+        // Small delay to ensure DOM is ready
+        requestAnimationFrame(() => {
+          firstFocusable.focus()
+        })
+      }
+    }
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      // Restore focus
-      previousFocusRef.current?.focus()
+      // Restore focus when modal closes
+      if (!isOpen) {
+        previousFocusRef.current?.focus()
+      }
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Client, Package, ServiceProvider } from "@prisma/client";
 import Image from "next/image";
 import PaymentModal from "@/components/payments/PaymentModal";
+import InvoiceCreationDialog from "@/components/invoices/InvoiceCreationDialog";
 
 interface ClientWithPackage extends Client {
   package: Package & { serviceProvider?: ServiceProvider | null };
@@ -25,6 +26,7 @@ interface ExtendedClient extends Omit<
   invoices?: Array<{
     id: string;
     additionalCharges?: string | Array<{ name: string; amount: number }>;
+    items?: Array<{ name: string; description?: string; amount: number; quantity: number }>;
   }>;
 }
 
@@ -35,6 +37,7 @@ export default function ClientInvoicePage() {
   const [client, setClient] = useState<ExtendedClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [additionalCharges, setAdditionalCharges] = useState<
     Array<{ name: string; amount: number }>
@@ -44,54 +47,26 @@ export default function ClientInvoicePage() {
   >([]);
   const [showAddCharges, setShowAddCharges] = useState(false);
   const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
+  const [paymentSummary, setPaymentSummary] = useState({
+    totalAmount: 0,
+    totalPaid: 0,
+    remainingAmount: 0,
+  });
 
-  // Create Invoice Handler
-  const handleCreateInvoice = async () => {
-    if (!client) return;
-    
-    setCreatingInvoice(true);
-    try {
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30); // Due in 30 days
+  // Create Invoice Handler - Opens dialog
+  const handleCreateInvoice = () => {
+    setShowInvoiceDialog(true);
+  };
 
-      const response = await fetch('/api/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          clientId: client.id,
-          amount: client.price || 0,
-          dueDate: dueDate.toISOString().split('T')[0],
-          description: `Invoice for ${client.name}'s internet package`,
-          additionalCharges: additionalCharges.length > 0 ? additionalCharges : undefined,
-        }),
-      });
-
-      if (response.ok) {
-        const newInvoice = await response.json();
-        // Refresh client data to show new invoice
-        const res = await fetch(`/api/clients/${id}`, {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setClient(data);
-        }
-        alert('✅ Invoice created successfully!');
-      } else {
-        const error = await response.json();
-        if (response.status === 409) {
-          alert('⚠️ Client already has an unpaid invoice. Please pay that invoice first or mark it as paid.');
-        } else {
-          alert(`❌ Failed to create invoice: ${error.error || 'Unknown error'}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      alert('❌ Failed to create invoice. Please try again.');
-    } finally {
-      setCreatingInvoice(false);
+  const handleInvoiceSuccess = async () => {
+    // Refresh client data after invoice creation
+    const res = await fetch(`/api/clients/${id}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setClient(data);
     }
   };
 
@@ -103,45 +78,61 @@ export default function ClientInvoicePage() {
           cache: "no-store",
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          setClient(data);
-
-          if (
-            data.invoices &&
-            data.invoices.length > 0 &&
-            data.invoices[0].additionalCharges
-          ) {
-            try {
-              const charges =
-                typeof data.invoices[0].additionalCharges === "string"
-                  ? JSON.parse(data.invoices[0].additionalCharges)
-                  : data.invoices[0].additionalCharges;
-              if (Array.isArray(charges)) {
-                setAdditionalCharges(charges);
-              }
-            } catch (error) {
-              console.error("Error loading additional charges:", error);
-            }
+        if (!res.ok) {
+          if (res.status === 401) {
+            router.push("/login");
+          } else if (res.status === 404) {
+            router.push("/dashboard/clients");
+          } else {
+            console.error("Failed to fetch client:", res.status);
+            router.push("/dashboard/clients");
           }
+          return;
+        }
 
-          // Fetch product sales for this client
-          const productSalesRes = await fetch(`/api/product-sales?clientId=${id}`, {
-            credentials: "include",
-            cache: "no-store",
-          });
-          if (productSalesRes.ok) {
-            const salesData = await productSalesRes.json();
-            if (salesData.data && Array.isArray(salesData.data)) {
-              setProductSales(salesData.data);
+        const data = await res.json();
+        
+        // Check if client data is null
+        if (!data || !data.id) {
+          console.error("Client not found:", id);
+          router.push("/dashboard/clients");
+          return;
+        }
+        
+        setClient(data);
+
+        if (
+          data.invoices &&
+          data.invoices.length > 0 &&
+          data.invoices[0].additionalCharges
+        ) {
+          try {
+            const charges =
+              typeof data.invoices[0].additionalCharges === "string"
+                ? JSON.parse(data.invoices[0].additionalCharges)
+                : data.invoices[0].additionalCharges;
+            if (Array.isArray(charges)) {
+              setAdditionalCharges(charges);
             }
+          } catch (error) {
+            console.error("Error loading additional charges:", error);
           }
-        } else {
-          router.push("/login");
+        }
+
+        // Fetch product sales for this client
+        const productSalesRes = await fetch(`/api/product-sales?clientId=${id}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (productSalesRes.ok) {
+          const salesData = await productSalesRes.json();
+          if (salesData.data && Array.isArray(salesData.data)) {
+            setProductSales(salesData.data);
+          }
         }
       } catch (err) {
         console.error(err);
-        router.push("/login");
+        router.push("/dashboard/clients");
       } finally {
         setLoading(false);
       }
@@ -149,6 +140,33 @@ export default function ClientInvoicePage() {
 
     if (id) fetchClient();
   }, [id, router]);
+
+  // ✅ FIX: Fetch client payment summary to get correct paid/remaining amounts
+  // This uses the payment calculator which correctly tracks payments per invoice
+  useEffect(() => {
+    const fetchPaymentSummary = async () => {
+      try {
+        const res = await fetch(`/api/clients/${id}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPaymentSummary({
+            totalAmount: data.totalAmount || data.total || 0,
+            totalPaid: data.totalPaid || 0,
+            remainingAmount: data.remainingAmount || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching payment summary:", error);
+      }
+    };
+
+    if (id) {
+      fetchPaymentSummary();
+    }
+  }, [id]);
 
   const formatDate = (date: Date | string) =>
     new Date(date).toLocaleDateString("en-PK", {
@@ -177,7 +195,13 @@ export default function ClientInvoicePage() {
 
   // Calculate values dynamically from client data (no hardcoded values)
   const packagePrice = client.price || 0;
-  
+
+  // ✅ FIX: Only include package price if this is a NEW client (no existing invoices)
+  // For existing clients, package is billed separately each month
+  // Additional charges and product sales are billed independently
+  const hasExistingInvoices = client.invoices && Array.isArray(client.invoices) && client.invoices.length > 0;
+  const shouldIncludePackage = !hasExistingInvoices; // Only include package for new clients
+
   // Calculate additional charges from ALL invoices
   const allAdditionalCharges: Array<{ name: string; amount: number }> = [];
   if (client.invoices && Array.isArray(client.invoices)) {
@@ -201,16 +225,23 @@ export default function ClientInvoicePage() {
   const currentCharges = additionalCharges.length > 0 ? additionalCharges : allAdditionalCharges;
 
   const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount || 0), 0);
-  
-  // Calculate total selling price from product sales (what client actually pays)
+
+  // ⚠️ Display-only: Product sales total (for UI breakdown)
+  // Note: Product sales create invoices, so this is NOT added to billing total
+  // It's only shown to help users understand what's included in invoices
   const productSalesTotal = productSales.reduce((sum, sale) => sum + (sale.sellingPrice * sale.quantity), 0);
 
-  // Total = package price + additional charges + product sales (selling price)
-  const total = packagePrice + additionalTotal + productSalesTotal;
-  
-  // Use dynamic values from API (client.totalPaid is calculated from actual payments)
-  const paid = client.totalPaid ?? 0;
-  const remaining = Math.max(total - paid, 0);
+  // ✅ Display-only local total (package + additional charges + product sales)
+  // This is used for UI comparison only, NOT for actual billing calculations
+  const localTotal = (shouldIncludePackage ? packagePrice : 0) + additionalTotal + productSalesTotal;
+
+  // ✅ ACTUAL BILLING TOTAL: Use payment summary from backend (invoices ONLY)
+  // Backend ensures: invoices are single source of truth, no double-counting
+  const total = paymentSummary.totalAmount > 0 ? paymentSummary.totalAmount : localTotal;
+
+  // Use payment summary for paid/remaining amounts
+  const paid = paymentSummary.totalPaid;
+  const remaining = paymentSummary.remainingAmount;
 
   const handleAddCharge = async () => {
     if (newCharge.name && newCharge.amount) {
@@ -223,46 +254,39 @@ export default function ClientInvoicePage() {
       setNewCharge({ name: "", amount: "" });
 
       try {
-        const invoicesResponse = await fetch(
-          `/api/invoices?clientId=${client.id}`,
-          { credentials: "include" },
-        );
+        // Use the new items-based API to add charges
+        const response = await fetch('/api/invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            clientId: client.id,
+            items: [{
+              name: charge.name,
+              amount: charge.amount,
+              quantity: 1,
+            }],
+            description: `Additional charge: ${charge.name}`,
+            appendToExisting: true,
+          }),
+        });
 
-        let invoiceId: string | null = null;
-
-        if (invoicesResponse.ok) {
-          const invoices = await invoicesResponse.json();
-          if (invoices.length > 0) {
-            invoiceId = invoices[0].id;
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Failed to add charge:', error);
+        } else {
+          // Refresh client data
+          const res = await fetch(`/api/clients/${id}`, {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setClient(data);
           }
         }
-
-        if (!invoiceId) {
-          await fetch("/api/invoices", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              clientId: client.id,
-              amount: client.price,
-              dueDate: new Date().toISOString().split("T")[0],
-              description: `Invoice for ${client.name}`,
-              additionalCharges: updatedCharges,
-            }),
-          });
-        } else {
-          await fetch(`/api/invoices/${invoiceId}/additional-charges`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              invoiceId,
-              additionalCharges: updatedCharges,
-            }),
-          });
-        }
       } catch (error) {
-        console.error("Error saving additional charges:", error);
+        console.error('Error saving additional charge:', error);
       }
     }
   };
@@ -305,8 +329,7 @@ Package: ${client.package?.name}
 Duration: 1 Month
 
 💰 *Payment Detail*
-Package Charges: ${formatPKR(packagePrice)}
-One-Time Charges: ${formatPKR(additionalTotal)}
+${shouldIncludePackage ? `Package Charges: ${formatPKR(packagePrice)}\n` : ''}One-Time Charges: ${formatPKR(additionalTotal)}
 Subtotal: ${formatPKR(total)}
 Discount: ${formatPKR(0)}
 Grand Total: ${formatPKR(total)}
@@ -334,23 +357,25 @@ Please clear your dues. Thank you!
       <div className="flex gap-2 flex-wrap justify-center">
         <button
           onClick={handleCreateInvoice}
-          disabled={creatingInvoice}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-500/60 dark:border-blue-400/60 px-4 py-2 text-sm font-semibold text-white bg-blue-600 dark:bg-blue-500 transition-all duration-200 ease-out hover:border-blue-400/60 dark:hover:border-blue-300/60 hover:bg-blue-700 dark:hover:bg-blue-400 hover:shadow-lg hover:shadow-blue-500/20 dark:hover:shadow-blue-400/20 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
         >
-          {creatingInvoice ? '⏳ Creating...' : '📄 Create Invoice'}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Create Invoice
         </button>
         <button
           onClick={sendWhatsApp}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 dark:border-emerald-400/60 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 dark:bg-emerald-500 transition-all duration-200 ease-out hover:border-emerald-400/60 dark:hover:border-emerald-300/60 hover:bg-emerald-700 dark:hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 dark:hover:shadow-emerald-400/20 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
         >
-          📲 Send via WhatsApp
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          WhatsApp
         </button>
         {remaining > 0.01 && (
           <button
             onClick={() => setShowPaymentModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm shadow transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-violet-500/60 dark:border-violet-400/60 px-4 py-2 text-sm font-semibold text-white bg-violet-600 dark:bg-violet-500 transition-all duration-200 ease-out hover:border-violet-400/60 dark:hover:border-violet-300/60 hover:bg-violet-700 dark:hover:bg-violet-400 hover:shadow-lg hover:shadow-violet-500/20 dark:hover:shadow-violet-400/20 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
           >
-            💳 Pay Now
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            Pay Now
           </button>
         )}
       </div>
@@ -452,7 +477,7 @@ Please clear your dues. Thank you!
                   onChange={(e) =>
                     setNewCharge({ ...newCharge, name: e.target.value })
                   }
-                  className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white bg-white dark:bg-slate-800"
                 />
                 <input
                   type="number"
@@ -461,7 +486,7 @@ Please clear your dues. Thank you!
                   onChange={(e) =>
                     setNewCharge({ ...newCharge, amount: e.target.value })
                   }
-                  className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white bg-white dark:bg-slate-800"
                 />
                 <button
                   onClick={handleAddCharge}
@@ -482,6 +507,21 @@ Please clear your dues. Thank you!
           )}
         </div>
 
+        {/* Outstanding Invoices Section */}
+        {paymentSummary.totalAmount > localTotal && localTotal > 0 && (
+          <div className="px-6 py-2 bg-amber-50 border-y border-amber-100 mt-2">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+              📋 Outstanding Invoices
+            </p>
+            <p className="text-xs text-amber-600">
+              Total outstanding (invoices + product sales): {formatPKR(paymentSummary.totalAmount)}
+            </p>
+            <p className="text-xs text-amber-500 mt-1">
+              This page shows: {formatPKR(localTotal)} (product sales + charges)
+            </p>
+          </div>
+        )}
+
         {/* Payment Detail Section - Show ALL charges here */}
         <div className="px-6 py-2 bg-blue-50 border-y border-blue-100 mt-2">
           <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -489,13 +529,15 @@ Please clear your dues. Thank you!
           </p>
         </div>
         <div className="px-6 py-3 space-y-2">
-          {/* Internet/Package Charges */}
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-600">Internet Charges</span>
-            <span className="text-slate-800 text-xs leading-tight">
-              {formatPKR(packagePrice)}
-            </span>
-          </div>
+          {/* Internet/Package Charges - ONLY for NEW clients */}
+          {shouldIncludePackage && (
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-600">Internet Charges</span>
+              <span className="text-slate-800 text-xs leading-tight">
+                {formatPKR(packagePrice)}
+              </span>
+            </div>
+          )}
 
           {/* One-Time Charges listed individually */}
           {currentCharges.map((charge, idx) => (
@@ -559,12 +601,17 @@ Please clear your dues. Thank you!
         <div className="mx-6 mb-4 mt-1 bg-blue-50 rounded-xl p-4 border border-blue-200">
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold text-slate-700">
-              Total Amount
+              Total Outstanding
             </span>
             <span className="text-2xl font-bold text-indigo-700">
               {formatPKR(total)}
             </span>
           </div>
+          {paymentSummary.totalAmount > localTotal && (
+            <p className="text-xs text-slate-500 mt-2">
+              Includes {formatPKR(paymentSummary.totalAmount - localTotal)} from unpaid invoices + {formatPKR(localTotal)} from this page
+            </p>
+          )}
         </div>
 
         {/* Payment Status Section */}
@@ -614,6 +661,20 @@ Please clear your dues. Thank you!
           additionalCharges={
             additionalCharges.length > 0 ? additionalCharges : undefined
           }
+        />
+      )}
+
+      {/* Invoice Creation Dialog */}
+      {client && (
+        <InvoiceCreationDialog
+          isOpen={showInvoiceDialog}
+          onClose={() => setShowInvoiceDialog(false)}
+          clientId={client.id}
+          clientName={client.name}
+          packageName={client.package?.name}
+          packagePrice={client.price}
+          outstandingAmount={paymentSummary.remainingAmount}
+          onSuccess={handleInvoiceSuccess}
         />
       )}
 

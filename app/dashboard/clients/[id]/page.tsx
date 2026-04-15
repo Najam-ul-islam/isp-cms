@@ -376,6 +376,14 @@ export default function ClientDetailPage() {
               {showDetails ? <ChevronUp className="w-4 h-4 text-violet-600 dark:text-violet-400" /> : <ChevronDown className="w-4 h-4 text-violet-600 dark:text-violet-400" />}
               {showDetails ? 'Hide Details' : 'Show Details'}
             </button>
+            <Link
+              href={`/dashboard/clients/${client.id}/invoices`}
+              className="flex items-center gap-2 w-full p-2.5 text-sm text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200/60 dark:border-gray-700/60 hover:border-orange-500/60 dark:hover:border-orange-400/60 hover:bg-orange-50/50 dark:hover:bg-orange-900/20 hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-400/10 transition-all duration-200 ease-out"
+              aria-label="View invoice history"
+            >
+              <Receipt className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+              View Invoice History
+            </Link>
           </div>
         </div>
       </div>

@@ -39,6 +39,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("all");
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
@@ -371,6 +372,7 @@ export default function PaymentsPage() {
   };
 
   const handleSavePayment = async (paymentData: Partial<Payment>) => {
+    setSavingPayment(true);
     try {
 
       if (editingPayment) {
@@ -499,6 +501,8 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error("Error saving payment:", error);
       showNotification('error', 'Failed to save payment. Please try again.');
+    } finally {
+      setSavingPayment(false);
     }
   };
 
@@ -718,6 +722,7 @@ export default function PaymentsPage() {
           <table className="w-full">
             <thead className="bg-slate-50/80 dark:bg-gray-900/50">
               <tr className="text-left text-sm font-medium text-slate-500 dark:text-gray-400">
+                <th className="px-3 py-4">Invoice ID</th>
                 <th className="px-3 py-4">Username</th>
                 <th className="px-3 py-4">Client</th>
                 <th className="px-3 py-4">Area</th>
@@ -738,6 +743,13 @@ export default function PaymentsPage() {
                     className="hover:bg-slate-50/80 dark:hover:bg-gray-700/30 transition-colors group"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
+                    {/* Invoice ID Column */}
+                    <td className="px-3 py-4">
+                      <span className="text-blue-600 dark:text-blue-400 font-mono text-xs font-semibold">
+                        {payment.invoiceId ? `#${payment.invoiceId.slice(-8).toUpperCase()}` : '-'}
+                      </span>
+                    </td>
+
                     {/* Username Column */}
                     <td className="px-3 py-4">
                       <span className="text-slate-600 dark:text-gray-300 font-mono text-sm">
@@ -869,6 +881,7 @@ export default function PaymentsPage() {
           onSave={handleSavePayment}
           paymentMethods={paymentMethods}
           router={router}
+          submitting={savingPayment}
         />
       )}
 
@@ -1300,12 +1313,14 @@ function PaymentFormModal({
   onSave,
   paymentMethods,
   router,
+  submitting: externalSubmitting = false,
 }: {
   payment: Payment | null;
   onClose: () => void;
   onSave: (data: Partial<Payment>) => void;
   paymentMethods: string[];
   router: ReturnType<typeof useRouter>;
+  submitting?: boolean;
 }) {
   const [formData, setFormData] = useState({
     clientName: payment?.clientName || "",
@@ -1320,7 +1335,7 @@ function PaymentFormModal({
   const [invoices, setInvoices] = useState<Array<{ id: string; amount: number; status: string; totalAmount: number; totalPaid: number; remainingAmount: number }>>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(externalSubmitting);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -1481,9 +1496,18 @@ function PaymentFormModal({
             // Set invoices (only unpaid/partial)
             if (invoicesRes.ok) {
               const invoicesData = await invoicesRes.json();
-              const unpaidInvoices = invoicesData.filter((inv: any) => 
+              console.log(`[Payment Form] Client ${selectedClient.id} has ${invoicesData.length} total invoices:`, 
+                invoicesData.map((inv: any) => ({
+                  id: inv.id.slice(-8).toUpperCase(),
+                  status: inv.status,
+                  amount: inv.amount,
+                  remaining: inv.remainingAmount
+                }))
+              );
+              const unpaidInvoices = invoicesData.filter((inv: any) =>
                 inv.status === 'unpaid' || inv.status === 'partial'
               );
+              console.log(`[Payment Form] Showing ${unpaidInvoices.length} unpaid/partial invoices`);
               setInvoices(unpaidInvoices);
             }
           } else {
@@ -1502,13 +1526,24 @@ function PaymentFormModal({
         setInvoices([]);
       }
     } else if (name === "invoiceId") {
-      // When invoice is selected, auto-fill the remaining amount
+      // When invoice is selected, auto-fill the remaining amount and update summary
       const selectedInvoice = invoices.find(inv => inv.id === value);
       setFormData((prev) => ({
         ...prev,
         [name]: value,
         amount: selectedInvoice ? selectedInvoice.remainingAmount : prev.amount,
       }));
+
+      // ✅ Update Client Payment Summary to show selected invoice details
+      if (selectedInvoice) {
+        setClientPaymentSummary({
+          totalAmount: selectedInvoice.totalAmount || 0,
+          remainingAmount: selectedInvoice.remainingAmount || 0,
+          packageAmount: selectedInvoice.amount || 0, // Base invoice amount
+          otherIncome: 0, // Product sales shown separately below
+          isLoading: false,
+        });
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -1615,20 +1650,25 @@ function PaymentFormModal({
                   </p>
                 </div>
               ) : (
-                <select
-                  name="invoiceId"
-                  value={formData.invoiceId}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
-                >
-                  <option value="">Select an invoice</option>
-                  {invoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      Invoice #{invoice.id.slice(0, 8).toUpperCase()} - Rs. {invoice.remainingAmount.toLocaleString('en-PK')} remaining ({invoice.status})
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <select
+                    name="invoiceId"
+                    value={formData.invoiceId}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select an invoice</option>
+                    {invoices.map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        #{invoice.id.slice(-8).toUpperCase()} | {invoice.status.toUpperCase()} | Total: Rs. {(invoice.totalAmount || invoice.amount).toLocaleString('en-PK')} | Remaining: Rs. {(invoice.remainingAmount || 0).toLocaleString('en-PK')}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {invoices.length} unpaid/partial invoice(s) available
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -1806,9 +1846,20 @@ function PaymentFormModal({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl"
+              disabled={submitting}
+              className="flex-1 px-4 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center justify-center gap-2"
             >
-              {payment ? "Update Payment" : "Add Payment"}
+              {submitting ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                payment ? "Update Payment" : "Add Payment"
+              )}
             </button>
           </div>
         </form>

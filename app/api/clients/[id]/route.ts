@@ -35,6 +35,11 @@ export async function GET(
       }
     })
 
+    // Check if client exists before proceeding
+    if (!client) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
+
     // Calculate payment summary using the utility function
     const paymentSummary = await getClientPaymentSummary(clientId);
 
@@ -81,10 +86,6 @@ export async function GET(
       payments: allClientPayments, // Include payment history
       invoices: clientInvoices // Include invoice details with payment summaries
     };
-
-    if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-    }
 
     return NextResponse.json(clientWithPaymentStats)
   } catch (error) {
@@ -329,11 +330,27 @@ export async function DELETE(
     const { id } = await params
     const clientId = id
 
-    // Delete related payments first to avoid foreign key constraint
+    // Delete related complaints first
+    await prisma.complaint.deleteMany({
+      where: {
+        clientId,
+        companyId: admin.companyId
+      }
+    });
+
+    // Delete related product sales
+    await prisma.productSale.deleteMany({
+      where: {
+        clientId,
+        companyId: admin.companyId
+      }
+    });
+
+    // Delete related payments to avoid foreign key constraint
     await prisma.payment.deleteMany({
       where: {
         clientId,
-        companyId: admin.companyId  // Multi-tenant filter
+        companyId: admin.companyId
       }
     });
 
@@ -341,7 +358,7 @@ export async function DELETE(
     await prisma.invoice.deleteMany({
       where: {
         clientId,
-        companyId: admin.companyId  // Multi-tenant filter
+        companyId: admin.companyId
       }
     });
 

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { Invoice, Prisma } from '@prisma/client';
+import { Invoice, Prisma, InvoiceItem } from '@prisma/client';
 
 export interface CreateInvoiceData {
   clientId: string;
@@ -7,17 +7,41 @@ export interface CreateInvoiceData {
   dueDate: Date;
   description?: string;
   companyId: string;
-  billingMonth?: number;  // 1-12
-  billingYear?: number;   // YYYY
+  billingMonth?: string;  // Format: "2026-04"
+  carryForwardAmount?: number;
+  creditUsed?: number;
+  previousInvoiceId?: string;
+  additionalCharges?: any;
+  totalAmount?: number;
+}
+
+export interface CreateInvoiceWithItemsData {
+  clientId: string;
+  dueDate: Date;
+  description?: string;
+  companyId: string;
+  billingMonth?: string;
+  carryForwardAmount?: number;
+  creditUsed?: number;
+  previousInvoiceId?: string;
+  source?: 'package' | 'product_sale' | 'manual';  // ✅ Track invoice source
+  items: {
+    name: string;
+    description?: string | null;
+    amount: number;
+    quantity?: number;
+  }[];
 }
 
 export interface UpdateInvoiceData {
   amount?: number;
+  totalAmount?: number;
   dueDate?: Date;
   description?: string;
   status?: 'unpaid' | 'partial' | 'paid';
-  billingMonth?: number;
-  billingYear?: number;
+  billingMonth?: string;
+  carryForwardAmount?: number;
+  creditUsed?: number;
 }
 
 export class InvoiceRepository {
@@ -29,11 +53,131 @@ export class InvoiceRepository {
       data: {
         clientId: data.clientId,
         amount: data.amount,
+        totalAmount: data.totalAmount ?? data.amount,
         dueDate: data.dueDate,
         description: data.description,
         companyId: data.companyId,
         billingMonth: data.billingMonth,
-        billingYear: data.billingYear,
+        carryForwardAmount: data.carryForwardAmount || 0,
+        creditUsed: data.creditUsed || 0,
+        previousInvoiceId: data.previousInvoiceId,
+        additionalCharges: data.additionalCharges,
+      }
+    });
+  }
+
+  /**
+   * Create a new invoice with line items (atomic transaction)
+   */
+  static async createWithItems(data: CreateInvoiceWithItemsData): Promise<Invoice & { items: InvoiceItem[] }> {
+    const totalAmount = data.items.reduce(
+      (sum, item) => sum + (item.amount * (item.quantity || 1)),
+      0
+    );
+
+    return await prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.create({
+        data: {
+          clientId: data.clientId,
+          amount: totalAmount, // Keep amount same as totalAmount for consistency
+          totalAmount,
+          dueDate: data.dueDate,
+          description: data.description,
+          companyId: data.companyId,
+          billingMonth: data.billingMonth,
+          carryForwardAmount: data.carryForwardAmount || 0,
+          creditUsed: data.creditUsed || 0,
+          previousInvoiceId: data.previousInvoiceId,
+          source: data.source || 'manual',  // ✅ Set invoice source
+        }
+      });
+
+      const items = await Promise.all(
+        data.items.map((item) =>
+          tx.invoiceItem.create({
+            data: {
+              invoiceId: invoice.id,
+              name: item.name,
+              description: item.description,
+              amount: item.amount,
+              quantity: item.quantity || 1,
+            }
+          })
+        )
+      );
+
+      return { ...invoice, items };
+    });
+  }
+
+  /**
+   * Add line items to an existing invoice (atomic transaction)
+   * Updates totalAmount accordingly
+   */
+  static async addItemsToInvoice(
+    invoiceId: string,
+    companyId: string,
+    items: {
+      name: string;
+      description?: string | null;
+      amount: number;
+      quantity?: number;
+    }[]
+  ): Promise<Invoice & { items: InvoiceItem[] }> {
+    return await prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findUnique({
+        where: { id: invoiceId, companyId },
+        include: { items: true }
+      });
+
+      if (!invoice) {
+        throw new Error('Invoice not found');
+      }
+
+      const newItems = await Promise.all(
+        items.map((item) =>
+          tx.invoiceItem.create({
+            data: {
+              invoiceId: invoice.id,
+              name: item.name,
+              description: item.description,
+              amount: item.amount,
+              quantity: item.quantity || 1,
+            }
+          })
+        )
+      );
+
+      const newItemTotal = items.reduce(
+        (sum, item) => sum + (item.amount * (item.quantity || 1)),
+        0
+      );
+
+      const newTotalAmount = (invoice.totalAmount ?? invoice.amount) + newItemTotal;
+
+      const updatedInvoice = await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { totalAmount: newTotalAmount },
+        include: { items: true }
+      });
+
+      return updatedInvoice;
+    });
+  }
+
+  /**
+   * Get invoice with line items
+   */
+  static async findByIdWithItems(id: string, companyId: string): Promise<(Invoice & { items: InvoiceItem[] }) | null> {
+    return await prisma.invoice.findUnique({
+      where: {
+        id,
+        companyId
+      },
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' }
+        }
       }
     });
   }

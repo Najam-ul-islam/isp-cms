@@ -1145,9 +1145,9 @@ function AddSaleModal({
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Actual Price <span className="text-slate-400 dark:text-gray-500 font-normal">(cost per {selectedProductUnit})</span>
-                {isAutoFilled && (
+                {/* {isAutoFilled && (
                   <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">✓ Auto-filled</span>
-                )}
+                )} */}
               </label>
               <div className="relative">
                 <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />

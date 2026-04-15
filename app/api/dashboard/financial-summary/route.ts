@@ -7,14 +7,32 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0; // Disable caching
 
 /**
+ * Helper: Get start of day in local timezone
+ */
+const startOfDay = (date: Date = new Date()): Date => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+/**
+ * Helper: Get end of day in local timezone
+ */
+const endOfDay = (date: Date = new Date()): Date => {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+};
+
+/**
  * GET /api/dashboard/financial-summary
  *
  * Returns accurate financial calculations:
  * - Total Revenue: Sum of all SUCCESSFUL payments
  * - Total Payable: Sum of all expenses
  * - Total Arrears: Sum of unpaid/partially paid client prices
- * - Today's Recovery: Payments received today
- * - Today's Expense: Expenses recorded today
+ * - Today's Recovery: Payments received today (uses paymentDate)
+ * - Today's Expense: Expenses recorded today (uses expense date)
  */
 export async function GET(request: Request) {
   try {
@@ -30,17 +48,20 @@ export async function GET(request: Request) {
 
     const companyId = admin.companyId;
 
-    // 1. TOTAL REVENUE - Money actually received from clients
-    // Sum of client prices WHERE client.paymentStatus = 'paid'
+    // Calculate today's date range (local timezone)
+    const todayStart = startOfDay();
+    const todayEnd = endOfDay();
+
+    // 1. TOTAL REVENUE - Sum of client prices WHERE client.paymentStatus = 'paid'
     const totalRevenueResult = await prisma.client.aggregate({
       _sum: { price: true },
       where: {
         companyId,
-        paymentStatus: 'paid', // Clients who have paid
+        paymentStatus: 'paid',
       },
     });
 
-    // 2. TOTAL PAYABLE - Money owed (expenses/liabilities)
+    // 2. TOTAL PAYABLE - Sum of all expenses
     const totalPayableResult = await prisma.expense.aggregate({
       _sum: { amount: true },
       where: {
@@ -48,8 +69,7 @@ export async function GET(request: Request) {
       },
     });
 
-    // 3. TOTAL ARREARS - Money customers still owe us
-    // Sum of client prices where paymentStatus is 'unpaid' or 'partial'
+    // 3. TOTAL ARREARS - Sum of client prices where paymentStatus is 'unpaid' or 'partial'
     const arrearsClients = await prisma.client.aggregate({
       _sum: { price: true },
       where: {
@@ -62,63 +82,28 @@ export async function GET(request: Request) {
 
     const totalArrears = arrearsClients._sum.price || 0;
 
-    // Calculate today's date range in UTC (used for both recovery and expenses)
-    const now = new Date();
-    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    const endOfTodayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-
-    console.log('[Financial Summary] Query params:', {
-      companyId,
-      todayUTC: todayUTC.toISOString(),
-      endOfTodayUTC: endOfTodayUTC.toISOString(),
-      now: now.toISOString()
-    });
-
-    // Debug: Get all payments for this company to see what's in the database
-    const allPayments = await prisma.payment.findMany({
-      where: { companyId },
-      orderBy: { paymentDate: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        amount: true,
-        status: true,
-        paymentDate: true,
-        client: { select: { name: true } }
-      }
-    });
-
-    console.log('[Financial Summary] Recent payments:', allPayments.map(p => ({
-      id: p.id,
-      amount: p.amount,
-      status: p.status,
-      paymentDate: p.paymentDate.toISOString(),
-      client: p.client?.name
-    })));
-
-    // 4. TODAY'S RECOVERY - Payments received today
+    // 4. TODAY'S RECOVERY - Sum of successful payments where paymentDate is today
+    // Uses paymentDate (NOT createdAt) to support backdated payments
     const todaysRecoveryResult = await prisma.payment.aggregate({
       _sum: { amount: true },
       where: {
         companyId,
-        status: 'success', // Only successful payments
+        status: 'success',
         paymentDate: {
-          gte: todayUTC,
-          lte: endOfTodayUTC,
+          gte: todayStart,
+          lte: todayEnd,
         },
       },
     });
 
-    console.log('[Financial Summary] Today\'s recovery:', todaysRecoveryResult._sum.amount);
-
-    // 5. TODAY'S EXPENSE - Expenses recorded today
+    // 5. TODAY'S EXPENSE - Sum of expenses where date is today
     const todaysExpenseResult = await prisma.expense.aggregate({
       _sum: { amount: true },
       where: {
         companyId,
         date: {
-          gte: todayUTC,
-          lte: endOfTodayUTC,
+          gte: todayStart,
+          lte: todayEnd,
         },
       },
     });
@@ -129,7 +114,7 @@ export async function GET(request: Request) {
       totalArrears,
       todaysRecovery: todaysRecoveryResult._sum.amount || 0,
       todaysExpense: todaysExpenseResult._sum.amount || 0,
-      timestamp: new Date().toISOString(), // Add timestamp for cache busting
+      timestamp: new Date().toISOString(),
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -138,7 +123,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Financial summary error:', error);
+    console.error('[Financial Summary] Error:', error);
     return NextResponse.json(
       { error: 'Failed to load financial summary' },
       { status: 500 }

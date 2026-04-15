@@ -8,24 +8,75 @@ import {
 
 /**
  * Create a new product sale record
+ * Automatically deducts stock from inventory if product name matches an inventory item
  */
 export const createProductSale = async (input: CreateProductSaleInput) => {
   const unitProfit = input.sellingPrice - input.actualPrice;
   const totalOtherIncome = unitProfit * input.quantity;
 
-  return prisma.productSale.create({
-    data: {
-      clientId: input.clientId,
-      productName: input.productName,
-      actualPrice: input.actualPrice,
-      sellingPrice: input.sellingPrice,
-      quantity: input.quantity,
-      unitProfit,
-      totalOtherIncome,
-      notes: input.notes,
-      saleDate: input.saleDate || new Date(),
-      companyId: input.companyId,
-    },
+  // Use Prisma transaction to ensure atomicity
+  return prisma.$transaction(async (tx) => {
+    // 1. Create the product sale
+    const productSale = await tx.productSale.create({
+      data: {
+        clientId: input.clientId,
+        productName: input.productName,
+        actualPrice: input.actualPrice,
+        sellingPrice: input.sellingPrice,
+        quantity: input.quantity,
+        unitProfit,
+        totalOtherIncome,
+        notes: input.notes,
+        saleDate: input.saleDate || new Date(),
+        companyId: input.companyId,
+      },
+    });
+
+    // 2. Find matching inventory item by name (case-insensitive)
+    const inventoryItem = await tx.inventoryItem.findFirst({
+      where: {
+        companyId: input.companyId,
+        name: {
+          equals: input.productName,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    // 3. If inventory item exists, deduct stock and create transaction
+    if (inventoryItem) {
+      // Check if enough stock is available
+      if (inventoryItem.quantity < input.quantity) {
+        throw new Error(
+          `Insufficient stock for "${input.productName}". Available: ${inventoryItem.quantity}, Requested: ${input.quantity}`
+        );
+      }
+
+      // Deduct quantity from inventory
+      const newQuantity = inventoryItem.quantity - input.quantity;
+      const newTotalValue = newQuantity * inventoryItem.unitPrice;
+
+      await tx.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: {
+          quantity: newQuantity,
+          totalValue: newTotalValue,
+        },
+      });
+
+      // Create inventory transaction record
+      await tx.inventoryTransaction.create({
+        data: {
+          itemId: inventoryItem.id,
+          type: 'sale',
+          quantity: input.quantity,
+          note: `Product sale - ${input.productName} (Qty: ${input.quantity})`,
+          companyId: input.companyId,
+        },
+      });
+    }
+
+    return productSale;
   });
 };
 

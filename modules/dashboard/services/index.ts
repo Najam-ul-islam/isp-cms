@@ -8,6 +8,50 @@ import { getEmployeeStats } from '../../employees/services';
 import { AdminWithPackages } from '@/lib/jwt';
 import { getClientPaymentSummary } from '@/lib/payment-calculator';
 
+/**
+ * Helper: Get start of day (local timezone)
+ */
+export const startOfDay = (date: Date = new Date()): Date => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+/**
+ * Helper: Get end of day (local timezone)
+ */
+export const endOfDay = (date: Date = new Date()): Date => {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+};
+
+/**
+ * Get today's other income (product sales profit)
+ * Only includes totalOtherIncome from product sales where saleDate is today
+ */
+const getTodayOtherIncome = async (companyId: string): Promise<{ _sum: { amount: number }, _count: { id: number } }> => {
+  const todayStart = startOfDay();
+  const todayEnd = endOfDay();
+
+  const result = await prisma.productSale.aggregate({
+    where: {
+      companyId,
+      saleDate: {
+        gte: todayStart,
+        lte: todayEnd,
+      },
+    },
+    _sum: { totalOtherIncome: true },
+    _count: { id: true },
+  });
+
+  return {
+    _sum: { amount: result._sum.totalOtherIncome || 0 },
+    _count: { id: result._count.id || 0 },
+  };
+};
+
 export const getDashboardStats = async (admin: AdminWithPackages) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -224,16 +268,16 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     // Expense stats
     getExpenseStatsByCompany(admin.companyId),
 
-    // Today's recovery
-    getPaymentStatsByCompany(admin.companyId, today, today),
+    // Today's recovery (successful payments made today)
+    getPaymentStatsByCompany(admin.companyId, today, endOfDay),
 
     // Today's expenses
-    getExpenseStatsByCompany(admin.companyId, today, today),
+    getExpenseStatsByCompany(admin.companyId, today, endOfDay),
 
-    // Other income (partial payments)
-    getPaymentStatsByCompany(admin.companyId, today, today, 'partial'),
+    // Other income (product sales profit made today)
+    getTodayOtherIncome(admin.companyId),
 
-    // Pending recovery (all unpaid clients)
+    // Pending recovery (all unpaid/partial invoices remaining amount)
     getPendingRecovery(admin.companyId),
 
     // Total receivable from clients (unpaid + partial)

@@ -202,6 +202,13 @@ export default function CompanyDetail({ company }: CompanyDetailProps) {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => router.push(`/saas/companies/${company.id}/invoices`)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            <FileText className="w-4 h-4" />
+            View All Invoices
+          </button>
+          <button
             onClick={() => setShowInvoiceModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 shadow-sm hover:shadow-md"
           >

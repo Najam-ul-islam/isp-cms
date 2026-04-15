@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/product-sales
  * Create a new product sale
+ * If clientId is provided, auto-attaches to existing unpaid invoice
  */
 export async function POST(request: NextRequest) {
   try {
@@ -95,6 +96,9 @@ export async function POST(request: NextRequest) {
       quantity,
       notes,
       saleDate,
+      // Invoice options
+      attachToInvoice,
+      allowDuplicateInvoice,
     } = body;
 
     if (!productName) {
@@ -125,6 +129,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create the product sale
     const result = await createProductSale({
       clientId: clientId || null,
       productName,
@@ -135,6 +140,71 @@ export async function POST(request: NextRequest) {
       saleDate: saleDate ? new Date(saleDate) : undefined,
       companyId: admin.companyId,
     });
+
+    // ✅ ENFORCE: If clientId is provided, ALWAYS create/update invoice
+    // Product sales MUST be tracked via invoices for billing consistency
+    if (clientId) {
+      try {
+        const { createInvoiceWithItems } = await import('@/modules/invoices/services');
+        const { prisma } = await import('@/lib/prisma');
+
+        // Check for existing unpaid invoice
+        const existingUnpaidInvoice = await prisma.invoice.findFirst({
+          where: {
+            clientId,
+            companyId: admin.companyId,
+            status: { in: ['unpaid', 'partial'] }  // ✅ Also append to partial invoices
+          },
+          orderBy: { issuedDate: 'desc' }
+        });
+
+        // If there's an unpaid/partial invoice, append items to it
+        if (existingUnpaidInvoice) {
+          await createInvoiceWithItems(
+            {
+              clientId,
+              items: [{
+                name: productName,
+                description: notes || undefined,
+                amount: sellingPrice,
+                quantity,
+              }],
+              description: `Product sale: ${productName}`,
+              source: 'product_sale',  // ✅ Mark as product sale source
+            },
+            admin.companyId,
+            { appendToExistingUnpaid: true }
+          );
+        }
+        // If no unpaid/partial invoice exists, create a new one
+        else {
+          // Create new invoice with the product sale item
+          await createInvoiceWithItems(
+            {
+              clientId,
+              items: [{
+                name: productName,
+                description: notes || undefined,
+                amount: sellingPrice,
+                quantity,
+              }],
+              description: `Invoice for product sale: ${productName}`,
+              source: 'product_sale',  // ✅ Mark as product sale source
+            },
+            admin.companyId,
+            { allowDuplicate: false }
+          );
+        }
+      } catch (invoiceError) {
+        // Log error but don't fail product sale creation
+        console.error('[ProductSales] Failed to auto-create/attach invoice:', invoiceError);
+        // Return the product sale result with a warning
+        return NextResponse.json({
+          ...result,
+          invoiceWarning: 'Could not auto-create invoice: ' + (invoiceError as Error).message,
+        }, { status: 201 });
+      }
+    }
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
