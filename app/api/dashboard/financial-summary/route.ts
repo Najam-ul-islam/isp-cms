@@ -52,12 +52,12 @@ export async function GET(request: Request) {
     const todayStart = startOfDay();
     const todayEnd = endOfDay();
 
-    // 1. TOTAL REVENUE - Sum of client prices WHERE client.paymentStatus = 'paid'
-    const totalRevenueResult = await prisma.client.aggregate({
-      _sum: { price: true },
+    // 1. TOTAL REVENUE - Sum of all SUCCESSFUL payments (actual money received)
+    const totalRevenueResult = await prisma.payment.aggregate({
+      _sum: { amount: true },
       where: {
         companyId,
-        paymentStatus: 'paid',
+        status: 'success',
       },
     });
 
@@ -143,7 +143,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      totalRevenue: totalRevenueResult._sum.price || 0,
+      totalRevenue: totalRevenueResult._sum.amount || 0,
       totalPayable: totalPayableResult._sum.amount || 0,
       totalArrears,
       pendingRecovery,
