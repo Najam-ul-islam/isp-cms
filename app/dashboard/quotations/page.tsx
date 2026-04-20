@@ -388,7 +388,7 @@ export default function QuotationsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
           <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/80 dark:border-gray-700/80 animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-linear-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Quotation</h2>
               <button onClick={() => setShowCreateModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/80 rounded-lg transition-all">
                 <X className="w-5 h-5" />
@@ -498,7 +498,7 @@ export default function QuotationsPage() {
                 <button
                   onClick={handleCreateQuotation}
                   disabled={creating}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
                 >
                   {creating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Creating...</> : <><Plus className="w-4 h-4" /> Create Quotation</>}
                 </button>
@@ -512,7 +512,7 @@ export default function QuotationsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowViewModal(false)} />
           <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/80 dark:border-gray-700/80 animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-linear-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedQuotation.quotationNumber}</h2>
                 {selectedQuotation.title && <p className="text-sm text-gray-500 dark:text-gray-400">{selectedQuotation.title}</p>}
@@ -642,7 +642,7 @@ export default function QuotationsPage() {
           </div>
           <button
             onClick={() => { fetchClients(); setShowCreateModal(true) }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 text-sm"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 text-sm"
           >
             <Plus className="w-4 h-4" /> Create Quotation
           </button>
@@ -681,7 +681,7 @@ export default function QuotationsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-700/50 border-b border-gray-200/60 dark:border-gray-700/60">
+            <thead className="bg-linear-to-r from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-700/50 border-b border-gray-200/60 dark:border-gray-700/60">
               <tr>
                 <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">#</th>
                 <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Number</th>
@@ -710,7 +710,7 @@ export default function QuotationsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-[150px]">{quotation.title || '-'}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-37.5">{quotation.title || '-'}</p>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{formatPKR(quotation.totalAmount)}</span>
