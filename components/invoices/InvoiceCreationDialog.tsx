@@ -306,7 +306,7 @@ export default function InvoiceCreationDialog({
         {/* ── Client Info Bar ──────────────────────────────────────────── */}
         <div
           className="rounded-xl border border-gray-200/60 dark:border-gray-700/60
-                     bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-blue-50/60
+                     bg-linear-to-r from-blue-50/60 via-indigo-50/40 to-blue-50/60
                      dark:from-blue-900/20 dark:via-indigo-900/10 dark:to-blue-900/20
                      p-4 transition-all duration-300 ease-out"
         >
@@ -887,7 +887,7 @@ export default function InvoiceCreationDialog({
       {/* ── Duplicate Invoice Confirmation Overlay ─────────────────────── */}
       {showConfirmation && existingInvoice && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirmation-title"
