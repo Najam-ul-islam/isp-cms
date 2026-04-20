@@ -196,6 +196,17 @@ export default function NewClientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Helper function to convert Date to YYYY-MM-DD string for input field (using local time)
+  // This ensures the date picker shows the same date the user selected
+  const toDateString = (date: Date | null): string | null => {
+    if (!date) return null;
+    // Use local time (not UTC) - user selected this date in their timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
     // Validation
     if (!startDate || !expiryDate) {
       showNotification('error', 'Start date and expiry date are required')
@@ -231,8 +242,8 @@ export default function NewClientPage() {
           country,
           packageId,
           price: parseFloat(price.toString()),
-          startDate: startDate ? new Date(startDate) : null,
-          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          startDate: toDateString(startDate),
+          expiryDate: toDateString(expiryDate),
           paymentStatus,
           status,
           notes

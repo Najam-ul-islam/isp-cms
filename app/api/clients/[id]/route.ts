@@ -202,14 +202,26 @@ export async function PUT(
       finalAreaName = areaExists.name;
     }
 
-    // Parse dates safely
+    // Parse dates safely - treat as date-only (YYYY-MM-DD) to avoid timezone issues
+    // Convert to UTC Date to avoid timezone shifts
+    const parseDateOnly = (dateStr: string | null | undefined): Date | undefined => {
+      if (!dateStr) return undefined;
+      // Parse YYYY-MM-DD as UTC date to avoid timezone shifts
+      const parts = dateStr.split('T')[0].split('-');
+      if (parts.length !== 3) return undefined;
+      const [year, month, day] = parts;
+      if (!year || !month || !day) return undefined;
+      // Create UTC date at noon - this ensures consistent storage regardless of timezone
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
+    };
+
     let parsedStartDate: Date | undefined;
     let parsedExpiryDate: Date | undefined;
 
     if (startDate) {
       try {
-        parsedStartDate = new Date(startDate);
-        if (isNaN(parsedStartDate.getTime())) {
+        parsedStartDate = parseDateOnly(startDate);
+        if (!parsedStartDate || isNaN(parsedStartDate.getTime())) {
           return NextResponse.json(
             { error: 'Invalid start date format' },
             { status: 400 }
@@ -225,8 +237,8 @@ export async function PUT(
 
     if (expiryDate) {
       try {
-        parsedExpiryDate = new Date(expiryDate);
-        if (isNaN(parsedExpiryDate.getTime())) {
+        parsedExpiryDate = parseDateOnly(expiryDate);
+        if (!parsedExpiryDate || isNaN(parsedExpiryDate.getTime())) {
           return NextResponse.json(
             { error: 'Invalid expiry date format' },
             { status: 400 }

@@ -142,6 +142,7 @@ export async function GET(request: Request) {
         companyId: admin.companyId
       },
       include: {
+        items: { select: { id: true, name: true, amount: true, quantity: true, type: true } },
         payments: {
           select: { amount: true }
         }

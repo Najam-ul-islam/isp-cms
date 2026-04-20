@@ -238,12 +238,14 @@ model InvoiceItem {
   description String?
   amount      Float
   quantity    Int     @default(1)
+  type        InvoiceItemType @default(other) // Classification for reporting/analytics
 
   createdAt DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
+  @@index([type])
   @@map("invoice_items")
 }
 
@@ -669,6 +671,14 @@ enum InvoiceStatus {
   unpaid
   partial
   paid
+}
+
+enum InvoiceItemType {
+  package      // Internet package subscription
+  addon        // Additional services (router, installation, etc.)
+  carry_forward // Outstanding balance from previous invoice
+  discount     // Discounts or credits applied
+  other        // Miscellaneous charges
 }
 
 enum InvoiceSource {

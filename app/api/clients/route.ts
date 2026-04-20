@@ -132,21 +132,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse dates safely
-    let parsedStartDate: Date;
-    let parsedExpiryDate: Date;
+    // Parse dates safely - treat as date-only (YYYY-MM-DD) to avoid timezone issues
+    // Convert to UTC Date to avoid timezone shifts
+    const parseDateOnly = (dateStr: string | null): Date | null => {
+      if (!dateStr) return null;
+      // Parse YYYY-MM-DD as UTC date to avoid timezone shifts
+      const [year, month, day] = dateStr.split('-');
+      if (!year || !month || !day) return null;
+      // Create UTC date - this ensures consistent storage regardless of timezone
+      return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
+    };
+
+    let parsedStartDate: Date | null;
+    let parsedExpiryDate: Date | null;
 
     try {
-      parsedStartDate = new Date(startDate);
-      if (isNaN(parsedStartDate.getTime())) {
+      parsedStartDate = parseDateOnly(startDate);
+      if (!parsedStartDate || isNaN(parsedStartDate.getTime())) {
         return NextResponse.json(
           { error: 'Invalid start date format' },
           { status: 400 }
         );
       }
 
-      parsedExpiryDate = new Date(expiryDate);
-      if (isNaN(parsedExpiryDate.getTime())) {
+      parsedExpiryDate = parseDateOnly(expiryDate);
+      if (!parsedExpiryDate || isNaN(parsedExpiryDate.getTime())) {
         return NextResponse.json(
           { error: 'Invalid expiry date format' },
           { status: 400 }

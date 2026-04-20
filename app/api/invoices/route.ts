@@ -54,9 +54,15 @@ export async function GET(request: Request) {
       orderBy: { issuedDate: 'desc' },
     });
 
-    // Compute totals from fetched data (no additional queries)
+    // Compute totals from items (SINGLE SOURCE OF TRUTH)
     const processedInvoices = invoices.map(invoice => {
-      const effectiveTotal = invoice.totalAmount ?? invoice.amount;
+      // Calculate total from items (amount * quantity for each item)
+      const itemsTotal = invoice.items.reduce(
+        (sum, item) => sum + (item.amount * (item.quantity || 1)),
+        0
+      );
+      // Use items total as primary source, fall back to totalAmount/amount for legacy invoices
+      const effectiveTotal = itemsTotal > 0 ? itemsTotal : (invoice.totalAmount ?? invoice.amount);
       const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
       const remaining = Math.max(effectiveTotal - totalPaid, 0);
       const overpaid = Math.max(totalPaid - effectiveTotal, 0);

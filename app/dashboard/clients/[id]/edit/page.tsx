@@ -108,24 +108,28 @@ export default function EditClientPage() {
         setPackageId(clientData.packageId || '');
         setPrice(clientData.price || 0);
 
-        // Handle dates - they come as Date objects from Prisma but may need proper formatting
-        let startDateStr = '';
-        if (clientData.startDate) {
-          const startDateObj = new Date(clientData.startDate);
-          if (!isNaN(startDateObj.getTime())) {
-            startDateStr = startDateObj.toISOString().split('T')[0];
+        // Handle dates - use UTC parsing to avoid timezone shifts
+        // Dates from DB should be treated as date-only (no timezone)
+        const toDateInputValue = (dateValue: string | Date | null): string => {
+          if (!dateValue) return '';
+          let dateObj: Date;
+          if (typeof dateValue === 'string') {
+            // Parse as UTC to avoid timezone shifts - the string is treated as UTC midnight
+            const [year, month, day] = dateValue.split('T')[0].split('-');
+            dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+          } else {
+            dateObj = dateValue;
           }
-        }
-        setStartDate(startDateStr);
+          if (isNaN(dateObj.getTime())) return '';
+          // Format as YYYY-MM-DD for input
+          const yearStr = dateObj.getFullYear();
+          const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(dateObj.getDate()).padStart(2, '0');
+          return `${yearStr}-${monthStr}-${dayStr}`;
+        };
 
-        let expiryDateStr = '';
-        if (clientData.expiryDate) {
-          const expiryDateObj = new Date(clientData.expiryDate);
-          if (!isNaN(expiryDateObj.getTime())) {
-            expiryDateStr = expiryDateObj.toISOString().split('T')[0];
-          }
-        }
-        setExpiryDate(expiryDateStr);
+        setStartDate(toDateInputValue(clientData.startDate));
+        setExpiryDate(toDateInputValue(clientData.expiryDate));
 
         setPaymentStatus(clientData.paymentStatus || 'unpaid');
         setStatus(clientData.status || 'active');
@@ -184,13 +188,19 @@ export default function EditClientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Helper to parse YYYY-MM-DD as local date (for validation)
+    const parseDate = (dateStr: string): Date => {
+      const [year, month, day] = dateStr.split('-');
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    };
+
     // Validation
     if (!startDate || !expiryDate) {
       setNotification({ type: 'error', message: 'Start date and expiry date are required' });
       return;
     }
-    const start = new Date(startDate);
-    const expiry = new Date(expiryDate);
+    const start = parseDate(startDate);
+    const expiry = parseDate(expiryDate);
     if (expiry <= start) {
       setNotification({ type: 'error', message: 'Expiry date must be after start date' });
       return;

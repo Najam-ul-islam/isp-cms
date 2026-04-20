@@ -398,19 +398,23 @@ const getPendingRecovery = async (companyId: string) => {
       }
     },
     include: {
+      items: { select: { id: true, name: true, amount: true, quantity: true, type: true } },
       payments: {
         select: { amount: true }
       }
     }
   });
 
-  // Calculate total remaining amount across all invoices
+  // Calculate total remaining amount across all invoices (using items as primary source)
   let totalPending = 0;
   
   for (const invoice of invoices) {
-    const charges = calculateAdditionalChargesTotal(invoice);
-    const carryForward = invoice.carryForwardAmount || 0;
-    const invoiceTotal = invoice.amount + charges + carryForward;
+    // Calculate from items (SINGLE SOURCE OF TRUTH)
+    const itemsTotal = invoice.items.reduce(
+      (sum, item) => sum + (item.amount * (item.quantity || 1)),
+      0
+    );
+    const invoiceTotal = itemsTotal > 0 ? itemsTotal : (invoice.amount + (invoice.carryForwardAmount || 0));
     const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
     const remaining = Math.max(invoiceTotal - paid, 0);
     totalPending += remaining;

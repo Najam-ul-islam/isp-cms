@@ -20,6 +20,8 @@ export interface CreateInvoiceData {
   }>;
 }
 
+export type InvoiceItemTypeEnum = 'package' | 'addon' | 'carry_forward' | 'discount' | 'other';
+
 export interface CreateInvoiceWithItemsData {
   clientId: string;
   dueDate: Date;
@@ -35,6 +37,7 @@ export interface CreateInvoiceWithItemsData {
     description?: string | null;
     amount: number;
     quantity?: number;
+    type?: InvoiceItemTypeEnum;
   }[];
 }
 
@@ -107,6 +110,7 @@ export class InvoiceRepository {
               description: item.description,
               amount: item.amount,
               quantity: item.quantity || 1,
+              type: item.type || 'other',
             }
           })
         )
@@ -128,6 +132,7 @@ export class InvoiceRepository {
       description?: string | null;
       amount: number;
       quantity?: number;
+      type?: InvoiceItemTypeEnum;
     }[]
   ): Promise<Invoice & { items: InvoiceItem[] }> {
     return await prisma.$transaction(async (tx) => {
@@ -149,6 +154,7 @@ export class InvoiceRepository {
               description: item.description,
               amount: item.amount,
               quantity: item.quantity || 1,
+              type: item.type || 'other',
             }
           })
         )

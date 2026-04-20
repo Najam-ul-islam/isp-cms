@@ -44,16 +44,18 @@ export function calculateAdditionalChargesTotal(invoice: { additionalCharges: an
 
 /**
  * Calculates payment summary for a specific invoice
- * Additional charges are part of total bill, not payments
+ * Uses items as SINGLE SOURCE OF TRUTH
  */
 export async function getInvoicePaymentSummary(invoiceId: string): Promise<InvoicePaymentSummary> {
-  // Fetch the invoice with additional charges and carry forward
+  // Fetch the invoice with items (primary source)
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     select: { 
       amount: true,
+      totalAmount: true,
       additionalCharges: true,
-      carryForwardAmount: true
+      carryForwardAmount: true,
+      items: { select: { id: true, name: true, amount: true, quantity: true, type: true } }
     }
   });
 
@@ -61,11 +63,14 @@ export async function getInvoicePaymentSummary(invoiceId: string): Promise<Invoi
     throw new Error(`Invoice with id ${invoiceId} not found`);
   }
 
-  // Calculate one-time charges (part of total, not payments)
-  const oneTimeChargesTotal = calculateAdditionalChargesTotal(invoice);
+  // Calculate from items (SINGLE SOURCE OF TRUTH)
+  const itemsTotal = invoice.items.reduce(
+    (sum, item) => sum + (item.amount * (item.quantity || 1)),
+    0
+  );
   
-  // Total = base amount + one-time charges + carry forward
-  const total = invoice.amount + oneTimeChargesTotal + (invoice.carryForwardAmount || 0);
+  // Priority: items > totalAmount > amount (for backward compatibility)
+  const total = itemsTotal > 0 ? itemsTotal : (invoice.totalAmount ?? invoice.amount);
 
   // Fetch all payments for this specific invoice
   const payments = await prisma.payment.findMany({

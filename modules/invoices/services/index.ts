@@ -4,10 +4,50 @@ import { getInvoicePaymentSummary, getClientPaymentSummary, calculateAdditionalC
 import type { InvoiceItem, Prisma } from '@prisma/client';
 
 /**
- * Helper: Calculate payment summary directly from invoice data with pre-fetched payments.
- * Avoids extra database query.
+ * Helper: Calculate payment summary from items (SINGLE SOURCE OF TRUTH)
+ * Uses relational InvoiceItem[] instead of JSON fields
  */
-function calculateInvoiceSummaryFromData(invoice: {
+function calculateInvoiceSummaryFromItems(invoice: {
+  amount: number;
+  carryForwardAmount: number;
+  payments: { amount: number }[];
+  items: { amount: number; quantity: number }[];
+}) {
+  // Calculate total from items (sum of amount * quantity)
+  const itemsTotal = invoice.items.reduce(
+    (sum, item) => sum + (item.amount * (item.quantity || 1)),
+    0
+  );
+  
+  // Use items total as the primary source, fall back to amount for legacy invoices
+  const total = itemsTotal > 0 ? itemsTotal : invoice.amount;
+  const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+  const remaining = Math.max(total - paid, 0);
+  const overpaid = Math.max(paid - total, 0);
+  
+  let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
+  if (paid >= total) {
+    effectivePaymentStatus = 'paid';
+  } else if (paid > 0) {
+    effectivePaymentStatus = 'partial';
+  } else {
+    effectivePaymentStatus = 'unpaid';
+  }
+
+  return {
+    total,
+    totalPaid: paid,
+    remainingAmount: remaining,
+    overpaidAmount: overpaid,
+    effectivePaymentStatus
+  };
+}
+
+/**
+ * Helper: Calculate payment summary from legacy JSON fields (backward compatibility)
+ * @deprecated Use calculateInvoiceSummaryFromItems for new invoices
+ */
+function calculateInvoiceSummaryFromLegacyData(invoice: {
   amount: number;
   additionalCharges: any;
   carryForwardAmount: number;
@@ -45,12 +85,15 @@ export interface InvoicePaymentSummary {
   effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
 }
 
+export type InvoiceItemType = 'package' | 'addon' | 'carry_forward' | 'discount' | 'other';
+
 export interface InvoiceItemData {
   id?: string;
   name: string;
   description?: string | null;
   amount: number;
   quantity?: number;
+  type?: InvoiceItemType;
   createdAt?: Date;
 }
 
@@ -404,12 +447,12 @@ export async function getInvoiceWithPayments(invoiceId: string, companyId: strin
 
   if (!invoice) throw new Error(`Invoice with id ${invoiceId} not found`);
 
-  // Calculate summary from already-fetched payments (no extra query)
-  const summary = calculateInvoiceSummaryFromData({
+  // Calculate summary from items (SINGLE SOURCE OF TRUTH)
+  const summary = calculateInvoiceSummaryFromItems({
     amount: invoice.amount,
-    additionalCharges: invoice.additionalCharges,
     carryForwardAmount: invoice.carryForwardAmount,
-    payments: invoice.payments
+    payments: invoice.payments,
+    items: invoice.items
   });
 
   const totalAmount = summary.total;
@@ -437,13 +480,13 @@ export async function getInvoicesForClient(clientId: string, companyId: string):
     orderBy: { issuedDate: 'desc' }
   });
 
-  // Compute summaries from already-fetched payments (no extra queries)
+  // Compute summaries from items (SINGLE SOURCE OF TRUTH)
   return invoices.map(invoice => {
-    const summary = calculateInvoiceSummaryFromData({
+    const summary = calculateInvoiceSummaryFromItems({
       amount: invoice.amount,
-      additionalCharges: invoice.additionalCharges,
       carryForwardAmount: invoice.carryForwardAmount,
-      payments: invoice.payments
+      payments: invoice.payments,
+      items: invoice.items
     });
 
     return {
@@ -473,7 +516,10 @@ export async function generateInvoiceFromClient(
   companyId: string,
   description?: string
 ): Promise<InvoiceWithPayments> {
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  const client = await prisma.client.findUnique({ 
+    where: { id: clientId },
+    include: { package: true }
+  });
   if (!client) throw new Error(`Client with id ${clientId} not found`);
 
   const existingUnpaidInvoice = await prisma.invoice.findFirst({
@@ -488,12 +534,22 @@ export async function generateInvoiceFromClient(
     );
   }
 
-  return createInvoiceForClient(
-    clientId,
-    client.price,
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  // Create invoice with items (SINGLE SOURCE OF TRUTH)
+  return createInvoiceWithItems(
+    {
+      clientId,
+      items: [{
+        name: 'Internet Package',
+        description: client.package?.name ? `${client.package.speed} Mbps - ${client.package.name}` : undefined,
+        amount: client.price,
+        quantity: 1,
+        type: 'package' as const,
+      }],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      description: description || `Invoice for ${client.name}'s internet package`,
+      source: 'package',
+    },
     companyId,
-    description || `Invoice for ${client.name}'s internet package`,
     { allowDuplicate: false }
   );
 }
@@ -532,15 +588,14 @@ export async function generateMonthlyInvoice(
 
   const packageAmount = client.price;
 
-  const lineItems: Array<{
-    type: 'package' | 'carry_forward' | 'additional';
-    label: string;
-    amount: number;
-  }> = [
+  // Build items array for the invoice
+  const items: InvoiceItemData[] = [
     {
+      name: `Internet Package (${formatBillingMonth(billingMonth)})`,
+      description: client.package?.name ? `${client.package.speed} Mbps - ${client.package.name}` : undefined,
+      amount: packageAmount,
+      quantity: 1,
       type: 'package',
-      label: `Internet Package (${formatBillingMonth(billingMonth)})`,
-      amount: packageAmount
     }
   ];
 
@@ -553,10 +608,12 @@ export async function generateMonthlyInvoice(
     if (carryForwardResult.carryForwardTotal > 0) {
       totalCarryForward = carryForwardResult.carryForwardTotal;
       for (const cf of carryForwardResult.carryForwardInvoices) {
-        lineItems.push({
+        items.push({
+          name: `Carry Forward (${cf.invoiceId.slice(0, 8)} - ${cf.billingMonth || 'N/A'})`,
+          description: 'Outstanding balance carried forward',
+          amount: cf.remaining,
+          quantity: 1,
           type: 'carry_forward',
-          label: `Carry Forward (${cf.invoiceId.slice(0, 8)} - ${cf.billingMonth || 'N/A'})`,
-          amount: cf.remaining
         });
         carriedInvoiceIds.push(cf.invoiceId);
       }
@@ -569,35 +626,35 @@ export async function generateMonthlyInvoice(
       const lastSummary = await getInvoicePaymentSummary(lastCarriedInvoiceId);
       if (lastSummary.overpaidAmount > 0) {
         creditUsed = lastSummary.overpaidAmount;
-        lineItems.push({
-          type: 'additional',
-          label: 'Credit Adjustment',
-          amount: -creditUsed
+        items.push({
+          name: 'Credit Adjustment',
+          description: 'Overpayment from previous invoice applied',
+          amount: -creditUsed,
+          quantity: 1,
+          type: 'discount',
         });
         console.log(`[Invoice Generation] Applying Rs. ${creditUsed} in credits`);
       }
     }
   }
 
-  const totalAmount = packageAmount + totalCarryForward - creditUsed;
-
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 30);
 
-  const invoice = await createInvoiceForClient(
-    clientId,
-    packageAmount,
-    dueDate,
-    companyId,
-    `Monthly invoice for ${billingMonth}`,
+  const invoice = await createInvoiceWithItems(
     {
+      clientId,
+      items,
+      dueDate,
+      description: `Monthly invoice for ${billingMonth}`,
       billingMonth,
       carryForwardAmount: totalCarryForward,
       creditUsed,
       previousInvoiceId: carriedInvoiceIds[0],
-      allowDuplicate: true,
-      lineItems
-    }
+      source: 'package',
+    },
+    companyId,
+    { allowDuplicate: true }
   );
 
   if (carriedInvoiceIds.length > 0) {
@@ -612,7 +669,7 @@ export async function generateMonthlyInvoice(
   console.log(`  Package: Rs. ${packageAmount}`);
   console.log(`  Carry Forward: Rs. ${totalCarryForward}`);
   console.log(`  Credits Used: Rs. ${creditUsed}`);
-  console.log(`  Total Due: Rs. ${totalAmount}`);
+  console.log(`  Total Due: Rs. ${invoice.totalAmount}`);
 
   return invoice;
 }
@@ -725,13 +782,13 @@ export async function getInvoiceHistory(
     orderBy: { issuedDate: 'desc' }
   });
 
-  // Compute summaries from already-fetched payments (no extra queries)
+  // Compute summaries from items (SINGLE SOURCE OF TRUTH)
   const invoicesWithPayments = invoices.map(invoice => {
-    const summary = calculateInvoiceSummaryFromData({
+    const summary = calculateInvoiceSummaryFromItems({
       amount: invoice.amount,
-      additionalCharges: invoice.additionalCharges,
       carryForwardAmount: invoice.carryForwardAmount,
-      payments: invoice.payments
+      payments: invoice.payments,
+      items: invoice.items
     });
 
     return {
