@@ -1,9 +1,3 @@
-
-
-
-
-
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -492,8 +486,7 @@ Pay Now
           </div>
         </div>
 
-        {/* One-Time Charges Section - Only for adding/editing - HIDDEN */}
-        {false && (
+        {/* One-Time Charges Section - Only for adding/editing */}
         <div className="px-6 py-2 mt-0.5">
           <div className="flex justify-between items-center mb-2">
             <p className="text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200">
@@ -547,7 +540,6 @@ Pay Now
             </div>
           )}
         </div>
-        )}
 
         {/* Outstanding Invoices Section */}
         {paymentSummary.totalAmount > localTotal && localTotal > 0 && (
@@ -564,156 +556,103 @@ Pay Now
           </div>
         )}
 
-        {/* Payment Detail Section - Show Invoice Items with proper breakdown */}
+        {/* Payment Detail Section - Show ALL charges here */}
         <div className="px-6 py-2 bg-blue-50 border-y border-blue-100 mt-2">
           <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
             Payment Detail
           </p>
         </div>
         <div className="px-6 py-3 space-y-2">
-          {/* Helper for precise money calculation */}
-          {(() => {
-            // Round to 2 decimal places to avoid JS float precision issues
-            const round = (num: number) => Math.round(num * 100) / 100;
-            
-            // Use null coalescing to avoid fallback hacks
-            const items = selectedInvoice?.items ?? [];
-            const hasItems = items.length > 0;
+          {/* Internet/Package Charges - ONLY for NEW clients */}
+          {shouldIncludePackage && (
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-600">Internet Charges</span>
+              <span className="text-slate-800 text-xs leading-tight">
+                {formatPKR(packagePrice)}
+              </span>
+            </div>
+          )}
 
-            // Sort items by type and creation date for consistent display
-            const sortedItems = [...items].sort((a, b) => {
-              const typeOrder: Record<string, number> = { package: 1, addon: 2, carry_forward: 3, discount: 4, other: 5 };
-              const aOrder = typeOrder[a.type || 'other'] || 5;
-              const bOrder = typeOrder[b.type || 'other'] || 5;
-              if (aOrder !== bOrder) return aOrder - bOrder;
-              return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-            });
+          {/* One-Time Charges listed individually */}
+          {currentCharges.map((charge, idx) => (
+            <div key={idx} className="flex justify-between items-center py-0.5">
+              <span className="text-slate-600 text-xs leading-tight">
+                {charge.name}
+              </span>
+              <span className="text-slate-800 font-normal text-xs leading-tight">
+                {formatPKR(charge.amount)}
+              </span>
+            </div>
+          ))}
 
-            // Calculate financial breakdown with precision
-            const subtotal = round(sortedItems
-              .filter(item => item.type !== 'discount')
-              .reduce((sum, item) => sum + (item.amount * (item.quantity || 1)), 0));
-            const discountTotal = round(sortedItems
-              .filter(item => item.type === 'discount')
-              .reduce((sum, item) => sum + Math.abs(item.amount), 0));
-            const carryForwardTotal = round(sortedItems
-              .filter(item => item.type === 'carry_forward')
-              .reduce((sum, item) => sum + (item.amount * (item.quantity || 1)), 0));
-            
-            // Calculate expected total
-            const calculatedTotal = round(subtotal + carryForwardTotal - discountTotal);
-            
-            // Safety check: compare UI calculated total with backend total
-            const backendTotal = selectedInvoice?.totalAmount ?? total;
-            if (hasItems && Math.abs(calculatedTotal - backendTotal) > 0.01) {
-              console.warn(`Invoice mismatch: UI=${calculatedTotal}, Backend=${backendTotal}`, selectedInvoice?.id);
-            }
-
-            // Group items by type
-            const packageItems = sortedItems.filter(i => i.type === 'package');
-            const addonItems = sortedItems.filter(i => i.type === 'addon');
-            const carryForwardItems = sortedItems.filter(i => i.type === 'carry_forward');
-            const discountItems = sortedItems.filter(i => i.type === 'discount');
-
-            if (hasItems) {
-              return (
-                <>
-                  {/* Package Items */}
-                  {packageItems.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center py-0.5">
-                      <div>
-                        <span className="text-slate-600 text-xs leading-tight font-medium">
-                          {item.name}
-                        </span>
-                        {(item.quantity || 1) > 1 && (
-                          <span className="text-slate-500 text-[10px] leading-tight ml-1">
-                            × {item.quantity || 1} @ {formatPKR(item.amount)}/unit
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-slate-800 font-medium text-xs leading-tight">
-                        {formatPKR(round(item.amount * (item.quantity || 1)))}
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* Add-on Items */}
-                  {addonItems.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center py-0.5">
-                      <div>
-                        <span className="text-slate-600 text-xs leading-tight">
-                          {item.name}
-                        </span>
-                        {(item.quantity || 1) > 1 && (
-                          <span className="text-slate-500 text-[10px] leading-tight ml-1">
-                            × {item.quantity || 1} @ {formatPKR(item.amount)}/unit
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-slate-800 text-xs leading-tight">
-                        {formatPKR(round(item.amount * (item.quantity || 1)))}
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* Carry Forward - from items only (not invoice.carryForwardAmount to avoid duplication) */}
-                  {carryForwardItems.length > 0 && (
-                    <>
-                      <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-200">
-                        <span className="text-slate-700 font-semibold text-xs">Adjustments</span>
-                      </div>
-                      {carryForwardItems.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center py-0.5 pl-2">
-                          <span className="text-orange-600 text-xs">{item.name}</span>
-                          <span className="text-orange-600 text-xs">+{formatPKR(round(item.amount))}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Discounts - with clear labeling */}
-                  {discountItems.length > 0 && (
-                    <>
-                      <div className="flex justify-between items-center py-1 mt-1 border-t border-slate-200">
-                        <span className="text-slate-700 font-semibold text-xs">Discounts</span>
-                      </div>
-                      {discountItems.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center py-0.5 pl-2">
-                          <span className="text-red-600 text-xs">{item.name || 'Discount'}</span>
-                          <span className="text-red-600 text-xs">-{formatPKR(Math.abs(item.amount))}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Financial Summary */}
-                  <div className="flex justify-between text-xs pt-2 border-t border-slate-200 mt-2">
-                    <span className="text-slate-600">Subtotal</span>
-                    <span className="text-slate-800">{formatPKR(subtotal)}</span>
-                  </div>
-                  {carryForwardTotal > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-orange-600">Adjustments</span>
-                      <span className="text-orange-600">+{formatPKR(carryForwardTotal)}</span>
-                    </div>
-                  )}
-                  {discountTotal > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-red-600">Discounts</span>
-                      <span className="text-red-600">-{formatPKR(discountTotal)}</span>
-                    </div>
-                  )}
-                </>
-              );
-            }
-
-            // Empty state - no invoice items
-            return (
-              <div className="text-center py-4 text-slate-400 text-xs">
-                No invoice items available
+          {/* Product Sales / Other Income */}
+          {productSales.length > 0 && (
+            <>
+              <div className="flex justify-between items-center py-2 mt-2 border-t border-slate-200">
+                <span className="text-slate-700 font-semibold text-sm">Product Sales</span>
               </div>
-            );
-          })()}
+              {productSales.map((sale) => (
+                <div key={sale.id} className="flex justify-between items-start py-0.5 pl-2">
+                  <div className="flex-1 pr-2">
+                    <span className="text-slate-600 text-xs leading-tight font-medium">
+                      {sale.productName}
+                    </span>
+                    <span className="text-slate-500 text-[10px] leading-tight ml-1">
+                      × {sale.quantity} @ {formatPKR(sale.sellingPrice)}/unit
+                    </span>
+                    {sale.notes && (
+                      <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">
+                        {sale.notes}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-800 font-semibold text-xs leading-tight whitespace-nowrap">
+                    {formatPKR(sale.sellingPrice * sale.quantity)}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Subtotal */}
+          {currentCharges.length > 0 && (
+            <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+              <span className="text-slate-600">Subtotal</span>
+              <span className="text-slate-800 font-medium">
+                {formatPKR(total)}
+              </span>
+            </div>
+          )}
+
+          {/* Discount */}
+          {/* <div className="flex justify-between text-sm">
+            <span className="text-slate-600">Discount</span>
+            <span className="text-red-600 font-medium">-{formatPKR(0)}</span>
+          </div> */}
+
+          {/* Invoice Items Section - From relational items */}
+          {selectedInvoice && selectedInvoice.items && selectedInvoice.items.length > 0 && (
+            <div className="mt-4 bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <h3 className="font-semibold mb-2 text-sm text-gray-700">
+                Invoice Items
+              </h3>
+              <div className="space-y-2">
+                {selectedInvoice.items.map((item: any) => (
+                  <div key={item.id} className="flex justify-between text-xs">
+                    <div>
+                      <p className="font-medium text-gray-800">{item.name}</p>
+                      <p className="text-gray-500">
+                        {item.quantity} × {formatPKR(item.amount)}
+                      </p>
+                    </div>
+                    <div className={`font-medium ${item.type === 'discount' ? 'text-red-600' : 'text-gray-800'}`}>
+                      {item.type === 'discount' ? '-' : ''}{formatPKR(item.amount * item.quantity)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Total Amount Box */}
