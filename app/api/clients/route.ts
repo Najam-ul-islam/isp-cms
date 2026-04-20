@@ -47,7 +47,8 @@ export async function GET(request: Request) {
       status: parseClientStatus(searchParams.get('status')),
       paymentStatus: parsePaymentStatus(searchParams.get('paymentStatus')),
       expiring: searchParams.get('expiring') === 'true' ? true : undefined,
-      search: searchParams.get('search') || undefined
+      search: searchParams.get('search') || undefined,
+      limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined
     };
 
     const clients = await getClientsWithFilters(admin, filters);

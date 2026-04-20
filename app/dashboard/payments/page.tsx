@@ -1354,7 +1354,7 @@ function PaymentFormModal({
   });
 
   const [clients, setClients] = useState<{ id: string; name: string; packageName: string; packagePrice: number }[]>([]);
-  const [invoices, setInvoices] = useState<Array<{ id: string; invoiceNumber?: string | null; amount: number; status: string; totalAmount: number; totalPaid: number; remainingAmount: number; billingMonth: string | null; effectivePaymentStatus?: 'unpaid' | 'partial' | 'paid' }>>([]);
+  const [invoices, setInvoices] = useState<Array<{ id: string; invoiceNumber?: string | null; amount: number; status: string; totalAmount: number; totalPaid: number; remainingAmount: number; billingMonth: string | null; effectivePaymentStatus?: 'unpaid' | 'partial' | 'paid'; items?: Array<{ id: string; name: string; amount: number; quantity?: number; type?: string }> }>>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [submitting, setSubmitting] = useState(externalSubmitting);
@@ -1393,7 +1393,7 @@ function PaymentFormModal({
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const response = await fetch("/api/clients", {
+        const response = await fetch("/api/clients?limit=500", {
           credentials: 'include', // This ensures cookies are sent with the request
           headers: {
             "Content-Type": "application/json",
@@ -1402,8 +1402,11 @@ function PaymentFormModal({
 
         if (response.ok) {
           const data = await response.json();
+          // Handle both paginated and non-paginated responses
+          const clientsList = data.clients || data;
+          
           // Map clients to id/name pairs with package details
-          const clientOptions = data.map((client: any) => {
+          const clientOptions = clientsList.map((client: any) => {
             // Use plain client name without contact info
             const displayName = client.name;
 
@@ -1473,8 +1476,8 @@ function PaymentFormModal({
         setProductSalesLoading(true);
         setLoadingInvoices(true);
         try {
-          // Fetch client data with payment summary
-          const response = await fetch(`/api/clients/${selectedClient.id}`, {
+          // Fetch client data with payment summary (light mode for speed)
+          const response = await fetch(`/api/clients/${selectedClient.id}?light=true`, {
             credentials: 'include',
             headers: {
               "Content-Type": "application/json",
@@ -1515,20 +1518,15 @@ function PaymentFormModal({
               }
             }
 
-            // Set invoices (only unpaid/partial)
+            // Set invoices (only unpaid/partial) - keep full data including items
             if (invoicesRes.ok) {
               const invoicesData = await invoicesRes.json();
-              console.log(`[Payment Form] Client ${selectedClient.id} has ${invoicesData.length} total invoices:`, 
-                invoicesData.map((inv: any) => ({
-                  id: inv.id.slice(-8).toUpperCase(),
-                  status: inv.status,
-                  amount: inv.amount,
-                  remaining: inv.remainingAmount
-                }))
+              console.log(`[Payment Form] Client ${selectedClient.id} has ${invoicesData.length} total invoices`);
+              
+              // Keep all invoice data including items for package extraction
+              const unpaidInvoices = invoicesData.filter((inv: any) =>
+                inv.effectivePaymentStatus === 'unpaid' || inv.effectivePaymentStatus === 'partial'
               );
-               const unpaidInvoices = invoicesData.filter((inv: any) =>
-                 inv.effectivePaymentStatus === 'unpaid' || inv.effectivePaymentStatus === 'partial'
-               );
               console.log(`[Payment Form] Showing ${unpaidInvoices.length} unpaid/partial invoices`);
               setInvoices(unpaidInvoices);
             }
@@ -1558,10 +1556,27 @@ function PaymentFormModal({
 
       // ✅ Update Client Payment Summary to show selected invoice details
       if (selectedInvoice) {
+        // Extract package amount from items array
+        const packageItem = selectedInvoice.items?.find((item: any) => item.type === 'package');
+        let packageAmount = packageItem ? (packageItem.amount || 0) * (packageItem.quantity || 1) : 0;
+        
+        // Fallback to client package price if not found in invoice items
+        if (packageAmount === 0 && clientPaymentSummary.packageAmount > 0) {
+          packageAmount = clientPaymentSummary.packageAmount;
+        }
+        
+        // Calculate total from items (handles discounts, add-ons, carry forward)
+        const totalAmount = selectedInvoice.items?.reduce((sum: number, item: any) => {
+          if (item.type === 'discount') {
+            return sum - ((item.amount || 0) * (item.quantity || 1));
+          }
+          return sum + ((item.amount || 0) * (item.quantity || 1));
+        }, 0) || selectedInvoice.totalAmount || 0;
+
         setClientPaymentSummary({
-          totalAmount: selectedInvoice.totalAmount || 0,
+          totalAmount,
           remainingAmount: selectedInvoice.remainingAmount || 0,
-          packageAmount: selectedInvoice.amount || 0, // Base invoice amount
+          packageAmount,
           otherIncome: 0, // Product sales shown separately below
           isLoading: false,
         });

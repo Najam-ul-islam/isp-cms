@@ -272,23 +272,26 @@ export default function ClientInvoicePage() {
   }
 
   // Calculate values dynamically from client data
-   const packagePrice = client.price ?? 0;
+  const hasExistingInvoices = client.invoices && Array.isArray(client.invoices) && client.invoices.length > 0;
+  const shouldIncludePackage = !hasExistingInvoices;
 
-   const hasExistingInvoices = client.invoices && Array.isArray(client.invoices) && client.invoices.length > 0;
-   const shouldIncludePackage = !hasExistingInvoices;
+  // Derive selected invoice object
+  const selectedInvoice = client?.invoices?.find(inv => inv.id === selectedInvoiceId);
 
-   // Use aggregated charges from state
-   const currentCharges = additionalCharges;
-   const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+  // Extract package price from invoice items if invoice selected, otherwise use client.price
+  const packagePrice = selectedInvoice?.items?.length 
+    ? (selectedInvoice.items.find(i => i.type === 'package')?.amount || client.price || 0)
+    : (client.price ?? 0);
+
+  // Use aggregated charges from state
+  const currentCharges = additionalCharges;
+  const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount ?? 0), 0);
 
   const productSalesTotal = productSales.reduce((sum, sale) => sum + (sale.sellingPrice * sale.quantity), 0);
   const localTotal = (shouldIncludePackage ? packagePrice : 0) + additionalTotal + productSalesTotal;
   const total = paymentSummary.totalAmount > 0 ? paymentSummary.totalAmount : localTotal;
   const paid = paymentSummary.totalPaid;
   const remaining = paymentSummary.remainingAmount;
-
-  // Derive selected invoice object
-  const selectedInvoice = client?.invoices?.find(inv => inv.id === selectedInvoiceId);
 
   // Status calculation
   let effectiveStatus: string;

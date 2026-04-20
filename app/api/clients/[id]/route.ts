@@ -40,6 +40,50 @@ export const dynamic = 'force-dynamic'
          return NextResponse.json({ error: 'Client not found' }, { status: 404 })
        }
 
+    // Check if this is a lightweight request (for payment forms, dropdowns, etc.)
+    const { searchParams } = new URL(request.url);
+    const light = searchParams.get('light') === 'true';
+
+    if (light) {
+      // Lightweight version - just return basic client info with summary
+      const outstandingInvoices = await prisma.invoice.findMany({
+        where: {
+          clientId,
+          companyId: admin.companyId,
+          status: { in: ['unpaid', 'partial'] }
+        },
+        include: {
+          payments: true
+        }
+      });
+
+      // Compute totals from invoices and their payments
+      let totalAmount = 0;
+      let totalPaid = 0;
+      let remainingAmount = 0;
+
+      for (const inv of outstandingInvoices) {
+        const invTotal = inv.totalAmount ?? inv.amount ?? 0;
+        const invPaid = inv.payments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+        const invRemaining = Math.max(invTotal - invPaid, 0);
+        
+        totalAmount += invTotal;
+        totalPaid += invPaid;
+        remainingAmount += invRemaining;
+      }
+
+      return NextResponse.json({
+        ...client,
+        totalAmount,
+        totalPaid,
+        remainingAmount,
+        packageAmount: client?.price || 0,
+        otherIncome: 0,
+        effectivePaymentStatus: remainingAmount <= 0.01 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
+      });
+    }
+
+    // Full version - all data (for client details page)
     // Get all payments for this client ordered by date (most recent first)
     const allClientPayments = await prisma.payment.findMany({
       where: {

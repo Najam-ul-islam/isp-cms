@@ -8,6 +8,7 @@ export type ClientFilters = {
   paymentStatus?: PaymentStatus;
   expiring?: boolean;
   search?: string;
+  limit?: number;
 };
 
 export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: ClientFilters) => {
@@ -58,7 +59,8 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
     },
     orderBy: {
       createdAt: 'desc'
-    }
+    },
+    take: filters?.limit
   });
 
   // Fetch all payment data in a single query to avoid N+1 problem
