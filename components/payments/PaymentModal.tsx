@@ -125,7 +125,7 @@ export default function PaymentModal({
       {/* Modal */}
       <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-slate-50 to-white">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Complete Payment</h2>
             <p className="text-sm text-slate-500 mt-0.5">{description}</p>
@@ -142,7 +142,7 @@ export default function PaymentModal({
         {/* Body */}
         <div className="p-6 space-y-6">
           {/* Summary Card */}
-          <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-blue-700">{title}</span>
               <Shield className="w-4 h-4 text-blue-500" />

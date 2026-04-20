@@ -10,8 +10,8 @@ export interface AuditLogFilters {
 
 export interface AuditLogWithDetails {
   id: string;
-  userId: string;
-  userName: string;
+  userId: string | null;
+  userName: string | null;
   action: string;
   entity: string;
   entityId: string | null;
@@ -66,7 +66,7 @@ export async function getAuditLogs({
     logs: logs.map((log) => ({
       id: log.id,
       userId: log.userId,
-      userName: log.user.name,
+      userName: log.user?.name || null,
       action: log.action,
       entity: log.entity,
       entityId: log.entityId,

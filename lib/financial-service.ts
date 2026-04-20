@@ -255,38 +255,40 @@ export class FinancialService {
 
   /**
    * Get pending recovery (total outstanding from all clients)
-   * Uses getClientPaymentSummary for real-time calculation
-   * Includes: invoices + additional charges + carry-forward + unpaid product sales
-   * 
+   * Optimized: fetches all unpaid/partial invoices in one query instead of N+1
+   *
    * @param companyId - Company ID
    * @returns Total pending recovery amount
    */
   static async getPendingRecovery(companyId: string): Promise<number> {
-    // Import dynamically to avoid circular dependencies
-    const { getClientPaymentSummary } = await import('./payment-calculator');
-
-    const clients = await prisma.client.findMany({
-      where: { companyId },
-      select: { id: true },
+    // Fetch all unpaid/partial invoices for the company with their payments
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['unpaid', 'partial'] }
+      },
+      include: {
+        payments: {
+          select: { amount: true }
+        }
+      }
     });
 
-    // Calculate remaining for each client in parallel
-    const paymentSummaries = await Promise.all(
-      clients.map(async (client) => {
-        try {
-          const summary = await getClientPaymentSummary(client.id);
-          return summary.remainingAmount;
-        } catch (error) {
-          console.error(`[FinancialService] Error calculating payment summary for client ${client.id}:`, error);
-          return 0;
-        }
-      })
-    );
+    // Calculate total remaining
+    let totalPending = 0;
+    for (const invoice of invoices) {
+      const charges = typeof invoice.additionalCharges === 'string'
+        ? JSON.parse(invoice.additionalCharges)
+        : invoice.additionalCharges;
+      const chargesSum = Array.isArray(charges)
+        ? charges.reduce((sum: number, c: any) => sum + (c.amount || 0), 0)
+        : 0;
+      const invoiceTotal = invoice.amount + chargesSum + (invoice.carryForwardAmount || 0);
+      const paid = invoice.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+      totalPending += Math.max(invoiceTotal - paid, 0);
+    }
 
-    // Sum all remaining amounts
-    const totalPendingRecovery = paymentSummaries.reduce((sum, remaining) => sum + remaining, 0);
-
-    return totalPendingRecovery;
+    return totalPending;
   }
 
   /**

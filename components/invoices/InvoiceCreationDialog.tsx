@@ -16,6 +16,7 @@ import {
   Calendar,
   FileText,
 } from 'lucide-react';
+import type { ProductSaleResult } from '@/modules/product-sales/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -88,16 +89,47 @@ export default function InvoiceCreationDialog({
   const [existingInvoice, setExistingInvoice] = useState<ExistingInvoice | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Reset form on open
-  useEffect(() => {
-    if (isOpen) {
-      resetForm();
-    }
-  }, [isOpen]);
+   // Product sales fetching state
+   const [productSales, setProductSales] = useState<ProductSaleResult[]>([]);
+   const [loadingProductSales, setLoadingProductSales] = useState(false);
+
+   // Reset form on open
+   useEffect(() => {
+     if (isOpen) {
+       resetForm();
+     }
+   }, [isOpen]);
+
+   // Fetch product sales when dialog opens and clientId is available
+   useEffect(() => {
+     if (!isOpen || !clientId) return;
+
+     const fetchProductSales = async () => {
+       setLoadingProductSales(true);
+       try {
+         const res = await fetch(`/api/product-sales?clientId=${clientId}`, {
+           credentials: 'include',
+         });
+         if (res.ok) {
+           const data = await res.json();
+           setProductSales(data.data || []);
+         } else {
+           setProductSales([]);
+         }
+       } catch (err) {
+         console.error('Failed to fetch product sales:', err);
+         setProductSales([]);
+       } finally {
+         setLoadingProductSales(false);
+       }
+     };
+
+     fetchProductSales();
+   }, [isOpen, clientId]);
 
   // ─── Item Management ────────────────────────────────────────────────────
 
@@ -118,6 +150,18 @@ export default function InvoiceCreationDialog({
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  }, []);
+
+  // Add product sale as a new line item
+  const addProductSaleItem = useCallback((sale: ProductSaleResult) => {
+    const newItem: InvoiceItem = {
+      id: crypto.randomUUID(),
+      name: sale.productName,
+      description: sale.notes || '',
+      amount: sale.sellingPrice.toString(),
+      quantity: sale.quantity,
+    };
+    setItems((prev) => [...prev, newItem]);
   }, []);
 
   // ─── Calculations ───────────────────────────────────────────────────────
@@ -442,6 +486,64 @@ export default function InvoiceCreationDialog({
             </button>
           </div>
         </div>
+
+        {/* ── Product Sales Selection (when in Product mode) ───────────────── */}
+        {mode === 'product' && (
+          <div className="mb-6 rounded-xl border border-violet-200/60 dark:border-violet-700/60 bg-violet-50/30 dark:bg-violet-900/10 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+                Product Sales for {clientName}
+              </h3>
+              {productSales.length > 0 && (
+                <span className="text-xs text-violet-600 dark:text-violet-400">
+                  {productSales.length} record{productSales.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {loadingProductSales ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-violet-600 dark:text-violet-400" />
+                <span className="ml-2 text-sm text-violet-600 dark:text-violet-400">Loading product sales...</span>
+              </div>
+            ) : productSales.length === 0 ? (
+              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                No product sales recorded for this client yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-violet-300 dark:scrollbar-thumb-violet-700 scrollbar-track-transparent">
+                {productSales.map((sale) => (
+                  <div
+                    key={sale.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border border-violet-200/60 dark:border-violet-700/60 hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+                        {sale.productName}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatPKR(sale.sellingPrice)} × {sale.quantity} = {formatPKR(sale.sellingPrice * sale.quantity)}
+                        {sale.notes && (
+                          <span className="block italic truncate">"{sale.notes}"</span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addProductSaleItem(sale)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-colors shrink-0"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-violet-600/80 dark:text-violet-400/80">
+              Click &quot;Add&quot; to include this product in the invoice items below.
+            </p>
+          </div>
+        )}
 
         {/* ── Line Items ───────────────────────────────────────────────── */}
         <div>

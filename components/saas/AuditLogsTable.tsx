@@ -6,7 +6,7 @@ import { Filter, Activity, X } from "lucide-react";
 
 interface AuditLog {
   id: string;
-  userName: string;
+  userName: string | null;
   action: string;
   entity: string;
   entityId: string | null;
@@ -196,10 +196,10 @@ export default function AuditLogsTable({
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 dark:from-slate-400 dark:to-slate-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                      {log.userName.charAt(0).toUpperCase()}
+                      {(log.userName || '?').charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {log.userName}
+                      {log.userName || 'System'}
                     </span>
                   </div>
                 </td>

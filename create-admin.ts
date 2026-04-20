@@ -21,7 +21,9 @@ async function main() {
 
   // Check if admin already exists
   const existingAdmin = await prisma.admin.findUnique({
-    where: { email: 'admin@isp.com' }
+    where: { 
+      email: 'admin@isp.com'
+     }
   });
 
   if (existingAdmin) {

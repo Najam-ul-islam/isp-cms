@@ -25,7 +25,8 @@ import {
   ChevronRight as ChevronRightIcon,
   User,
   Shield,
-  MapPin
+  MapPin,
+  FileText
 } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -158,6 +159,11 @@ export default function ResponsiveSidebar() {
       icon: Users
     },
     {
+      href: '/dashboard/quotations',
+      label: 'Quotations',
+      icon: FileText
+    },
+    {
       href: '/dashboard/areas',
       label: 'Areas',
       icon: MapPin
@@ -280,7 +286,7 @@ export default function ResponsiveSidebar() {
         ref={sidebarRef}
         className={`
           fixed lg:static z-60 h-screen
-          bg-linear-to-br from-gray-50/80 to-white dark:from-gray-900 dark:to-gray-900/95
+          bg-gradient-to-br from-gray-50/80 to-white dark:from-gray-900 dark:to-gray-900/95
           backdrop-blur-xl
           border-r border-gray-200/60 dark:border-gray-700/60
           flex flex-col
@@ -295,11 +301,11 @@ export default function ResponsiveSidebar() {
       >
         {/* Logo/Header - Premium glass card */}
         <div className="px-4 py-3 sm:py-3.5 border-b border-gray-200/60 dark:border-gray-700/60
-          bg-linear-to-r from-blue-50/40 via-violet-50/30 to-purple-50/40
+          bg-gradient-to-r from-blue-50/40 via-violet-50/30 to-purple-50/40
           dark:from-blue-900/20 dark:via-violet-900/15 dark:to-purple-900/20
           backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="relative p-2 bg-linear-to-brr from-blue-600 via-blue-700 to-violet-600 
+            <div className="relative p-2 bg-gradient-to-brr from-blue-600 via-blue-700 to-violet-600 
               rounded-xl shadow-lg shadow-blue-500/30 dark:shadow-blue-400/20
               shrink-0 transition-all duration-200 ease-out
               hover:scale-110 hover:shadow-xl hover:shadow-blue-500/40 dark:hover:shadow-blue-400/30
@@ -309,7 +315,7 @@ export default function ResponsiveSidebar() {
             </div>
             {sidebarOpen && (
               <div className="overflow-hidden animate-in slide-in-from-left duration-300">
-                <h1 className="text-base font-bold bg-linear-to-r from-gray-900 via-blue-900 to-violet-900
+                <h1 className="text-base font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-violet-900
                   dark:from-gray-50 dark:via-blue-100 dark:to-violet-100
                   bg-clip-text text-transparent tracking-tight">
                   ISP Admin
@@ -345,7 +351,7 @@ export default function ResponsiveSidebar() {
                     border border-transparent
                     transition-all duration-200 ease-out
                     ${active && !hasSubmenu
-                      ? 'bg-linear-to-r from-blue-600 to-violet-600 dark:from-blue-500 dark:to-violet-500 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-400/20 border-blue-500/60 dark:border-blue-400/60 hover:from-blue-700 hover:to-violet-700 dark:hover:from-blue-600 dark:hover:to-violet-600'
+                      ? 'bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-500 dark:to-violet-500 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-400/20 border-blue-500/60 dark:border-blue-400/60 hover:from-blue-700 hover:to-violet-700 dark:hover:from-blue-600 dark:hover:to-violet-600'
                       : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-50 hover:bg-gray-100/60 dark:hover:bg-gray-800/50 hover:border-gray-300/60 dark:hover:border-gray-600/60 hover:shadow-md hover:shadow-gray-500/10 dark:hover:shadow-gray-400/10 hover:-translate-y-0.5'
                     }
                   `}
@@ -390,7 +396,7 @@ export default function ResponsiveSidebar() {
                             border border-transparent
                             transition-all duration-200 ease-out
                             ${isSubActive
-                              ? 'bg-linear-to-r from-blue-50 to-violet-50 dark:from-blue-900/30 dark:to-violet-900/20 text-blue-700 dark:text-blue-300 shadow-md shadow-blue-500/15 dark:shadow-blue-400/10 border-blue-400/60 dark:border-blue-500/60'
+                              ? 'bg-gradient-to-r from-blue-50 to-violet-50 dark:from-blue-900/30 dark:to-violet-900/20 text-blue-700 dark:text-blue-300 shadow-md shadow-blue-500/15 dark:shadow-blue-400/10 border-blue-400/60 dark:border-blue-500/60'
                               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-50 hover:bg-gray-100/50 dark:hover:bg-gray-800/40 hover:border-gray-300/60 dark:hover:border-gray-600/60 hover:shadow-sm hover:-translate-y-0.5'
                             }
                           `}
@@ -400,7 +406,7 @@ export default function ResponsiveSidebar() {
                         >
                           {/* Active indicator for submenu */}
                           {isSubActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-linear-to-br from-blue-500 to-violet-500 dark:from-blue-400 dark:to-violet-400 rounded-r-full" />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-gradient-to-br from-blue-500 to-violet-500 dark:from-blue-400 dark:to-violet-400 rounded-r-full" />
                           )}
                           
                           <SubIcon className="w-4 h-4 shrink-0 transition-all duration-200 group-hover:scale-110" />
@@ -420,7 +426,7 @@ export default function ResponsiveSidebar() {
 
         {/* Footer Section - Premium card-style */}
         <div className="border-t border-gray-200/60 dark:border-gray-700/60 p-3 space-y-2 
-          bg-linear-to-t from-gray-50/60 via-gray-50/40 to-transparent 
+          bg-gradient-to-t from-gray-50/60 via-gray-50/40 to-transparent 
           dark:from-gray-900/60 dark:via-gray-900/40 dark:to-transparent
           backdrop-blur-sm">
           {/* Theme Toggle - Premium button */}
@@ -455,7 +461,7 @@ export default function ResponsiveSidebar() {
           {/* User Profile - Premium card */}
           {userLoading ? (
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl 
-              bg-linear-to-r from-gray-50/80 to-gray-100/60 dark:from-gray-800/70 dark:to-gray-800/50 
+              bg-gradient-to-r from-gray-50/80 to-gray-100/60 dark:from-gray-800/70 dark:to-gray-800/50 
               border border-gray-200/60 dark:border-gray-700/60
               backdrop-blur-sm`}>
               <div className="w-8 h-8 rounded-full bg-gray-200/80 dark:bg-gray-700/80 animate-pulse shrink-0" />
@@ -468,11 +474,11 @@ export default function ResponsiveSidebar() {
             </div>
           ) : user ? (
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl 
-              bg-linear-to-r from-blue-50/60 via-violet-50/50 to-purple-50/60 
+              bg-gradient-to-r from-blue-50/60 via-violet-50/50 to-purple-50/60 
               dark:from-blue-900/20 dark:via-violet-900/15 dark:to-purple-900/20
               border border-gray-200/60 dark:border-gray-700/60
               backdrop-blur-sm shadow-sm shadow-gray-900/5 dark:shadow-black/10`}>
-              <div className="relative w-8 h-8 rounded-full bg-linear-to-brr from-blue-500 via-violet-500 to-purple-600 
+              <div className="relative w-8 h-8 rounded-full bg-gradient-to-brr from-blue-500 via-violet-500 to-purple-600 
                 flex items-center justify-center text-xs font-bold text-white 
                 shrink-0 shadow-md shadow-blue-500/30 dark:shadow-blue-400/20
                 hover:shadow-lg hover:shadow-blue-500/40 dark:hover:shadow-blue-400/30
@@ -484,7 +490,7 @@ export default function ResponsiveSidebar() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <p className="text-xs font-bold text-gray-900 dark:text-gray-50 truncate">{user.name}</p>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-linear-to-r ${getRoleBadgeColor(user.role)} text-white shadow-sm`}>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r ${getRoleBadgeColor(user.role)} text-white shadow-sm`}>
                       {user.role.replace('_', ' ').slice(0, 3)}
                     </span>
                   </div>
@@ -494,7 +500,7 @@ export default function ResponsiveSidebar() {
             </div>
           ) : (
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl 
-              bg-linear-to-r from-red-50/60 to-red-100/50 dark:from-red-900/20 dark:to-red-900/15
+              bg-gradient-to-r from-red-50/60 to-red-100/50 dark:from-red-900/20 dark:to-red-900/15
               border border-red-200/60 dark:border-red-700/60
               backdrop-blur-sm`}>
               <User className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />

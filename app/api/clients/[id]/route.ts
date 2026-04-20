@@ -1,47 +1,44 @@
 import { NextResponse } from 'next/server'
 import { getAdminFromToken } from '@/lib/jwt'
 import { prisma } from '@/lib/prisma'
-import { getClientPaymentSummary, getClientInvoicesWithPayments } from '@/lib/payment-calculator'
+import { getInvoicesForClient } from '@/modules/invoices/services'
 import { logAction } from '../../../../modules/audit/services'
 
 export const dynamic = 'force-dynamic'
 
 // GET single client with package info
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const admin = await getAdminFromToken(request);
+   export async function GET(
+     request: Request,
+     { params }: { params: Promise<{ id: string }> }
+   ) {
+     try {
+       const admin = await getAdminFromToken(request);
 
-    if (!admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+       if (!admin) {
+         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+       }
 
-    const { id } = await params
-    const clientId = id
+       const { id } = await params
+       const clientId = id
 
-    const client = await prisma.client.findUnique({
-      where: {
-        id: clientId,
-        companyId: admin.companyId  // Multi-tenant filter
-      },
-      include: {
-        package: {
-          include: {
-            serviceProvider: true
-          }
-        }
-      }
-    })
+       const client = await prisma.client.findUnique({
+         where: {
+           id: clientId,
+           companyId: admin.companyId  // Multi-tenant filter
+         },
+         include: {
+           package: {
+             include: {
+               serviceProvider: true
+             }
+           }
+         }
+       })
 
-    // Check if client exists before proceeding
-    if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-    }
-
-    // Calculate payment summary using the utility function
-    const paymentSummary = await getClientPaymentSummary(clientId);
+       // Check if client exists before proceeding
+       if (!client) {
+         return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+       }
 
     // Get all payments for this client ordered by date (most recent first)
     const allClientPayments = await prisma.payment.findMany({
@@ -54,48 +51,44 @@ export async function GET(
       }
     });
 
-    // Get all invoices with payment details for this client
-    const clientInvoices = await prisma.invoice.findMany({
-      where: { clientId: clientId },
-      include: {
-        payments: {
-          orderBy: {
-            paymentDate: 'desc'
-          }
-        }
-      },
-      orderBy: {
-        issuedDate: 'desc'
-      }
-    });
+    // Get all invoices with correctly computed payment summaries
+    const invoicesWithAmounts = await getInvoicesForClient(clientId, admin.companyId);
 
     // Get the latest payment date if payments exist
     const latestPaymentDate = allClientPayments.length > 0 ? allClientPayments[0].paymentDate : null;
 
+    // Filter to only outstanding invoices (exclude fully paid)
+    const outstandingInvoices = invoicesWithAmounts.filter(inv => inv.effectivePaymentStatus !== "paid");
+
+    // Calculate totals from outstanding invoices only
+    const totalAmount     = outstandingInvoices.reduce((sum, inv) => sum + ((inv.totalAmount ?? inv.amount ?? 0) || 0), 0);
+    const totalPaid       = outstandingInvoices.reduce((sum, inv) => sum + ((inv.totalPaid ?? 0) || 0), 0);
+    const remainingAmount = outstandingInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount ?? 0) || 0), 0);
+
     // Combine client data with calculated payment stats
     const clientWithPaymentStats = {
       ...client,
-      totalPaid: paymentSummary.totalPaid,
-      remainingAmount: paymentSummary.remainingAmount,
-      overpaidAmount: paymentSummary.overpaidAmount,
-      totalAmount: paymentSummary.total,
-      effectivePaymentStatus: paymentSummary.effectivePaymentStatus,
-      packageAmount: paymentSummary.packageAmount || client?.price || 0,
-      otherIncome: paymentSummary.otherIncome || 0,
+      totalPaid,
+      remainingAmount,
+      overpaidAmount: 0,
+      totalAmount,
+      effectivePaymentStatus: remainingAmount <= 0.01 ? "paid" : totalPaid > 0 ? "partial" : "unpaid",
+      packageAmount: client?.price || 0,
+      otherIncome: 0,
       latestPaymentDate,
-      payments: allClientPayments, // Include payment history
-      invoices: clientInvoices // Include invoice details with payment summaries
+      payments: allClientPayments,
+      invoices: invoicesWithAmounts,
     };
 
     return NextResponse.json(clientWithPaymentStats)
-  } catch (error) {
-    console.error('Get client error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
+     } catch (error) {
+       console.error('Get client error:', error)
+       return NextResponse.json(
+         { error: 'Internal server error' },
+         { status: 500 }
+       )
+     }
+   }
 
 // UPDATE client
 export async function PUT(
@@ -130,24 +123,24 @@ export async function PUT(
       notes
     } = await request.json()
 
-    // Validate username uniqueness if provided and different from current
-    if (username) {
-      const currentClient = await prisma.client.findUnique({
-        where: { id: clientId }
-      });
-      
-      if (currentClient && currentClient.username !== username) {
-        const existingUsername = await prisma.client.findUnique({
-          where: { username }
-        });
-        if (existingUsername) {
-          return NextResponse.json(
-            { error: 'Username already exists' },
-            { status: 400 }
-          );
-        }
-      }
-    }
+     // Validate username uniqueness if provided and different from current
+     if (username) {
+       const currentClient = await prisma.client.findUnique({
+         where: { id: clientId }
+       });
+       
+       if (currentClient && currentClient.username !== username) {
+         const existingUsername = await prisma.client.findUnique({
+           where: { username_companyId: { username, companyId: currentClient.companyId } }
+         });
+         if (existingUsername) {
+           return NextResponse.json(
+             { error: 'Username already exists' },
+             { status: 400 }
+           );
+         }
+       }
+     }
 
     // Verify that the package exists if packageId is provided
     if (packageId) {

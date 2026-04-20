@@ -101,18 +101,18 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate username uniqueness if provided
-    if (username) {
-      const existingUsername = await prisma.client.findUnique({
-        where: { username }
-      });
-      if (existingUsername) {
-        return NextResponse.json(
-          { error: 'Username already exists' },
-          { status: 400 }
-        );
-      }
-    }
+     // Validate username uniqueness if provided
+     if (username) {
+       const existingUsername = await prisma.client.findUnique({
+         where: { username_companyId: { username, companyId: admin.companyId } }
+       });
+       if (existingUsername) {
+         return NextResponse.json(
+           { error: 'Username already exists' },
+           { status: 400 }
+         );
+       }
+     }
 
     // Validate status and paymentStatus
     const status = parseClientStatus(rawStatus);

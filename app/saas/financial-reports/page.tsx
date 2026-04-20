@@ -103,7 +103,7 @@ export default function SaaSFinancialReports() {
       </div>
 
       {/* Quick Stats */}
-      <div className="bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-500/5 dark:to-indigo-500/5 border border-blue-200/60 dark:border-blue-500/20 rounded-2xl p-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-500/5 dark:to-indigo-500/5 border border-blue-200/60 dark:border-blue-500/20 rounded-2xl p-6">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/20">
             <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />

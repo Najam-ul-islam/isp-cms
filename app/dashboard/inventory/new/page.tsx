@@ -95,7 +95,7 @@ export default function AddInventoryItem() {
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             </Link>
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent flex items-center gap-3">
+              <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent flex items-center gap-3">
                 <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
                   <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>

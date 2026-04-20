@@ -264,32 +264,39 @@ export async function GET(
       }),
     ]);
 
-    // Fetch top clients details
-    const topClientsDetails = await Promise.all(
-      topClients.map(async (payment) => {
-        const client = await prisma.client.findUnique({
-          where: { id: payment.clientId },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            status: true,
-            package: {
-              select: {
-                name: true,
-                price: true,
-              },
+    // Fetch top clients details - optimized with batch query
+    const topClientIds = topClients.map(c => c.clientId).filter(id => id !== null);
+    const clientsMap = new Map();
+    if (topClientIds.length > 0) {
+      const clients = await prisma.client.findMany({
+        where: { id: { in: topClientIds } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          status: true,
+          package: {
+            select: {
+              name: true,
+              price: true,
             },
           },
-        });
+        },
+      });
+      clients.forEach(client => clientsMap.set(client.id, client));
+    }
+
+    const topClientsDetails = topClients
+      .map(payment => {
+        const client = clientsMap.get(payment.clientId);
         return client ? {
           ...client,
           totalPaid: payment._sum.amount || 0,
           paymentCount: payment._count.id,
         } : null;
       })
-    );
+      .filter(Boolean);
 
     // Calculate revenue change percentage
     const currentRevenue = revenueLast30Days._sum.amount || 0;

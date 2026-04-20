@@ -21,11 +21,13 @@ interface CompanyDetailProps {
 
 interface Invoice {
   id: string;
+  invoiceNumber?: string; // Optional: SaaS may not have this
   amount: number;
   status: string;
   issuedDate: string;
   dueDate: string;
   description: string;
+  effectivePaymentStatus?: 'unpaid' | 'partial' | 'paid' | string;
 }
 
 const AVAILABLE_MODULES = [
@@ -172,6 +174,7 @@ export default function CompanyDetail({ company }: CompanyDetailProps) {
         return "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
       case "partial":
         return "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400";
+      case "unpaid":
       case "overdue":
         return "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400";
       default:
@@ -487,18 +490,18 @@ export default function CompanyDetail({ company }: CompanyDetailProps) {
                     key={invoice.id}
                     className="hover:bg-gray-50/80 dark:hover:bg-gray-700/30 transition-colors duration-150"
                   >
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
-                        {invoice.id.slice(0, 8).toUpperCase()}
-                      </span>
-                    </td>
+                     <td className="px-6 py-4">
+                       <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
+                         {invoice.invoiceNumber || invoice.id.slice(-8).toUpperCase()}
+                       </span>
+                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">
                       PKR {invoice.amount.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
-                        {invoice.status || "Pending"}
-                      </span>
+                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.effectivePaymentStatus || invoice.status)}`}>
+                         {invoice.effectivePaymentStatus || invoice.status || "Pending"}
+                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {new Date(invoice.issuedDate).toLocaleDateString("en-US", {

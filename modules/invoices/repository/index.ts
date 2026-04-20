@@ -13,6 +13,11 @@ export interface CreateInvoiceData {
   previousInvoiceId?: string;
   additionalCharges?: any;
   totalAmount?: number;
+  lineItems?: Array<{
+    type: 'package' | 'carry_forward' | 'additional';
+    label: string;
+    amount: number;
+  }>;
 }
 
 export interface CreateInvoiceWithItemsData {
@@ -62,6 +67,7 @@ export class InvoiceRepository {
         creditUsed: data.creditUsed || 0,
         previousInvoiceId: data.previousInvoiceId,
         additionalCharges: data.additionalCharges,
+        lineItems: data.lineItems,
       }
     });
   }

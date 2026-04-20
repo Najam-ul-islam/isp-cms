@@ -23,7 +23,7 @@ export default function FinancialSummary({
   return (
     <div className="w-full space-y-4">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-linear-to-br from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 shadow-md">
+        <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 shadow-md">
           <TrendingUp className="w-5 h-5 text-white" />
         </div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Financial Summary</h2>
@@ -50,7 +50,7 @@ export default function FinancialSummary({
                 <ArrowUpRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
-            <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
+            <p className="text-2xl font-semibold bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
               {totalRevenue}
             </p>
           </button>
@@ -71,7 +71,7 @@ export default function FinancialSummary({
                 <ArrowDownLeft className="w-5 h-5 text-rose-600 dark:text-rose-400" />
               </div>
             </div>
-            <p className="text-2xl font-semibold bg-linear-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
+            <p className="text-2xl font-semibold bg-gradient-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
               {totalExpenses}
             </p>
           </button>
@@ -96,7 +96,7 @@ export default function FinancialSummary({
                 <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
             </div>
-            <p className="text-2xl font-semibold bg-linear-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+            <p className="text-2xl font-semibold bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
               {totalArrears}
             </p>
           </button>
@@ -121,7 +121,7 @@ export default function FinancialSummary({
                 <TrendingDown className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
-            <p className="text-2xl font-semibold bg-linear-to-r from-orange-600 to-orange-500 dark:from-orange-400 dark:to-orange-300 bg-clip-text text-transparent">
+            <p className="text-2xl font-semibold bg-gradient-to-r from-orange-600 to-orange-500 dark:from-orange-400 dark:to-orange-300 bg-clip-text text-transparent">
               {totalPayable}
             </p>
           </button>
@@ -142,7 +142,7 @@ export default function FinancialSummary({
                 <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               </div>
             </div>
-            <p className="text-2xl font-semibold bg-linear-to-r from-indigo-600 to-indigo-500 dark:from-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
+            <p className="text-2xl font-semibold bg-gradient-to-r from-indigo-600 to-indigo-500 dark:from-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
               {totalReceivable}
             </p>
           </button>

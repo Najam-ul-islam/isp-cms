@@ -331,7 +331,7 @@ export default function AreasPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+          <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
             Areas
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -347,7 +347,7 @@ export default function AreasPage() {
                       hover:bg-blue-50/50 dark:hover:bg-blue-900/20
                       hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-400/10">
         {/* Form Header */}
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 bg-linear-to-r from-blue-50/50 to-transparent dark:from-blue-900/10">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -410,7 +410,7 @@ export default function AreasPage() {
                 type="submit"
                 disabled={submitting || !name.trim()}
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5
-                           bg-linear-to-r from-blue-600 to-blue-700 dark:from-blue-600 dark:to-blue-700
+                           bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-600 dark:to-blue-700
                            hover:from-blue-700 hover:to-blue-800 dark:hover:from-blue-500 dark:hover:to-blue-600
                            text-white font-semibold rounded-xl
                            shadow-lg shadow-blue-500/25
@@ -484,7 +484,7 @@ export default function AreasPage() {
       {/* Areas List */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
         {/* List Header */}
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-violet-50/50 to-transparent dark:from-violet-900/10">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-violet-50/50 to-transparent dark:from-violet-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
               <MapPin className="w-5 h-5 text-violet-600 dark:text-violet-400" />

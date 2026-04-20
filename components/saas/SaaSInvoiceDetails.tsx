@@ -151,9 +151,9 @@ export default function SaaSInvoiceDetails({
                 <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">
                   Invoice Details
                 </h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                  {invoice.id.slice(-8).toUpperCase()}
-                </p>
+                 <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                   {invoice.invoiceNumber || invoice.id.slice(-8).toUpperCase()}
+                 </p>
               </div>
             </div>
           </div>
@@ -417,13 +417,13 @@ export default function SaaSInvoiceDetails({
             <span className="font-semibold">
               {formatPKR(invoice.carryForwardAmount)}
             </span>{" "}
-            from previous invoice{" "}
-            <Link
-              href={`/saas/companies/${companyId}/invoices/${invoice.previousInvoice.id}`}
-              className="font-medium underline hover:no-underline"
-            >
-              #{invoice.previousInvoice.id.slice(-8).toUpperCase()}
-            </Link>
+             from previous invoice{" "}
+             <Link
+               href={`/saas/companies/${companyId}/invoices/${invoice.previousInvoice.id}`}
+               className="font-medium underline hover:no-underline"
+             >
+               #{invoice.previousInvoice.invoiceNumber || invoice.previousInvoice.id.slice(-8).toUpperCase()}
+             </Link>
           </p>
         </div>
       )}

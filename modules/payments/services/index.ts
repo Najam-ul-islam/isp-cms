@@ -11,6 +11,35 @@ import { PaymentWithClient } from '../types';
 import { prisma } from '@/lib/prisma';
 import { getClientPaymentSummary } from '@/lib/payment-calculator';
 
+/**
+ * Helper: Calculate client payment summary from invoices (batched)
+ */
+function calculateClientSummaryFromInvoices(invoices: any[]) {
+  let total = 0;
+  let totalPaid = 0;
+  let totalRemaining = 0;
+
+  for (const inv of invoices) {
+    const charges = typeof inv.additionalCharges === 'string'
+      ? JSON.parse(inv.additionalCharges)
+      : inv.additionalCharges;
+    const chargesSum = Array.isArray(charges)
+      ? charges.reduce((sum: number, c: any) => sum + (c.amount || 0), 0)
+      : 0;
+    const invoiceTotal = inv.amount + chargesSum + (inv.carryForwardAmount || 0);
+    const paid = inv.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+    total += invoiceTotal;
+    totalPaid += paid;
+    totalRemaining += Math.max(invoiceTotal - paid, 0);
+  }
+
+  return {
+    total,
+    totalPaid,
+    remainingAmount: totalRemaining
+  };
+}
+
 export const getPaymentById = async (id: string) => {
   if (!id) {
     throw new Error('Payment ID is required');
@@ -22,18 +51,51 @@ export const getPaymentById = async (id: string) => {
 export const getPayments = async (admin: AdminWithPackages, filters?: PaymentFilters) => {
   const payments = await getPaymentsRepo(filters, admin.companyId);
 
-  // Add payment summary data to each payment
-  const paymentsWithTotals = await Promise.all(
-    payments.map(async (payment: any) => {
-      const summary = await getClientPaymentSummary(payment.clientId);
-      return {
-        ...payment,
-        totalDue: summary.total,
-        totalPaid: summary.totalPaid,
-        remainingAmount: summary.remainingAmount
-      };
-    })
-  );
+  if (payments.length === 0) {
+    return [];
+  }
+
+  // Batch compute client summaries: collect unique client IDs
+  const uniqueClientIds = Array.from(new Set(payments.map(p => p.clientId)));
+  
+  // Fetch all invoices for these clients (only unpaid/partial? Actually summary includes all, but we can fetch all)
+  const allInvoices = await prisma.invoice.findMany({
+    where: {
+      clientId: { in: uniqueClientIds },
+      companyId: admin.companyId
+    },
+    include: {
+      payments: {
+        select: { amount: true }
+      }
+    }
+  });
+
+  // Group invoices by clientId
+  const invoicesByClient = new Map<string, any[]>();
+  for (const inv of allInvoices) {
+    if (!invoicesByClient.has(inv.clientId)) {
+      invoicesByClient.set(inv.clientId, []);
+    }
+    invoicesByClient.get(inv.clientId)!.push(inv);
+  }
+
+  // Pre-compute summaries
+  const clientSummaries = new Map<string, { total: number; totalPaid: number; remainingAmount: number }>();
+  for (const [clientId, invoices] of invoicesByClient) {
+    clientSummaries.set(clientId, calculateClientSummaryFromInvoices(invoices));
+  }
+
+  // Attach summary to each payment
+  const paymentsWithTotals = payments.map(payment => {
+    const summary = clientSummaries.get(payment.clientId) || { total: 0, totalPaid: 0, remainingAmount: 0 };
+    return {
+      ...payment,
+      totalDue: summary.total,
+      totalPaid: summary.totalPaid,
+      remainingAmount: summary.remainingAmount
+    };
+  });
 
   return paymentsWithTotals;
 };

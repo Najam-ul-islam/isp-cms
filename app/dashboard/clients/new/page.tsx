@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Package, ServiceProvider } from '@prisma/client'
 import {
@@ -39,6 +39,14 @@ interface Area {
   }
 }
 
+function calculateDefaultExpiry(start: Date | null, durationDays: number | undefined = undefined) {
+  if (!start) return null;
+  const calculatedExpiry = new Date(start);
+  const daysToAdd = durationDays !== undefined ? durationDays : 30;
+  calculatedExpiry.setDate(calculatedExpiry.getDate() + daysToAdd);
+  return calculatedExpiry;
+}
+
 export default function NewClientPage() {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
@@ -57,18 +65,7 @@ export default function NewClientPage() {
   const [showAddArea, setShowAddArea] = useState(false)
   const [newAreaName, setNewAreaName] = useState('')
 
-  // Helper function to calculate default expiry date (30 days from start date)
-  const calculateDefaultExpiry = (start: Date | null, durationDays: number | undefined = undefined) => {
-    if (!start) return null;
-
-    const calculatedExpiry = new Date(start);
-
-    // Use package duration if available, otherwise default to 30 days
-    const daysToAdd = durationDays !== undefined ? durationDays : 30;
-    calculatedExpiry.setDate(calculatedExpiry.getDate() + daysToAdd);
-
-    return calculatedExpiry;
-  };
+;
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid' | 'partial'>('unpaid')
   const [status, setStatus] = useState<'active' | 'expired' | 'suspended'>('active')
   const [notes, setNotes] = useState('')
@@ -82,11 +79,16 @@ export default function NewClientPage() {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null)
   const router = useRouter()
 
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Show notification
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
-    setNotification({ type, message })
-    setTimeout(() => setNotification(null), 4000)
-  }
+    setNotification({ type, message });
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
 
   const handleAddArea = async () => {
     if (!newAreaName.trim()) {
@@ -157,7 +159,6 @@ export default function NewClientPage() {
       } catch (err) {
         console.error('Error fetching data:', err)
         showNotification('error', 'Network error. Please try again.')
-        router.push('/login')
       } finally {
         setLoading(false)
       }
@@ -173,16 +174,11 @@ export default function NewClientPage() {
       if (pkg) {
         setSelectedPackage(pkg)
         setPrice(pkg.price)
-        // Auto-calculate expiry if start date is set and expiry hasn't been manually set
-        if (startDate && !hasUserManuallySetExpiry) {
-          const calculatedExpiry = calculateDefaultExpiry(startDate, pkg.durationDays);
-          if (calculatedExpiry) {
-            setExpiryDate(calculatedExpiry);
-          }
-        }
+        // Reset manual expiry flag when package changes
+        setHasUserManuallySetExpiry(false)
       }
     }
-  }, [packageId, packages, startDate, hasUserManuallySetExpiry])
+  }, [packageId, packages])
 
   // Auto-calculate expiry when start date or package changes
   useEffect(() => {
@@ -199,6 +195,23 @@ export default function NewClientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validation
+    if (!startDate || !expiryDate) {
+      showNotification('error', 'Start date and expiry date are required')
+      return
+    }
+    const start = new Date(startDate)
+    const expiry = new Date(expiryDate)
+    if (expiry <= start) {
+      showNotification('error', 'Expiry date must be after start date')
+      return
+    }
+    if (!price || price <= 0) {
+      showNotification('error', 'Price must be greater than 0')
+      return
+    }
+
     setSubmitting(true)
 
     try {
@@ -254,24 +267,7 @@ export default function NewClientPage() {
     }).format(amount)
   }
 
-  // Get badge styles for status
-  const getStatusBadgeStyles = (value: string, isPayment = false) => {
-    const base = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border'
-    if (isPayment) {
-      switch (value) {
-        case 'paid': return `${base} bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800`
-        case 'unpaid': return `${base} bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800`
-        case 'partial': return `${base} bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800`
-        default: return `${base} bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600`
-      }
-    }
-    switch (value) {
-      case 'active': return `${base} bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800`
-      case 'expired': return `${base} bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800`
-      case 'suspended': return `${base} bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800`
-      default: return `${base} bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600`
-    }
-  }
+
 
   if (loading) {
     return <NewClientSkeleton />
@@ -309,7 +305,7 @@ export default function NewClientPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 transition-colors" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
                 Add New Client
               </h1>
             <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -322,7 +318,7 @@ export default function NewClientPage() {
       {/* Form Card */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 overflow-hidden">
         {/* Form Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 bg-linear-to-r from-emerald-50/50 to-transparent dark:from-emerald-900/10">
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-gray-700 bg-gradient-to-r from-emerald-50/50 to-transparent dark:from-emerald-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
               <User className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -482,7 +478,7 @@ export default function NewClientPage() {
                           type="button"
                           onClick={handleAddArea}
                           disabled={loadingAreas}
-                          className="px-4 py-2.5 bg-linear-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
+                          className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
                         >
                           {loadingAreas ? (
                             <RefreshCw className="w-4 h-4 animate-spin" />
@@ -638,16 +634,7 @@ export default function NewClientPage() {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                     <DatePicker
                       selected={startDate}
-                      onChange={(date: Date | null) => {
-                        setStartDate(date);
-                        // Only auto-set expiry date if it hasn't been manually set by the user
-                        if (date && !hasUserManuallySetExpiry) {
-                          const calculatedExpiry = calculateDefaultExpiry(date, selectedPackage?.durationDays);
-                          if (calculatedExpiry) {
-                            setExpiryDate(calculatedExpiry);
-                          }
-                        }
-                      }}
+                       onChange={(date: Date | null) => setStartDate(date)}
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white"
                       placeholderText="Select start date"
                       dateFormat="yyyy-MM-dd"
@@ -788,7 +775,7 @@ export default function NewClientPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 sm:flex-none px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
+                className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>

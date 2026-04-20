@@ -16,7 +16,8 @@ import {
   TrendingUp,
   Package as PackageIcon,
   ShoppingCart,
-  BadgePercent
+  BadgePercent,
+  FileText
 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
@@ -60,6 +61,11 @@ export default function Sidebar() {
       href: '/dashboard/clients',
       label: 'Clients',
       icon: Users
+    },
+    {
+      href: '/dashboard/quotations',
+      label: 'Quotations',
+      icon: FileText
     },
     {
       href: '/dashboard/packages',
@@ -109,7 +115,7 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white h-screen flex flex-col shadow-xl border-r border-gray-700/50 overflow-hidden">
+    <aside className="w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white h-screen flex flex-col shadow-xl border-r border-gray-700/50 overflow-hidden">
       {/* Logo/Header */}
       <div className="p-3 border-b border-gray-700/50 flex-shrink-0">
         <div className="flex items-center gap-2">

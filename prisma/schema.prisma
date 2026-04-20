@@ -26,13 +26,15 @@ model Company {
   expenses              Expense[]
   inventoryItems        InventoryItem[]
   inventoryTransactions InventoryTransaction[]
-  invoices              Invoice[]              // Add invoices relation
+  invoices              Invoice[] // Add invoices relation
   packages              Package[]
   payments              Payment[]
   providers             ServiceProvider[]
   productSales          ProductSale[]
   subscription          Subscription?
-  saasInvoices          SaaSInvoice[]  // SaaS-specific invoices (isolated from client invoices)
+  saasInvoices          SaaSInvoice[] // SaaS-specific invoices (isolated from client invoices)
+  quotations            Quotation[]
+  sequenceCounters      SequenceCounter[]
 
   @@map("companies")
 }
@@ -53,15 +55,15 @@ model Admin {
   refreshTokens RefreshToken[]
   sessions      Session[]
 
-  @@map("admins")
   @@index([companyId])
   @@index([role])
   @@index([companyId, role])
+  @@map("admins")
 }
 
 model ServiceProvider {
   id          String    @id @default(cuid())
-  name        String    @unique
+  name        String
   contactInfo String?
   address     String?
   email       String?
@@ -71,34 +73,39 @@ model ServiceProvider {
   updatedAt   DateTime  @updatedAt
   companyId   String
   packages    Package[]
+  clients     Client[]
   company     Company   @relation(fields: [companyId], references: [id])
 
+  @@unique([name, companyId])
+  @@index([companyId])
   @@map("service_providers")
 }
 
 model Package {
   id                String           @id @default(cuid())
-  name              String           @unique
+  name              String
   speed             Int
   price             Float
-  durationDays      Int
-  description       String           @default("")
+  durationDays     Int
+  description      String           @default("")
   isActive          Boolean          @default(true)
   createdBy         String
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  purchasePrice     Float?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  purchasePrice    Float?
   serviceProviderId String?
-  companyId         String
-  clients           Client[]
-  company           Company          @relation(fields: [companyId], references: [id])
-  creator           Admin            @relation(fields: [createdBy], references: [id])
-  serviceProvider   ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+  companyId        String
+  clients          Client[]
+  company          Company          @relation(fields: [companyId], references: [id])
+  creator          Admin            @relation(fields: [createdBy], references: [id])
+  serviceProvider  ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
 
-  @@map("packages")
+  @@unique([name, companyId])
   @@index([companyId])
   @@index([isActive])
   @@index([companyId, isActive])
+  @@index([companyId, serviceProviderId])
+  @@map("packages")
 }
 
 model Area {
@@ -117,36 +124,44 @@ model Area {
 }
 
 model Client {
-  id            String        @id @default(cuid())
-  name          String
-  username      String?       @unique
-  phone         String        @unique
-  cnic          String        @unique
-  city          String
-  areaName      String?
-  country       String
-  packageId     String
-  price         Float
-  startDate     DateTime
-  expiryDate    DateTime
-  paymentStatus PaymentStatus
-  status        ClientStatus
-  notes         String?
-  createdAt     DateTime      @default(now())
-  email         String?       @unique
-  createdBy     String
-  companyId     String
-  areaId        String?
-  area          Area?         @relation(fields: [areaId], references: [id])
-  company       Company       @relation(fields: [companyId], references: [id])
-  creator       Admin         @relation(fields: [createdBy], references: [id])
-  package       Package       @relation(fields: [packageId], references: [id])
-  complaints    Complaint[]
-  payments      Payment[]
-  invoices      Invoice[]
-  productSales  ProductSale[]
+  id              String        @id @default(cuid())
+  name            String
+  username        String?
+  phone           String
+  cnic            String
+  city            String
+  areaName        String?
+  country         String
+  packageId       String
+  price           Float
+  startDate       DateTime
+  expiryDate      DateTime
+  paymentStatus   PaymentStatus
+  status          ClientStatus
+  notes           String?
+  createdAt       DateTime      @default(now())
+  email           String?
+  createdBy       String
+  companyId       String
+  areaId          String?
+  serviceProviderId String?
+  importHash      String?
+  area            Area?          @relation(fields: [areaId], references: [id])
+  company         Company        @relation(fields: [companyId], references: [id])
+  creator         Admin          @relation(fields: [createdBy], references: [id])
+  package         Package        @relation(fields: [packageId], references: [id])
+  serviceProvider ServiceProvider? @relation(fields: [serviceProviderId], references: [id])
+  complaints      Complaint[]
+  payments        Payment[]
+  invoices        Invoice[]
+  productSales    ProductSale[]
+  quotations      Quotation[]
 
-  @@map("clients")
+  @@unique([username, companyId])
+  @@unique([phone, companyId])
+  @@unique([cnic, companyId])
+  @@unique([email, companyId])
+  @@unique([importHash, companyId])
   @@index([companyId])
   @@index([status])
   @@index([paymentStatus])
@@ -157,76 +172,94 @@ model Client {
   @@index([companyId, status, expiryDate])
   @@index([username])
   @@index([areaId])
+  @@index([companyId, packageId])
+  @@index([companyId, serviceProviderId])
+  @@map("clients")
 }
 
 model Invoice {
-  id                String      @id @default(cuid())
-  clientId          String
-  amount            Float       // DEPRECATED: Use totalAmount for new invoices; kept for backward compatibility
-  totalAmount       Float?      // New field: sum of all line items (null for legacy invoices - computed from amount)
-  issuedDate        DateTime    @default(now())
-  dueDate           DateTime
-  status            InvoiceStatus @default(unpaid)
-  description       String?
-  billingMonth      String?     // Format: "2026-04" (YYYY-MM)
-  source            InvoiceSource @default(manual)  // Track invoice origin: package, product_sale, or manual
-  carryForwardAmount Float      @default(0)  // Amount carried from previous invoice
-  creditUsed        Float       @default(0)  // Credits/overpayments applied
-  additionalCharges Json?       // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] }
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  companyId         String
+  id                 String        @id @default(cuid())
+  invoiceNumber      String?
+  clientId           String
+  amount             Float // DEPRECATED: Use totalAmount for new invoices; kept for backward compatibility
+  totalAmount        Float? // New field: sum of all line items (null for legacy invoices - computed from amount)
+  issuedDate         DateTime      @default(now())
+  dueDate            DateTime
+  status             InvoiceStatus @default(unpaid)
+  description        String?
+  billingMonth       String? // Format: "2026-04" (YYYY-MM)
+  source             InvoiceSource @default(manual) // Track invoice origin: package, product_sale, or manual
+  carryForwardAmount Float         @default(0) // Amount carried from previous invoice
+  creditUsed         Float         @default(0) // Credits/overpayments applied
+  additionalCharges  Json? // { items: [{name: "Router", amount: 1000}, {name: "Cable", amount: 10000}] 
+  
+  // Line items for transparent billing
+  lineItems          Json? // [{type: "package"|"carry_forward"|"additional", label: string, amount: number}]
+  
+  // Carry forward tracking - when this invoice's balance was carried forward to another invoice
+  carriedForwardAt   DateTime?
+  
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  companyId          String
 
   // Invoice chaining relations
   previousInvoiceId String?
-  previousInvoice   Invoice?    @relation("InvoiceChain", fields: [previousInvoiceId], references: [id])
-  nextInvoices      Invoice[]   @relation("InvoiceChain")
+  previousInvoice   Invoice?  @relation("InvoiceChain", fields: [previousInvoiceId], references: [id])
+  nextInvoices      Invoice[] @relation("InvoiceChain")
 
-  client            Client      @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  company           Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments          Payment[]
-  items             InvoiceItem[]
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments  Payment[]
+  items     InvoiceItem[]
+  quotation Quotation?    @relation("QuotationToInvoice")
 
-  @@map("invoices")
-  @@index([clientId])
-  @@index([companyId])
-  @@index([issuedDate])
-  @@index([dueDate])
-  @@index([clientId, issuedDate])
-  @@index([companyId, issuedDate])
-  @@index([clientId, billingMonth])
-  @@index([companyId, billingMonth])
-  @@index([previousInvoiceId])
+  @@unique([companyId, invoiceNumber])
+   @@index([clientId])
+   @@index([companyId])
+   @@index([invoiceNumber])
+   @@index([issuedDate])
+   @@index([dueDate])
+   @@index([clientId, issuedDate])
+   @@index([companyId, issuedDate])
+   @@index([clientId, billingMonth])
+   @@index([companyId, billingMonth])
+   @@index([companyId, status])
+   @@index([previousInvoiceId])
+   @@index([carriedForwardAt])
+   @@map("invoices")
 }
 
 model InvoiceItem {
-  id          String   @id @default(cuid())
-  invoiceId   String
+  id        String @id @default(cuid())
+  invoiceId String // ✅ required, NOT unique
+
   name        String
   description String?
   amount      Float
-  quantity    Int      @default(1)
-  createdAt   DateTime @default(now())
+  quantity    Int     @default(1)
 
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
-  @@map("invoice_items")
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
   @@index([invoiceId])
+  @@map("invoice_items")
 }
 
 model Payment {
   id            String   @id @default(cuid())
-  clientId      String   // Required - all payments must be linked to a client
-  invoiceId     String   // Required - all payments must be linked to an invoice
+  clientId      String // Required - all payments must be linked to a client
+  invoiceId     String // Required - all payments must be linked to an invoice
   amount        Float
   paymentDate   DateTime @default(now())
-  method        String?  // Legacy field, use gateway
+  method        String? // Legacy field, use gateway
   notes         String?
-  gateway       String?  // stripe, jazzcash, easypaisa
-  transactionId String?  // Gateway transaction ID
+  gateway       String? // stripe, jazzcash, easypaisa
+  transactionId String? // Gateway transaction ID
   status        String   @default("pending") // pending, success, failed, refunded
-  referenceType String?  // subscription, invoice
-  referenceId   String?  // subscriptionId or invoiceId
+  referenceType String? // subscription, invoice
+  referenceId   String? // subscriptionId or invoiceId
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   companyId     String
@@ -234,16 +267,18 @@ model Payment {
   invoice       Invoice  @relation(fields: [invoiceId], references: [id])
   company       Company  @relation(fields: [companyId], references: [id])
 
-  @@map("payments")
-  @@index([clientId])
-  @@index([invoiceId])
-  @@index([companyId])
-  @@index([paymentDate])
-  @@index([clientId, paymentDate])
-  @@index([companyId, paymentDate])
-  @@index([gateway])
-  @@index([status])
-  @@index([transactionId])
+   @@index([clientId])
+   @@index([invoiceId])
+   @@index([companyId])
+   @@index([paymentDate])
+   @@index([clientId, paymentDate])
+   @@index([companyId, paymentDate])
+   @@index([companyId, clientId])
+   @@index([gateway])
+   @@index([status])
+   @@index([companyId, status, paymentDate])
+   @@index([transactionId])
+   @@map("payments")
 }
 
 model Expense {
@@ -257,54 +292,56 @@ model Expense {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@map("expenses")
-  @@index([companyId])
-  @@index([date])
-  @@index([companyId, date])
+   @@index([companyId])
+   @@index([date])
+   @@index([companyId, date])
+   @@index([category])
+   @@index([companyId, category])
+   @@map("expenses")
 }
 
 model Complaint {
-  id          String          @id @default(cuid())
-  clientId    String
-  title       String
-  description String
-  status      ComplaintStatus @default(open)
-  priority    String          @default("medium")
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id           String          @id @default(cuid())
+  clientId     String
+  title        String
+  description  String
+  status       ComplaintStatus @default(open)
+  priority     String          @default("medium")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
   assignedToId String?
-  companyId   String
-  client      Client          @relation(fields: [clientId], references: [id])
-  company     Company         @relation(fields: [companyId], references: [id])
-  assignedTo  Employee?       @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  companyId    String
+  client       Client          @relation(fields: [clientId], references: [id])
+  company      Company         @relation(fields: [companyId], references: [id])
+  assignedTo   Employee?       @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
 
-  @@map("complaints")
   @@index([companyId])
   @@index([status])
   @@index([companyId, status])
   @@index([assignedToId])
+  @@map("complaints")
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String?
   action    String
   entity    String
   entityId  String?
   metadata  Json?
   companyId String
   createdAt DateTime @default(now())
-  company   Company  @relation(fields: [companyId], references: [id])
-  user      Admin    @relation(fields: [userId], references: [id])
+  company  Company  @relation(fields: [companyId], references: [id])
+  user     Admin?   @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
 }
 
 model AccountLedger {
   id           String               @id @default(cuid())
-  name         String               @unique
+  name         String
   balance      Float                @default(0)
   description  String?
   createdAt    DateTime             @default(now())
@@ -315,6 +352,7 @@ model AccountLedger {
   transactions AccountTransaction[]
 
   @@unique([companyId, name])
+  @@index([companyId])
   @@map("account_ledgers")
 }
 
@@ -324,7 +362,7 @@ model AccountTransaction {
   amount          Float
   description     String
   reference       String?
-  referenceType   String?         // Payment, Invoice, Expense, Refund
+  referenceType   String? // Payment, Invoice, Expense, Refund
   date            DateTime        @default(now())
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -333,11 +371,11 @@ model AccountTransaction {
   account         AccountLedger   @relation(fields: [accountId], references: [id])
   company         Company         @relation(fields: [companyId], references: [id])
 
-  @@map("account_transactions")
   @@index([companyId])
   @@index([referenceType])
   @@index([date])
   @@index([companyId, date])
+  @@map("account_transactions")
 }
 
 model InventoryItem {
@@ -345,7 +383,7 @@ model InventoryItem {
   name         String
   category     String
   quantity     Float                  @default(0)
-  unit         String                 @default("piece")  // meter, feet, roll, piece, kg, etc.
+  unit         String                 @default("piece") // meter, feet, roll, piece, kg, etc.
   unitPrice    Float
   totalValue   Float                  @default(0)
   companyId    String
@@ -354,6 +392,9 @@ model InventoryItem {
   company      Company                @relation(fields: [companyId], references: [id])
   transactions InventoryTransaction[]
 
+  @@index([companyId])
+  @@index([quantity])
+  @@index([companyId, quantity])
   @@map("inventory_items")
 }
 
@@ -374,7 +415,7 @@ model InventoryTransaction {
 model Employee {
   id          String             @id @default(cuid())
   name        String
-  email       String             @unique
+  email       String
   phone       String?
   role        String
   salary      Float?
@@ -386,6 +427,8 @@ model Employee {
   complaints  Complaint[]        @relation("ComplaintAssignee")
   company     Company            @relation(fields: [companyId], references: [id])
 
+  @@unique([email, companyId])
+  @@index([companyId])
   @@map("employees")
 }
 
@@ -400,6 +443,65 @@ model EmployeeActivity {
   employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@map("employee_activities")
+}
+
+model Quotation {
+  id              String @id @default(cuid())
+  quotationNumber String
+
+  // Idempotency key for preventing duplicate creation on retry
+  idempotencyKey String?
+
+  clientId  String
+  companyId String
+
+  title       String?
+  description String?
+
+  totalAmount Float
+
+  status QuotationStatus @default(pending)
+
+  validUntil  DateTime?
+  sentAt      DateTime?
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  items QuotationItem[]
+
+  // ✅ FIXED 1-1 relation
+  invoiceId String?  @unique
+  invoice   Invoice? @relation("QuotationToInvoice", fields: [invoiceId], references: [id])
+
+  @@unique([companyId, quotationNumber])
+  @@unique([companyId, idempotencyKey])
+  @@index([clientId])
+  @@index([companyId])
+  @@index([status])
+  @@index([validUntil])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String @id @default(cuid())
+  quotationId String
+
+  name        String
+  description String?
+  amount      Float
+  quantity    Int     @default(1)
+
+  createdAt DateTime @default(now())
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_items")
 }
 
 model RefreshToken {
@@ -437,33 +539,33 @@ enum Role {
 }
 
 model Plan {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  price       Float
-  duration    Int      // Duration in days
-  description String?
-  features    Json     // { billing: true, inventory: true, employees: true, maxClients: 100 }
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String         @id @default(cuid())
+  name          String         @unique
+  price         Float
+  duration      Int // Duration in days
+  description   String?
+  features      Json // { billing: true, inventory: true, employees: true, maxClients: 100 }
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]
-  saasInvoices SaaSInvoice[]  // SaaS invoices for this plan
+  saasInvoices  SaaSInvoice[] // SaaS invoices for this plan
 
   @@map("plans")
 }
 
 model Subscription {
-  id          String   @id @default(cuid())
-  companyId   String   @unique
-  planId      String
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("active") // active, expired, cancelled
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  companyId String   @unique
+  planId    String
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("active") // active, expired, cancelled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan        Plan     @relation(fields: [planId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan    Plan    @relation(fields: [planId], references: [id])
 
   @@index([companyId])
   @@index([planId])
@@ -474,31 +576,30 @@ model Subscription {
 
 // SaaS-specific Invoice (isolated from client invoices)
 model SaaSInvoice {
-  id                String          @id @default(cuid())
-  companyId         String
-  amount            Float
-  issuedDate        DateTime        @default(now())
-  dueDate           DateTime
-  status            SaaSInvoiceStatus @default(unpaid)
-  description       String?
-  billingPeriod     String?         // Format: "2026-Q1" or "2026-04" (YYYY-MM)
-  carryForwardAmount Float          @default(0)
-  creditUsed        Float           @default(0)
-  additionalCharges Json?           // { items: [{name: "Extra Users", amount: 5000}, {name: "Storage", amount: 2000}] }
-  planId            String?         // The plan this invoice is for
-  plan              Plan?           @relation(fields: [planId], references: [id])
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                 String            @id @default(cuid())
+  companyId          String
+  amount             Float
+  issuedDate         DateTime          @default(now())
+  dueDate            DateTime
+  status             SaaSInvoiceStatus @default(unpaid)
+  description        String?
+  billingPeriod      String? // Format: "2026-Q1" or "2026-04" (YYYY-MM)
+  carryForwardAmount Float             @default(0)
+  creditUsed         Float             @default(0)
+  additionalCharges  Json? // { items: [{name: "Extra Users", amount: 5000}, {name: "Storage", amount: 2000}] }
+  planId             String? // The plan this invoice is for
+  plan               Plan?             @relation(fields: [planId], references: [id])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   // Invoice chaining relations
   previousInvoiceId String?
-  previousInvoice   SaaSInvoice?    @relation("SaaSInvoiceChain", fields: [previousInvoiceId], references: [id])
-  nextInvoices      SaaSInvoice[]   @relation("SaaSInvoiceChain")
+  previousInvoice   SaaSInvoice?  @relation("SaaSInvoiceChain", fields: [previousInvoiceId], references: [id])
+  nextInvoices      SaaSInvoice[] @relation("SaaSInvoiceChain")
 
-  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  payments          SaaSPayment[]
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payments SaaSPayment[]
 
-  @@map("saas_invoices")
   @@index([companyId])
   @@index([issuedDate])
   @@index([dueDate])
@@ -506,63 +607,57 @@ model SaaSInvoice {
   @@index([companyId, billingPeriod])
   @@index([previousInvoiceId])
   @@index([planId])
+  @@map("saas_invoices")
 }
 
 // SaaS-specific Payment (isolated from client payments)
 model SaaSPayment {
-  id            String          @id @default(cuid())
+  id            String   @id @default(cuid())
   invoiceId     String
   amount        Float
-  paymentDate   DateTime        @default(now())
-  method        String?         // bank_transfer, credit_card, jazzcash, easypaisa
+  paymentDate   DateTime @default(now())
+  method        String? // bank_transfer, credit_card, jazzcash, easypaisa
   notes         String?
-  gateway       String?         // stripe, jazzcash, easypaisa
+  gateway       String? // stripe, jazzcash, easypaisa
   transactionId String?
-  status        String          @default("pending") // pending, success, failed, refunded
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  status        String   @default("pending") // pending, success, failed, refunded
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  invoice       SaaSInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice SaaSInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
-  @@map("saas_payments")
   @@index([invoiceId])
   @@index([paymentDate])
   @@index([gateway])
   @@index([status])
   @@index([transactionId])
-}
-
-enum SaaSInvoiceStatus {
-  unpaid
-  partial
-  paid
-  overdue
-  cancelled
+  @@map("saas_payments")
 }
 
 model ProductSale {
-  id                 String   @id @default(cuid())
-  clientId           String?
-  productName        String
-  actualPrice        Float
-  sellingPrice       Float
-  quantity           Int      @default(1)
-  unitProfit         Float
-  totalOtherIncome   Float
-  status             ProductSaleStatus @default(unpaid)
-  notes              String?
-  saleDate           DateTime @default(now())
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  companyId          String
-  client             Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id               String            @id @default(cuid())
+  clientId         String?
+  productName      String
+  actualPrice      Float
+  sellingPrice     Float
+  quantity         Int               @default(1)
+  unitProfit       Float
+  totalOtherIncome Float
+  status           ProductSaleStatus @default(unpaid)
+  notes            String?
+  saleDate         DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  companyId        String
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@index([companyId])
-  @@index([saleDate])
-  @@index([companyId, saleDate])
-  @@index([clientId])
-  @@map("product_sales")
+   @@index([companyId])
+   @@index([saleDate])
+   @@index([companyId, saleDate])
+   @@index([clientId])
+   @@index([companyId, clientId])
+   @@map("product_sales")
 }
 
 enum ProductSaleStatus {
@@ -577,9 +672,10 @@ enum InvoiceStatus {
 }
 
 enum InvoiceSource {
-  package       // Monthly subscription package
-  product_sale  // Auto-generated from product sale
-  manual        // Manually created invoice
+  package
+  product_sale
+  manual
+  quotation
 }
 
 enum PaymentStatus {
@@ -615,4 +711,41 @@ enum TransactionKind {
   REFUND
   ADJUSTMENT
   FEE
+}
+
+enum SaaSInvoiceStatus {
+  unpaid
+  partial
+  paid
+  overdue
+  cancelled
+}
+
+enum QuotationStatus {
+  pending
+  sent
+  accepted
+  rejected
+  expired
+}
+
+enum CounterType {
+  quotation
+  invoice
+}
+
+model SequenceCounter {
+  id        String      @id @default(cuid())
+  companyId String
+  type      CounterType
+  current   Int         @default(0)
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type])
+  @@index([companyId, type])
+  @@map("sequence_counters")
 }

@@ -158,6 +158,7 @@ export const getTotalOtherIncome = async (
 
 /**
  * Get other income breakdown per client
+ * Optimized: fetches all clients in bulk instead of N+1 queries
  */
 export const getOtherIncomeByClient = async (
   companyId: string,
@@ -172,6 +173,7 @@ export const getOtherIncomeByClient = async (
     };
   }
 
+  // Get aggregated other income grouped by client in ONE query
   const results = await prisma.productSale.groupBy({
     by: ['clientId'],
     where: whereClause,
@@ -179,27 +181,28 @@ export const getOtherIncomeByClient = async (
     _count: { id: true },
   });
 
-  // Fetch client names for each clientId
-  const breakdown: ClientOtherIncomeBreakdown[] = [];
+  // Extract unique client IDs
+  const clientIds = results
+    .map(r => r.clientId)
+    .filter((id): id is string => id !== null);
 
-  for (const result of results) {
-    let clientName: string | null = null;
-
-    if (result.clientId) {
-      const client = await prisma.client.findUnique({
-        where: { id: result.clientId },
-        select: { name: true },
-      });
-      clientName = client?.name || null;
-    }
-
-    breakdown.push({
-      clientId: result.clientId,
-      clientName,
-      totalOtherIncome: result._sum.totalOtherIncome || 0,
-      count: result._count.id || 0,
+  // Fetch all clients in ONE query
+  const clientsMap = new Map();
+  if (clientIds.length > 0) {
+    const clients = await prisma.client.findMany({
+      where: { id: { in: clientIds } },
+      select: { id: true, name: true },
     });
+    clients.forEach(client => clientsMap.set(client.id, client.name));
   }
+
+  // Map results with client names
+  const breakdown: ClientOtherIncomeBreakdown[] = results.map(result => ({
+    clientId: result.clientId,
+    clientName: result.clientId ? clientsMap.get(result.clientId) || null : null,
+    totalOtherIncome: result._sum.totalOtherIncome || 0,
+    count: result._count.id || 0,
+  }));
 
   return breakdown;
 };

@@ -30,10 +30,10 @@ export const createEmployee = async (
     throw new Error('Invalid role. Must be EMPLOYEE, ADMIN, or SUPER_ADMIN');
   }
 
-  // Check if email already exists
-  const existingEmployee = await prisma.employee.findUnique({
-    where: { email: data.email }
-  });
+   // Check if email already exists within the company
+   const existingEmployee = await prisma.employee.findUnique({
+     where: { email_companyId: { email: data.email, companyId: admin.companyId } }
+   });
 
   if (existingEmployee) {
     throw new Error('Employee with this email already exists');

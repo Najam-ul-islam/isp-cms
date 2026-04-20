@@ -22,7 +22,7 @@ export interface InvoicePaymentSummary {
 /**
  * Helper function to calculate additional charges total from an invoice
  */
-function calculateAdditionalChargesTotal(invoice: { additionalCharges: any }): number {
+export function calculateAdditionalChargesTotal(invoice: { additionalCharges: any }): number {
   if (!invoice.additionalCharges) return 0;
   
   try {
@@ -47,12 +47,13 @@ function calculateAdditionalChargesTotal(invoice: { additionalCharges: any }): n
  * Additional charges are part of total bill, not payments
  */
 export async function getInvoicePaymentSummary(invoiceId: string): Promise<InvoicePaymentSummary> {
-  // Fetch the invoice with additional charges
+  // Fetch the invoice with additional charges and carry forward
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     select: { 
       amount: true,
-      additionalCharges: true
+      additionalCharges: true,
+      carryForwardAmount: true
     }
   });
 
@@ -63,8 +64,8 @@ export async function getInvoicePaymentSummary(invoiceId: string): Promise<Invoi
   // Calculate one-time charges (part of total, not payments)
   const oneTimeChargesTotal = calculateAdditionalChargesTotal(invoice);
   
-  // Total = package charges + one-time charges
-  const total = invoice.amount + oneTimeChargesTotal;
+  // Total = base amount + one-time charges + carry forward
+  const total = invoice.amount + oneTimeChargesTotal + (invoice.carryForwardAmount || 0);
 
   // Fetch all payments for this specific invoice
   const payments = await prisma.payment.findMany({
@@ -97,6 +98,56 @@ export async function getInvoicePaymentSummary(invoiceId: string): Promise<Invoi
     effectivePaymentStatus
   };
 }
+// ==================================================================
+// Only Carry Forward Invoices
+// Only calculates the unpaid + partial payments from invoices
+// ==================================================================
+export async function getCarryForwardInvoices(clientId: string) {
+  const invoices = await prisma.invoice.findMany({
+    where: { clientId },
+    include: {
+      payments: {
+        select: { amount: true }
+      }
+    },
+    orderBy: { issuedDate: 'asc' }
+  });
+
+  const carryForwardInvoices = [];
+
+  for (const inv of invoices) {
+    const charges = calculateAdditionalChargesTotal(inv);
+    const carryForward = inv.carryForwardAmount || 0;
+
+    const total = inv.amount + charges + carryForward;
+
+    const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
+    const remaining = Math.max(total - paid, 0);
+
+    // ✅ ONLY include unpaid or partial invoices
+    if (remaining > 0) {
+      carryForwardInvoices.push({
+        invoiceId: inv.id,
+        month: inv.billingMonth,
+        total,
+        paid,
+        remaining
+      });
+    }
+  }
+
+  const carryForwardTotal = carryForwardInvoices.reduce(
+    (sum, inv) => sum + inv.remaining,
+    0
+  );
+
+  return {
+    carryForwardInvoices,
+    carryForwardTotal
+  };
+}
+
+
 
 /**
  * Calculates client payment summary based ONLY on invoices
@@ -179,9 +230,10 @@ export async function getClientPaymentSummary(clientId: string): Promise<Payment
 
 /**
  * Gets all invoices with their payment details for a client
+ * Optimized: payments already included, no need for additional queries
  */
 export async function getClientInvoicesWithPayments(clientId: string) {
-  // Get all invoices for the client
+  // Get all invoices for the client WITH payments in a single query
   const invoices = await prisma.invoice.findMany({
     where: { clientId },
     include: {
@@ -196,20 +248,31 @@ export async function getClientInvoicesWithPayments(clientId: string) {
     }
   });
 
-  // Calculate payment summary for each invoice
-  const invoicesWithSummaries = await Promise.all(
-    invoices.map(async (invoice) => {
-      const summary = await getInvoicePaymentSummary(invoice.id);
+  // Calculate payment summary for each invoice using already-fetched payments
+  const invoicesWithSummaries = invoices.map((invoice) => {
+    const charges = calculateAdditionalChargesTotal(invoice);
+    const carryForward = invoice.carryForwardAmount || 0;
+    const invoiceTotal = invoice.amount + charges + carryForward;
+    const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+    const remaining = Math.max(invoiceTotal - paid, 0);
 
-      return {
-        ...invoice,
-        totalPaid: summary.totalPaid,
-        remainingAmount: summary.remainingAmount,
-        overpaidAmount: summary.overpaidAmount,
-        effectivePaymentStatus: summary.effectivePaymentStatus
-      };
-    })
-  );
+    let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
+    if (paid >= invoiceTotal) {
+      effectivePaymentStatus = 'paid';
+    } else if (paid > 0) {
+      effectivePaymentStatus = 'partial';
+    } else {
+      effectivePaymentStatus = 'unpaid';
+    }
+
+    return {
+      ...invoice,
+      totalPaid: paid,
+      remainingAmount: remaining,
+      overpaidAmount: Math.max(paid - invoiceTotal, 0),
+      effectivePaymentStatus
+    };
+  });
 
   return invoicesWithSummaries;
 }

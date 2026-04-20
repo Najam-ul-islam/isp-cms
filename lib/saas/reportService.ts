@@ -73,26 +73,28 @@ export async function getRevenueReport(): Promise<RevenueReport> {
         select: { clients: true },
       },
     },
-  });
+   });
 
-  const companyRevenue = await Promise.all(
-    companies.map(async (company) => {
-      const revenue = await prisma.payment.aggregate({
-        where: { companyId: company.id },
-        _sum: { amount: true },
-      });
+   // Optimized: Single aggregate grouped by company instead of N+1 queries
+   const paymentsByCompany = await prisma.payment.groupBy({
+     by: ['companyId'],
+     where: {},
+     _sum: { amount: true },
+     _count: { id: true }
+   });
 
-      return {
-        companyId: company.id,
-        companyName: company.name,
-        revenue: revenue._sum.amount || 0,
-        clientCount: company._count.clients,
-      };
-    })
-  );
+   const paymentsMap = new Map<string, { amount: number }>();
+   paymentsByCompany.forEach(p => paymentsMap.set(p.companyId, { amount: p._sum.amount || 0 }));
 
-  // Sort by revenue descending
-  companyRevenue.sort((a, b) => b.revenue - a.revenue);
+   const companyRevenue = companies.map(company => ({
+     companyId: company.id,
+     companyName: company.name,
+     revenue: paymentsMap.get(company.id)?.amount || 0,
+     clientCount: company._count.clients,
+   }));
+
+   // Sort by revenue descending
+   companyRevenue.sort((a, b) => b.revenue - a.revenue);
 
   return {
     totalRevenue: totalRevenueResult._sum.amount || 0,
@@ -168,28 +170,34 @@ export async function getOutstandingReport(): Promise<OutstandingReport> {
 }
 
 export async function getTopCompaniesByRevenue(limit = 5) {
+  // Get recent companies (last 20)
   const companies = await prisma.company.findMany({
     select: {
       id: true,
       name: true,
     },
-    take: 20, // Get more to sort later
+    take: 20,
+    orderBy: { createdAt: 'desc' }
   });
 
-  const companyRevenue = await Promise.all(
-    companies.map(async (company) => {
-      const revenue = await prisma.payment.aggregate({
-        where: { companyId: company.id },
-        _sum: { amount: true },
-      });
+  // Batch aggregate payments by company
+  const paymentsByCompany = await prisma.payment.groupBy({
+    by: ['companyId'],
+    where: {
+      companyId: { in: companies.map(c => c.id) },
+      status: 'success'
+    },
+    _sum: { amount: true },
+  });
 
-      return {
-        id: company.id,
-        name: company.name,
-        revenue: revenue._sum.amount || 0,
-      };
-    })
-  );
+  const revenueMap = new Map<string, number>();
+  paymentsByCompany.forEach(p => revenueMap.set(p.companyId, p._sum.amount || 0));
+
+  const companyRevenue = companies.map(company => ({
+    id: company.id,
+    name: company.name,
+    revenue: revenueMap.get(company.id) || 0,
+  }));
 
   // Sort by revenue descending and take top N
   return companyRevenue

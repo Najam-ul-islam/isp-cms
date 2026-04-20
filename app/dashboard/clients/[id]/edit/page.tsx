@@ -91,7 +91,8 @@ export default function EditClientPage() {
             router.push('/login');
             return;
           }
-          throw new Error('Failed to fetch client');
+          setError('Failed to fetch client data');
+          return;
         }
 
         const clientData: ClientWithPackage = await clientRes.json();
@@ -147,7 +148,8 @@ export default function EditClientPage() {
             router.push('/login');
             return;
           }
-          throw new Error('Failed to fetch packages');
+          setError('Failed to fetch packages');
+          return;
         }
 
         if (areasRes.ok) {
@@ -160,7 +162,6 @@ export default function EditClientPage() {
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to load data');
-        router.push('/login');
       } finally {
         setLoading(false);
       }
@@ -182,6 +183,23 @@ export default function EditClientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validation
+    if (!startDate || !expiryDate) {
+      setNotification({ type: 'error', message: 'Start date and expiry date are required' });
+      return;
+    }
+    const start = new Date(startDate);
+    const expiry = new Date(expiryDate);
+    if (expiry <= start) {
+      setNotification({ type: 'error', message: 'Expiry date must be after start date' });
+      return;
+    }
+    if (!price || price <= 0) {
+      setNotification({ type: 'error', message: 'Price must be greater than 0' });
+      return;
+    }
+
     setSubmitting(true);
 
     try {

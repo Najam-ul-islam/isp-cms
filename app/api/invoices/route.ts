@@ -29,61 +29,58 @@ export async function GET(request: Request) {
     let invoices;
 
     if (clientId) {
-      // Get invoices for a specific client (includes items)
+      // Get invoices for a specific client (includes items and payments)
       invoices = await getInvoicesForClient(clientId, admin.companyId);
-      // getInvoicesForClient already includes payment summaries and items
       return NextResponse.json(invoices);
     }
 
-    // Get invoices for the entire company with optional filters
-    const rawInvoices = await InvoiceRepository.findByCompanyId(admin.companyId, {
-      status,
-      startDate,
-      endDate
+    // Get invoices for the entire company with optional filters - SINGLE QUERY
+    invoices = await prisma.invoice.findMany({
+      where: {
+        companyId: admin.companyId,
+        ...(status && { status }),
+        ...((startDate || endDate) && {
+          issuedDate: {
+            ...(startDate && { gte: startDate }),
+            ...(endDate && { lte: endDate }),
+          },
+        }),
+      },
+      include: {
+        items: { orderBy: { createdAt: 'asc' } },
+        payments: { orderBy: { paymentDate: 'desc' } },
+        previousInvoice: true,
+      },
+      orderBy: { issuedDate: 'desc' },
     });
 
-    // Fetch full data with items and payments for each invoice
-    const invoicesWithPayments = await Promise.all(
-      rawInvoices.map(async (invoice) => {
-        const invoiceWithDetails = await prisma.invoice.findUnique({
-          where: { id: invoice.id },
-          include: {
-            items: { orderBy: { createdAt: 'asc' } },
-            payments: { orderBy: { paymentDate: 'desc' } }
-          }
-        });
+    // Compute totals from fetched data (no additional queries)
+    const processedInvoices = invoices.map(invoice => {
+      const effectiveTotal = invoice.totalAmount ?? invoice.amount;
+      const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+      const remaining = Math.max(effectiveTotal - totalPaid, 0);
+      const overpaid = Math.max(totalPaid - effectiveTotal, 0);
 
-        if (!invoiceWithDetails) return invoice;
+      let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
+      if (totalPaid >= effectiveTotal) {
+        effectivePaymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        effectivePaymentStatus = 'partial';
+      } else {
+        effectivePaymentStatus = 'unpaid';
+      }
 
-        // Use totalAmount if set, otherwise fall back to amount
-        const effectiveTotal = invoiceWithDetails.totalAmount ?? invoiceWithDetails.amount;
+      return {
+        ...invoice,
+        totalAmount: effectiveTotal,
+        totalPaid,
+        remainingAmount: remaining,
+        overpaidAmount: overpaid,
+        effectivePaymentStatus,
+      };
+    });
 
-        // Calculate payment summary (ONLY actual payments)
-        const totalPaid = invoiceWithDetails.payments.reduce((sum, payment) => sum + payment.amount, 0);
-        const remaining = Math.max(effectiveTotal - totalPaid, 0);
-        const overpaid = Math.max(totalPaid - effectiveTotal, 0);
-
-        let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
-        if (totalPaid >= effectiveTotal) {
-          effectivePaymentStatus = 'paid';
-        } else if (totalPaid > 0) {
-          effectivePaymentStatus = 'partial';
-        } else {
-          effectivePaymentStatus = 'unpaid';
-        }
-
-        return {
-          ...invoiceWithDetails,
-          totalAmount: effectiveTotal,
-          totalPaid,
-          remainingAmount: remaining,
-          overpaidAmount: overpaid,
-          effectivePaymentStatus
-        };
-      })
-    );
-
-    return NextResponse.json(invoicesWithPayments);
+    return NextResponse.json(processedInvoices);
   } catch (error: any) {
     console.error('Error fetching invoices:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch invoices' }, { status: 500 });

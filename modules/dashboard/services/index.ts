@@ -6,7 +6,7 @@ import { getAreaInsights } from '../../areas/services';
 import { getInventoryStats } from '../../inventory/services';
 import { getEmployeeStats } from '../../employees/services';
 import { AdminWithPackages } from '@/lib/jwt';
-import { getClientPaymentSummary } from '@/lib/payment-calculator';
+import { calculateAdditionalChargesTotal } from '@/lib/payment-calculator';
 
 /**
  * Helper: Get start of day (local timezone)
@@ -353,17 +353,12 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
 };
 
 // Helper functions for multi-tenancy with existing modules
+// Optimized: uses direct companyId on payment instead of join for better performance
 const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date, paymentStatus?: string) => {
   const whereClause: any = {
-    client: {
-      companyId
-    },
-    status: 'success' // Only count successful payments
+    companyId, // Direct filter - Payment has companyId denormalized
+    status: paymentStatus || 'success'
   };
-
-  if (paymentStatus && paymentStatus !== 'success') {
-    whereClause.status = paymentStatus;
-  }
 
   if (startDate && endDate) {
     whereClause.paymentDate = {
@@ -392,33 +387,36 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
 };
 
 // Get pending recovery (all unpaid and partial clients)
-// Uses real-time calculation based on actual payments, invoices, additional charges, and product sales
-// Same logic as Payments page to ensure consistency
+// Optimized: fetches only unpaid/partial invoices + payments in 1 query instead of N+1
 const getPendingRecovery = async (companyId: string) => {
-  // Fetch all clients for the company
-  const clients = await prisma.client.findMany({
-    where: { companyId },
-    select: { id: true }
+  // Fetch all UNPAID/PARTIAL invoices for the company with their payments in ONE query
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      status: {
+        in: ['unpaid', 'partial']
+      }
+    },
+    include: {
+      payments: {
+        select: { amount: true }
+      }
+    }
   });
 
-  // Calculate remaining amount for each client in parallel
-  const paymentSummaries = await Promise.all(
-    clients.map(async (client) => {
-      try {
-        const summary = await getClientPaymentSummary(client.id);
-        return summary.remainingAmount;
-      } catch (error) {
-        console.error(`Error calculating payment summary for client ${client.id}:`, error);
-        return 0;
-      }
-    })
-  );
+  // Calculate total remaining amount across all invoices
+  let totalPending = 0;
+  
+  for (const invoice of invoices) {
+    const charges = calculateAdditionalChargesTotal(invoice);
+    const carryForward = invoice.carryForwardAmount || 0;
+    const invoiceTotal = invoice.amount + charges + carryForward;
+    const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+    const remaining = Math.max(invoiceTotal - paid, 0);
+    totalPending += remaining;
+  }
 
-  // Sum up all remaining amounts
-  const totalPendingRecovery = paymentSummaries.reduce((sum, remaining) => sum + remaining, 0);
-
-  // Return in same format as original aggregate query
-  return { _sum: { price: totalPendingRecovery } };
+  return { _sum: { price: totalPending } };
 };
 
 const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {

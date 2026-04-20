@@ -4,8 +4,48 @@ import { prisma } from "@/lib/prisma";
 import {
   getClientPaymentSummary,
   getInvoicePaymentSummary,
+  calculateAdditionalChargesTotal,
 } from "@/lib/payment-calculator";
 import { emitEvent } from "@/lib/sse-service";
+
+/**
+ * Calculate client payment summary from pre-fetched invoices
+ */
+function calculateClientSummaryFromInvoices(invoices: any[]) {
+  let total = 0;
+  let totalPaid = 0;
+  let totalRemaining = 0;
+
+  for (const inv of invoices) {
+    const charges = calculateAdditionalChargesTotal(inv);
+    const carryForward = inv.carryForwardAmount || 0;
+    const invoiceTotal = inv.amount + charges + carryForward;
+    const paid = inv.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+    const remaining = Math.max(invoiceTotal - paid, 0);
+
+    total += invoiceTotal;
+    totalPaid += paid;
+    totalRemaining += remaining;
+  }
+
+  const overpaid = Math.max(totalPaid - total, 0);
+  let effectivePaymentStatus: 'unpaid' | 'partial' | 'paid';
+  if (totalPaid === 0) {
+    effectivePaymentStatus = 'unpaid';
+  } else if (totalRemaining > 0) {
+    effectivePaymentStatus = 'partial';
+  } else {
+    effectivePaymentStatus = 'paid';
+  }
+
+  return {
+    total,
+    totalPaid,
+    remainingAmount: totalRemaining,
+    overpaidAmount: overpaid,
+    effectivePaymentStatus
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -79,6 +119,7 @@ export async function GET(request: Request) {
         invoice: {
           select: {
             id: true,
+            invoiceNumber: true,
             amount: true,
             additionalCharges: true,
             carryForwardAmount: true,
@@ -88,50 +129,66 @@ export async function GET(request: Request) {
       orderBy: {
         paymentDate: "desc",
       },
-    });
-
-    // Enhance payments with invoice-specific data
-    const paymentsWithSummary = await Promise.all(
-      payments.map(async (payment) => {
-        try {
-          const clientSummary = await getClientPaymentSummary(payment.clientId);
-
-          // ✅ Calculate the SPECIFIC invoice total that this payment is linked to
-          let invoiceTotal = 0;
-          if (payment.invoice) {
-            const chargesTotal = payment.invoice.additionalCharges
-              ? (typeof payment.invoice.additionalCharges === 'string'
-                  ? JSON.parse(payment.invoice.additionalCharges)
-                  : payment.invoice.additionalCharges
-                ).reduce((sum: number, c: any) => sum + (c.amount || 0), 0)
-              : 0;
-            invoiceTotal = payment.invoice.amount + chargesTotal + (payment.invoice.carryForwardAmount || 0);
-          }
-
-          return {
-            ...payment,
-            totalAmount: invoiceTotal > 0 ? invoiceTotal : clientSummary.total, // Show specific invoice total, fallback to client total
-            totalPaid: clientSummary.totalPaid,
-            remainingAmount: clientSummary.remainingAmount,
-            overpaidAmount: clientSummary.overpaidAmount,
-            effectivePaymentStatus: clientSummary.effectivePaymentStatus,
-          };
-        } catch (error) {
-          console.error(
-            `Error getting client summary for client ${payment.clientId}:`,
-            error,
-          );
-          return {
-            ...payment,
-            totalAmount: 0,
-            totalPaid: 0,
-            remainingAmount: 0,
-            overpaidAmount: 0,
-            effectivePaymentStatus: "unpaid" as const,
-          };
+     });
+    
+    // OPTIMIZED: Batch fetch client summaries instead of N+1 queries
+    // Collect unique client IDs
+    const uniqueClientIds = Array.from(new Set(payments.map(p => p.clientId)));
+    
+    // Fetch all invoices for these clients in one query
+    const allInvoices = await prisma.invoice.findMany({
+      where: {
+        clientId: { in: uniqueClientIds },
+        companyId: admin.companyId
+      },
+      include: {
+        payments: {
+          select: { amount: true }
         }
-      }),
-    );
+      }
+    });
+    
+    // Group invoices by clientId
+    const invoicesByClient = new Map<string, any[]>();
+    for (const invoice of allInvoices) {
+      if (!invoicesByClient.has(invoice.clientId)) {
+        invoicesByClient.set(invoice.clientId, []);
+      }
+      invoicesByClient.get(invoice.clientId)!.push(invoice);
+    }
+    
+    // Compute client summaries from their invoices
+    const clientSummaries = new Map<string, any>();
+    for (const [clientId, invoices] of invoicesByClient) {
+      clientSummaries.set(clientId, calculateClientSummaryFromInvoices(invoices));
+    }
+    
+    // Enhance payments with computed summaries (no additional DB queries)
+    const paymentsWithSummary = payments.map((payment) => {
+      const clientSummary = clientSummaries.get(payment.clientId) || {
+        total: 0,
+        totalPaid: 0,
+        remainingAmount: 0,
+        overpaidAmount: 0,
+        effectivePaymentStatus: 'unpaid' as const
+      };
+      
+      // Calculate the SPECIFIC invoice total that this payment is linked to
+      let invoiceTotal = 0;
+      if (payment.invoice) {
+        const chargesTotal = calculateAdditionalChargesTotal(payment.invoice);
+        invoiceTotal = payment.invoice.amount + chargesTotal + (payment.invoice.carryForwardAmount || 0);
+      }
+      
+      return {
+        ...payment,
+        totalAmount: invoiceTotal > 0 ? invoiceTotal : clientSummary.total,
+        totalPaid: clientSummary.totalPaid,
+        remainingAmount: clientSummary.remainingAmount,
+        overpaidAmount: clientSummary.overpaidAmount,
+        effectivePaymentStatus: clientSummary.effectivePaymentStatus,
+      };
+    });
 
     return NextResponse.json(paymentsWithSummary);
   } catch (error) {

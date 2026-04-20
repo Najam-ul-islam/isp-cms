@@ -316,7 +316,7 @@ export default function SaaSInvoicesTable({
                   >
                     <td className="py-4 px-4">
                       <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
-                        {invoice.id.slice(-8).toUpperCase()}
+                        {invoice.invoiceNumber || invoice.id.slice(-8).toUpperCase()}
                       </span>
                     </td>
                     <td className="py-4 px-4">

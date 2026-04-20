@@ -3,9 +3,7 @@
  * Manages client connections and broadcasts events
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+// No PrismaClient needed here - events are triggered from other modules
 
 // Store active SSE connections
 const clients = new Map<string, {

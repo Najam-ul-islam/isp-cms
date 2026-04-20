@@ -49,7 +49,7 @@ export default function DashboardStatsBlock({
               <Target className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-indigo-600 to-indigo-500 dark:from-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-indigo-600 to-indigo-500 dark:from-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
             {rechargeTarget}
           </p>
         </button>
@@ -70,7 +70,7 @@ export default function DashboardStatsBlock({
               <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">
             {totalClients.toLocaleString()}
           </p>
         </button>
@@ -91,7 +91,7 @@ export default function DashboardStatsBlock({
               <UserCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
             {activeClients.toLocaleString()}
           </p>
         </button>
@@ -113,7 +113,7 @@ export default function DashboardStatsBlock({
               <UserPlus className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-violet-600 to-violet-500 dark:from-violet-400 dark:to-violet-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-violet-600 to-violet-500 dark:from-violet-400 dark:to-violet-300 bg-clip-text text-transparent">
             {newClients.toLocaleString()}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -137,7 +137,7 @@ export default function DashboardStatsBlock({
               <Ban className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
             {suspendedClients.toLocaleString()}
           </p>
         </button>
@@ -158,7 +158,7 @@ export default function DashboardStatsBlock({
               <UserX className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-gray-600 to-gray-500 dark:from-gray-400 dark:to-gray-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-gray-600 to-gray-500 dark:from-gray-400 dark:to-gray-300 bg-clip-text text-transparent">
             {expiredClients.toLocaleString()}
           </p>
         </button>
@@ -179,7 +179,7 @@ export default function DashboardStatsBlock({
               <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
             </div>
           </div>
-          <p className="text-2xl font-semibold bg-linear-to-r from-red-600 to-red-500 dark:from-red-400 dark:to-red-300 bg-clip-text text-transparent">
+          <p className="text-2xl font-semibold bg-gradient-to-r from-red-600 to-red-500 dark:from-red-400 dark:to-red-300 bg-clip-text text-transparent">
             {unpaidClients.toLocaleString()}
           </p>
         </button>

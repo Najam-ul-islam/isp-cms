@@ -1,8 +1,15 @@
+
+
+
+
+
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Client, Package, ServiceProvider } from "@prisma/client";
+import type { InvoiceWithPayments } from "@/modules/invoices/services";
 import Image from "next/image";
 import PaymentModal from "@/components/payments/PaymentModal";
 import InvoiceCreationDialog from "@/components/invoices/InvoiceCreationDialog";
@@ -23,11 +30,7 @@ interface ExtendedClient extends Omit<
   totalAmount?: number;
   effectivePaymentStatus?: "paid" | "partial" | "unpaid";
   latestPaymentDate?: Date | null;
-  invoices?: Array<{
-    id: string;
-    additionalCharges?: string | Array<{ name: string; amount: number }>;
-    items?: Array<{ name: string; description?: string; amount: number; quantity: number }>;
-  }>;
+  invoices?: InvoiceWithPayments[];
 }
 
 export default function ClientInvoicePage() {
@@ -36,9 +39,10 @@ export default function ClientInvoicePage() {
 
   const [client, setClient] = useState<ExtendedClient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
-  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
   const [additionalCharges, setAdditionalCharges] = useState<
     Array<{ name: string; amount: number }>
   >([]);
@@ -46,127 +50,207 @@ export default function ClientInvoicePage() {
     Array<{ id: string; productName: string; sellingPrice: number; quantity: number; totalOtherIncome: number; notes?: string }>
   >([]);
   const [showAddCharges, setShowAddCharges] = useState(false);
-  const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
+  const [newCharge, setNewCharge] = useState<{ name: string; amount: number | '' }>({ name: '', amount: '' });
   const [paymentSummary, setPaymentSummary] = useState({
     totalAmount: 0,
     totalPaid: 0,
     remainingAmount: 0,
   });
+  const [selectedInvoiceRemaining, setSelectedInvoiceRemaining] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Create Invoice Handler - Opens dialog
-  const handleCreateInvoice = () => {
-    setShowInvoiceDialog(true);
-  };
+  // Consolidated data loader
+  const loadClientData = async (preserveSelection = false) => {
+    try {
+      setLoading(true);
+      const [clientRes, salesRes] = await Promise.all([
+        fetch(`/api/clients/${id}`, { credentials: 'include', cache: 'no-store' }),
+        fetch(`/api/product-sales?clientId=${id}`, { credentials: 'include', cache: 'no-store' }),
+      ]);
 
-  const handleInvoiceSuccess = async () => {
-    // Refresh client data after invoice creation
-    const res = await fetch(`/api/clients/${id}`, {
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setClient(data);
-    }
-  };
-
-  useEffect(() => {
-    const fetchClient = async () => {
-      try {
-        const res = await fetch(`/api/clients/${id}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          if (res.status === 401) {
-            router.push("/login");
-          } else if (res.status === 404) {
-            router.push("/dashboard/clients");
-          } else {
-            console.error("Failed to fetch client:", res.status);
-            router.push("/dashboard/clients");
-          }
-          return;
-        }
-
-        const data = await res.json();
-        
-        // Check if client data is null
-        if (!data || !data.id) {
-          console.error("Client not found:", id);
-          router.push("/dashboard/clients");
-          return;
-        }
-        
-        setClient(data);
-
-        if (
-          data.invoices &&
-          data.invoices.length > 0 &&
-          data.invoices[0].additionalCharges
-        ) {
-          try {
-            const charges =
-              typeof data.invoices[0].additionalCharges === "string"
-                ? JSON.parse(data.invoices[0].additionalCharges)
-                : data.invoices[0].additionalCharges;
-            if (Array.isArray(charges)) {
-              setAdditionalCharges(charges);
-            }
-          } catch (error) {
-            console.error("Error loading additional charges:", error);
-          }
-        }
-
-        // Fetch product sales for this client
-        const productSalesRes = await fetch(`/api/product-sales?clientId=${id}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-        if (productSalesRes.ok) {
-          const salesData = await productSalesRes.json();
-          if (salesData.data && Array.isArray(salesData.data)) {
-            setProductSales(salesData.data);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        router.push("/dashboard/clients");
-      } finally {
-        setLoading(false);
+      if (!clientRes.ok) {
+        if (clientRes.status === 401) router.push('/login');
+        else if (clientRes.status === 404) router.push('/dashboard/clients');
+        else setError('Failed to load client data');
+        return;
       }
-    };
 
-    if (id) fetchClient();
-  }, [id, router]);
+      const data: ExtendedClient = await clientRes.json();
+      setClient(data);
 
-  // ✅ FIX: Fetch client payment summary to get correct paid/remaining amounts
-  // This uses the payment calculator which correctly tracks payments per invoice
-  useEffect(() => {
-    const fetchPaymentSummary = async () => {
-      try {
-        const res = await fetch(`/api/clients/${id}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-        if (res.ok) {
-          const data = await res.json();
+      // Update payment summary if preserving selection (refresh after mutation)
+      if (preserveSelection && selectedInvoiceId && data.invoices) {
+        const inv = data.invoices.find(i => i.id === selectedInvoiceId);
+        if (inv) {
+          setSelectedInvoiceRemaining(inv.remainingAmount ?? 0);
           setPaymentSummary({
-            totalAmount: data.totalAmount || data.total || 0,
-            totalPaid: data.totalPaid || 0,
-            remainingAmount: data.remainingAmount || 0,
+            totalAmount: inv.totalAmount ?? inv.amount ?? 0,
+            totalPaid:   inv.totalPaid ?? 0,
+            remainingAmount: inv.remainingAmount ?? 0,
           });
         }
-      } catch (error) {
-        console.error("Error fetching payment summary:", error);
       }
-    };
 
-    if (id) {
-      fetchPaymentSummary();
+      // Product sales
+      if (salesRes.ok) {
+        const salesData = await salesRes.json();
+        if (salesData.data && Array.isArray(salesData.data)) {
+          setProductSales(salesData.data);
+        }
+      }
+
+      // Aggregate additionalCharges from ALL invoices
+      const allCharges: Array<{ name: string; amount: number }> = [];
+      data.invoices?.forEach((inv) => {
+        if (inv.additionalCharges) {
+          try {
+            const charges = typeof inv.additionalCharges === 'string'
+              ? JSON.parse(inv.additionalCharges)
+              : inv.additionalCharges;
+            if (Array.isArray(charges)) allCharges.push(...charges);
+          } catch {
+            // ignore parse errors
+          }
+        }
+      });
+      setAdditionalCharges(allCharges);
+
+      // Auto-select oldest unpaid invoice only if not preserving selection
+      if (!preserveSelection && data.invoices && data.invoices.length > 0) {
+        const unpaidInvoices = data.invoices
+          .filter((i) => (i as any).effectivePaymentStatus !== "paid")
+          .sort((a, b) => new Date(a.issuedDate ?? 0).getTime() - new Date(b.issuedDate ?? 0).getTime());
+
+        if (unpaidInvoices.length > 0) {
+          const selected = unpaidInvoices[0];
+          setSelectedInvoiceId(selected.id);
+          setSelectedInvoiceRemaining(selected.remainingAmount ?? 0);
+          setPaymentSummary({
+            totalAmount: selected.totalAmount ?? selected.amount ?? 0,
+            totalPaid:   selected.totalPaid ?? 0,
+            remainingAmount: selected.remainingAmount ?? 0,
+          });
+        } else {
+          setSelectedInvoiceId('');
+          setSelectedInvoiceRemaining(0);
+          setPaymentSummary({ totalAmount: 0, totalPaid: 0, remainingAmount: 0 });
+        }
+      }
+    } catch (err) {
+      console.error('loadClientData error:', err);
+      setError('An error occurred while loading data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+   // Create Invoice Handler - Opens dialog
+   const handleCreateInvoice = () => {
+     setShowInvoiceDialog(true);
+   };
+
+   const handleInvoiceSuccess = async () => {
+     await loadClientData(false);
+   };
+
+  useEffect(() => {
+    if (id) loadClientData(false);
   }, [id]);
+
+  // No second useEffect — removed duplicate fetch that overwrote paymentSummary
+
+  const handleInvoiceDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const invoiceId = e.target.value;
+    setSelectedInvoiceId(invoiceId);
+    const inv = client?.invoices?.find(i => i.id === invoiceId);
+    if (inv) {
+      setSelectedInvoiceRemaining(inv.remainingAmount ?? 0);
+      setPaymentSummary({
+        totalAmount:     inv.totalAmount ?? inv.amount ?? 0,
+        totalPaid:       inv.totalPaid ?? 0,
+        remainingAmount: inv.remainingAmount ?? 0,
+      });
+    }
+  };
+
+   const handleAddCharge = async () => {
+    if (!client) return;
+    if (!newCharge.name?.trim() || newCharge.amount === '' || Number(newCharge.amount) <= 0) return;
+    setShowAddCharges(false);
+
+    const charge = {
+      name: newCharge.name.trim(),
+      amount: Number(newCharge.amount),
+    };
+    const updatedCharges = [...additionalCharges, charge];
+    setAdditionalCharges(updatedCharges);
+    setNewCharge({ name: '', amount: '' });
+
+    try {
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          clientId: client.id,
+          items: [{
+            name: charge.name,
+            amount: charge.amount,
+            quantity: 1,
+          }],
+          description: `Additional charge: ${charge.name}`,
+          appendToExisting: true,
+        }),
+      });
+
+      if (!response.ok) {
+        setAdditionalCharges(additionalCharges); // rollback
+        const error = await response.json();
+        console.error('Failed to add charge:', error);
+      } else {
+        loadClientData(true); // preserve the current invoice selection
+      }
+    } catch (error) {
+      setAdditionalCharges(additionalCharges);
+      console.error('Error saving additional charge:', error);
+    }
+  };
+
+  const handleRemoveCharge = async (index: number) => {
+    if (!client) return;
+    const updated = additionalCharges.filter((_, i) => i !== index);
+    setAdditionalCharges(updated); // optimistic
+
+    try {
+      const response = await fetch('/api/invoices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ clientId: client.id, additionalCharges: updated }),
+      });
+
+      if (!response.ok) {
+        setAdditionalCharges(additionalCharges); // rollback
+        const error = await response.json();
+        console.error('Failed to remove charge:', error);
+      } else {
+        loadClientData(true);
+      }
+    } catch (error) {
+      setAdditionalCharges(additionalCharges);
+      console.error('Error removing charge:', error);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPaymentModal(false);
+    setSelectedInvoiceId('');
+    setSelectedInvoiceRemaining(0);
+    setPaymentSummary({ totalAmount: 0, totalPaid: 0, remainingAmount: 0 });
+    setRefreshing(true);
+    await loadClientData(false);
+  };
 
   const formatDate = (date: Date | string) =>
     new Date(date).toLocaleDateString("en-PK", {
@@ -188,113 +272,31 @@ export default function ClientInvoicePage() {
   if (loading || !client) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading...
+        {refreshing ? 'Refreshing...' : 'Loading...'}
       </div>
     );
   }
 
-  // Calculate values dynamically from client data (no hardcoded values)
-  const packagePrice = client.price || 0;
+  // Calculate values dynamically from client data
+   const packagePrice = client.price ?? 0;
 
-  // ✅ FIX: Only include package price if this is a NEW client (no existing invoices)
-  // For existing clients, package is billed separately each month
-  // Additional charges and product sales are billed independently
-  const hasExistingInvoices = client.invoices && Array.isArray(client.invoices) && client.invoices.length > 0;
-  const shouldIncludePackage = !hasExistingInvoices; // Only include package for new clients
+   const hasExistingInvoices = client.invoices && Array.isArray(client.invoices) && client.invoices.length > 0;
+   const shouldIncludePackage = !hasExistingInvoices;
 
-  // Calculate additional charges from ALL invoices
-  const allAdditionalCharges: Array<{ name: string; amount: number }> = [];
-  if (client.invoices && Array.isArray(client.invoices)) {
-    client.invoices.forEach((invoice: any) => {
-      if (invoice.additionalCharges) {
-        try {
-          const charges = typeof invoice.additionalCharges === 'string'
-            ? JSON.parse(invoice.additionalCharges)
-            : invoice.additionalCharges;
-          if (Array.isArray(charges)) {
-            allAdditionalCharges.push(...charges);
-          }
-        } catch (error) {
-          console.error('Error parsing additional charges:', error);
-        }
-      }
-    });
-  }
+   // Use aggregated charges from state
+   const currentCharges = additionalCharges;
+   const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount ?? 0), 0);
 
-  // Use additional charges from local state if editing, otherwise from all invoices
-  const currentCharges = additionalCharges.length > 0 ? additionalCharges : allAdditionalCharges;
-
-  const additionalTotal = currentCharges.reduce((sum, c) => sum + (c.amount || 0), 0);
-
-  // ⚠️ Display-only: Product sales total (for UI breakdown)
-  // Note: Product sales create invoices, so this is NOT added to billing total
-  // It's only shown to help users understand what's included in invoices
   const productSalesTotal = productSales.reduce((sum, sale) => sum + (sale.sellingPrice * sale.quantity), 0);
-
-  // ✅ Display-only local total (package + additional charges + product sales)
-  // This is used for UI comparison only, NOT for actual billing calculations
   const localTotal = (shouldIncludePackage ? packagePrice : 0) + additionalTotal + productSalesTotal;
-
-  // ✅ ACTUAL BILLING TOTAL: Use payment summary from backend (invoices ONLY)
-  // Backend ensures: invoices are single source of truth, no double-counting
   const total = paymentSummary.totalAmount > 0 ? paymentSummary.totalAmount : localTotal;
-
-  // Use payment summary for paid/remaining amounts
   const paid = paymentSummary.totalPaid;
   const remaining = paymentSummary.remainingAmount;
 
-  const handleAddCharge = async () => {
-    if (newCharge.name && newCharge.amount) {
-      const charge = {
-        name: newCharge.name,
-        amount: parseFloat(newCharge.amount),
-      };
-      const updatedCharges = [...additionalCharges, charge];
-      setAdditionalCharges(updatedCharges);
-      setNewCharge({ name: "", amount: "" });
+  // Derive selected invoice object
+  const selectedInvoice = client?.invoices?.find(inv => inv.id === selectedInvoiceId);
 
-      try {
-        // Use the new items-based API to add charges
-        const response = await fetch('/api/invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            clientId: client.id,
-            items: [{
-              name: charge.name,
-              amount: charge.amount,
-              quantity: 1,
-            }],
-            description: `Additional charge: ${charge.name}`,
-            appendToExisting: true,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Failed to add charge:', error);
-        } else {
-          // Refresh client data
-          const res = await fetch(`/api/clients/${id}`, {
-            credentials: 'include',
-            cache: 'no-store',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setClient(data);
-          }
-        }
-      } catch (error) {
-        console.error('Error saving additional charge:', error);
-      }
-    }
-  };
-
-  const handleRemoveCharge = (index: number) => {
-    setAdditionalCharges(additionalCharges.filter((_, i) => i !== index));
-  };
-
+  // Status calculation
   let effectiveStatus: string;
   let statusColor: string;
 
@@ -314,33 +316,38 @@ export default function ClientInvoicePage() {
 
   const sendWhatsApp = () => {
     const phone = client.phone.replace(/\D/g, "");
+    const selectedInv = client.invoices?.find(i => i.id === selectedInvoiceId);
+    const msgTotal     = selectedInv ? (selectedInv.totalAmount ?? selectedInv.amount ?? total) : total;
+    const msgPaid      = selectedInv?.totalPaid ?? paid;
+    const msgRemaining = selectedInv?.remainingAmount ?? remaining;
+
     const message = `
 📄 *Package Invoice*
-INV #${client.id.slice(0, 6).toUpperCase()}
+INV ${selectedInv?.invoiceNumber ? `#${selectedInv.invoiceNumber}` : selectedInvoiceId ? `#${selectedInvoiceId.slice(-8).toUpperCase()}` : ''}
 Date: ${formatDate(new Date())}
 
 👤 *Client Details*
 Name: ${client.name}
 Phone: ${client.phone}
-Address: ${client.area?.name || client.areaName || 'N/A'}, ${client.city}
+Address: ${client.area?.name ?? client.areaName ?? 'N/A'}, ${client.city ?? 'N/A'}
 
 📦 *Package Detail*
-Package: ${client.package?.name}
+Package: ${client.package?.name ?? 'N/A'}
 Duration: 1 Month
 
 💰 *Payment Detail*
 ${shouldIncludePackage ? `Package Charges: ${formatPKR(packagePrice)}\n` : ''}One-Time Charges: ${formatPKR(additionalTotal)}
-Subtotal: ${formatPKR(total)}
+Subtotal: ${formatPKR(msgTotal)}
 Discount: ${formatPKR(0)}
-Grand Total: ${formatPKR(total)}
+Grand Total: ${formatPKR(msgTotal)}
 
 💳 *Payment Status*
-Paid Amount: ${formatPKR(paid)}
-Remaining Amount: ${formatPKR(remaining)}
+Paid Amount: ${formatPKR(msgPaid)}
+Remaining Amount: ${formatPKR(msgRemaining)}
 
 Last Payment: ${client.latestPaymentDate ? formatDate(client.latestPaymentDate) : "N/A"}
-Expiry Date: ${formatDate(client.expiryDate || new Date())}
-Status: ${effectiveStatus === "PAID" ? "✅ PAID" : effectiveStatus === "PARTIAL" ? "⏳ PARTIAL" : "❌ UNPAID"}
+Expiry Date: ${formatDate(client.expiryDate ?? new Date())}
+Status: ${remaining <= 0.01 ? "✅ PAID" : paid > 0 ? "⏳ PARTIAL" : "❌ UNPAID"}
 
 Please clear your dues. Thank you!
 `;
@@ -353,6 +360,16 @@ Please clear your dues. Thank you!
 
   return (
     <div className="min-h-screen bg-linear-to-br from-indigo-50 to-blue-50 flex flex-col items-center justify-center p-4 gap-3">
+      {/* Refreshing overlay */}
+      {refreshing && (
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+            <p className="text-sm mt-2">Updating...</p>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-2 flex-wrap justify-center">
         <button
@@ -370,13 +387,35 @@ Please clear your dues. Thank you!
           WhatsApp
         </button>
         {remaining > 0.01 && (
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-violet-500/60 dark:border-violet-400/60 px-4 py-2 text-sm font-semibold text-white bg-violet-600 dark:bg-violet-500 transition-all duration-200 ease-out hover:border-violet-400/60 dark:hover:border-violet-300/60 hover:bg-violet-700 dark:hover:bg-violet-400 hover:shadow-lg hover:shadow-violet-500/20 dark:hover:shadow-violet-400/20 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-            Pay Now
-          </button>
+          <div className="space-y-2">
+            {/* Invoice Selection Dropdown */}
+            {client.invoices && client.invoices.length > 0 && (
+                  <select
+                    value={selectedInvoiceId}
+                    onChange={handleInvoiceDropdownChange}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select an invoice</option>
+                    {client.invoices
+                      ?.filter((i) => (i as any).effectivePaymentStatus !== "paid")
+                      .map((inv: any) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.billingMonth ? `${inv.billingMonth} - ` : ''}Invoice #{inv.invoiceNumber || inv.id.slice(-6).toUpperCase()} | Remaining: Rs. {inv.remainingAmount.toLocaleString()} | {inv.effectivePaymentStatus}
+                        </option>
+                      ))
+                    }
+                  </select>
+            )}
+            
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              disabled={!selectedInvoiceId || selectedInvoiceRemaining <= 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-violet-500/60 dark:border-violet-400/60 px-4 py-2 text-sm font-semibold text-white bg-violet-600 dark:bg-violet-500 transition-all duration-200 ease-out hover:border-violet-400/60 dark:hover:border-violet-300/60 hover:bg-violet-700 dark:hover:violet-400 hover:shadow-lg hover:shadow-violet-500/20 dark:hover:shadow-violet-400/20 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+Pay Now
+            </button>
+          </div>
         )}
       </div>
 
@@ -390,9 +429,9 @@ Please clear your dues. Thank you!
           <h1 className="text-2xl font-bold text-indigo-700">
             Package Invoice
           </h1>
-          <p className="text-sm text-slate-600 mt-1 font-medium">
-            INV #{client.id.slice(0, 6).toUpperCase()}
-          </p>
+           <p className="text-sm text-slate-600 mt-1 font-medium">
+              INV {selectedInvoice?.invoiceNumber ? `#${selectedInvoice.invoiceNumber}` : selectedInvoiceId ? `#${selectedInvoiceId.slice(-8).toUpperCase()}` : ''}
+           </p>
           <div className="mt-2 inline-flex items-center px-3 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full border border-green-200">
             {formatDate(new Date())}
           </div>
@@ -482,9 +521,10 @@ Please clear your dues. Thank you!
                 <input
                   type="number"
                   placeholder="Amount"
+                  min="0"
                   value={newCharge.amount}
                   onChange={(e) =>
-                    setNewCharge({ ...newCharge, amount: e.target.value })
+                    setNewCharge({ ...newCharge, amount: e.target.value === '' ? '' : Number(e.target.value) })
                   }
                   className="w-24 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white bg-white dark:bg-slate-800"
                 />
@@ -600,18 +640,18 @@ Please clear your dues. Thank you!
         {/* Total Amount Box */}
         <div className="mx-6 mb-4 mt-1 bg-blue-50 rounded-xl p-4 border border-blue-200">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-slate-700">
-              Total Outstanding
+            <span className="text-xl font-bold text-slate-700">
+              Total
             </span>
             <span className="text-2xl font-bold text-indigo-700">
               {formatPKR(total)}
             </span>
           </div>
-          {paymentSummary.totalAmount > localTotal && (
+          {/* {paymentSummary.totalAmount > localTotal && (
             <p className="text-xs text-slate-500 mt-2">
               Includes {formatPKR(paymentSummary.totalAmount - localTotal)} from unpaid invoices + {formatPKR(localTotal)} from this page
             </p>
-          )}
+          )} */}
         </div>
 
         {/* Payment Status Section */}
@@ -645,18 +685,18 @@ Please clear your dues. Thank you!
       </div>
 
       {/* Payment Modal */}
-      {client && remaining > 0 && showPaymentModal && (
+      {client && selectedInvoiceRemaining > 0 && showPaymentModal && (
         <PaymentModal
           isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          amount={remaining}
-          title={`Invoice #${client.id.slice(0, 6).toUpperCase()}`}
+          onClose={handlePaymentSuccess}
+          amount={selectedInvoiceRemaining}
+          title={`Invoice for ${client.name}`}
           description={`Payment for ${client.name}`}
           metadata={{
             referenceType: "invoice",
-            referenceId: client.id,
+            referenceId: selectedInvoiceId ?? client.invoices?.[0]?.id ?? client.id,
             clientId: client.id,
-            invoiceId: client.id,
+            invoiceId: selectedInvoiceId ?? client.invoices?.[0]?.id ?? "",
           }}
           additionalCharges={
             additionalCharges.length > 0 ? additionalCharges : undefined
@@ -692,567 +732,3 @@ Please clear your dues. Thank you!
     </div>
   );
 }
-
-// "use client";
-
-// import { useEffect, useState } from "react";
-// import { useParams, useRouter } from "next/navigation";
-// import { Client, Package, ServiceProvider } from "@prisma/client";
-// import Image from "next/image";
-// import PaymentModal from "@/components/payments/PaymentModal";
-
-// interface ClientWithPackage extends Client {
-//   package: Package & { serviceProvider?: ServiceProvider | null };
-// }
-
-// interface ExtendedClient extends Omit<
-//   ClientWithPackage,
-//   "expiryDate" | "paymentStatus"
-// > {
-//   paymentStatus?: string;
-//   expiryDate?: Date;
-//   totalPaid?: number;
-//   remainingAmount?: number;
-//   totalAmount?: number;
-//   effectivePaymentStatus?: "paid" | "partial" | "unpaid";
-//   latestPaymentDate?: Date | null;
-// }
-
-// export default function ClientInvoicePage() {
-//   const { id } = useParams();
-//   const router = useRouter();
-
-//   const [client, setClient] = useState<ExtendedClient | null>(null);
-//   const [loading, setLoading] = useState(true);
-//   const [showPaymentModal, setShowPaymentModal] = useState(false);
-//   const [additionalCharges, setAdditionalCharges] = useState<
-//     Array<{ name: string; amount: number }>
-//   >([]);
-//   const [showAddCharges, setShowAddCharges] = useState(false);
-//   const [newCharge, setNewCharge] = useState({ name: "", amount: "" });
-
-//   useEffect(() => {
-//     const fetchClient = async () => {
-//       try {
-//         const res = await fetch(`/api/clients/${id}`, {
-//           credentials: "include",
-//           cache: "no-store",
-//         });
-
-//         if (res.ok) {
-//           const data = await res.json();
-//           setClient(data);
-
-//           // Load existing additional charges from the first invoice if available
-//           if (
-//             data.invoices &&
-//             data.invoices.length > 0 &&
-//             data.invoices[0].additionalCharges
-//           ) {
-//             try {
-//               const charges =
-//                 typeof data.invoices[0].additionalCharges === "string"
-//                   ? JSON.parse(data.invoices[0].additionalCharges)
-//                   : data.invoices[0].additionalCharges;
-//               if (Array.isArray(charges)) {
-//                 setAdditionalCharges(charges);
-//               }
-//             } catch (error) {
-//               console.error("Error loading additional charges:", error);
-//             }
-//           }
-//         } else if (res.status === 401) {
-//           router.push("/login");
-//         } else {
-//           router.push("/login"); // Redirect to login on any error
-//         }
-//       } catch (err) {
-//         console.error(err);
-//         router.push("/login"); // Redirect to login on error
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     if (id) fetchClient();
-//   }, [id, router]);
-
-//   const formatDate = (date: Date | string) =>
-//     new Date(date).toLocaleDateString("en-PK");
-
-//   const formatPKR = (amount: number) =>
-//     new Intl.NumberFormat("en-PK", {
-//       style: "currency",
-//       currency: "PKR",
-//       maximumFractionDigits: 0,
-//     }).format(amount);
-
-//   if (loading || !client) {
-//     return (
-//       <div className="min-h-screen flex items-center justify-center">
-//         Loading...
-//       </div>
-//     );
-//   }
-
-//   // ✅ Correct calculation logic
-//   const packagePrice = client.price || 0;
-//   const additionalTotal = additionalCharges.reduce(
-//     (sum, c) => sum + c.amount,
-//     0,
-//   );
-//   const total = packagePrice + additionalTotal;
-//   const paid = client.totalPaid ?? 0;
-//   const remaining = total - paid;
-
-//   // Add charge to list
-//   const handleAddCharge = async () => {
-//     if (newCharge.name && newCharge.amount) {
-//       const charge = {
-//         name: newCharge.name,
-//         amount: parseFloat(newCharge.amount),
-//       };
-//       const updatedCharges = [...additionalCharges, charge];
-//       setAdditionalCharges(updatedCharges);
-//       setNewCharge({ name: "", amount: "" });
-
-//       // Save additional charges to the first invoice for this client
-//       try {
-//         // Find or create an invoice for this client
-//         const invoicesResponse = await fetch(
-//           `/api/invoices?clientId=${client.id}`,
-//           {
-//             credentials: "include",
-//           },
-//         );
-
-//         let invoiceId: string | null = null;
-
-//         if (invoicesResponse.ok) {
-//           const invoices = await invoicesResponse.json();
-//           if (invoices.length > 0) {
-//             // Use the first invoice
-//             invoiceId = invoices[0].id;
-//           }
-//         }
-
-//         if (!invoiceId) {
-//           // Create a new invoice
-//           const createResponse = await fetch("/api/invoices", {
-//             method: "POST",
-//             headers: { "Content-Type": "application/json" },
-//             credentials: "include",
-//             body: JSON.stringify({
-//               clientId: client.id,
-//               amount: client.price,
-//               dueDate: new Date().toISOString().split("T")[0],
-//               description: `Invoice for ${client.name}`,
-//               additionalCharges: updatedCharges,
-//             }),
-//           });
-
-//           if (createResponse.ok) {
-//             const newInvoice = await createResponse.json();
-//             console.log("Created invoice with additional charges:", newInvoice);
-//           }
-//         } else {
-//           // Update existing invoice with additional charges
-//           const updateResponse = await fetch(
-//             `/api/invoices/${invoiceId}/additional-charges`,
-//             {
-//               method: "POST",
-//               headers: { "Content-Type": "application/json" },
-//               credentials: "include",
-//               body: JSON.stringify({
-//                 invoiceId,
-//                 additionalCharges: updatedCharges,
-//               }),
-//             },
-//           );
-
-//           if (!updateResponse.ok) {
-//             console.error("Failed to update invoice with additional charges");
-//           }
-//         }
-//       } catch (error) {
-//         console.error("Error saving additional charges:", error);
-//       }
-//     }
-//   };
-
-//   // Remove charge from list
-//   const handleRemoveCharge = (index: number) => {
-//     setAdditionalCharges(additionalCharges.filter((_, i) => i !== index));
-//   };
-
-//   // ✅ Calculate status directly from amounts based on requested logic
-//   let effectiveStatus: string;
-//   let statusColor: string;
-
-//   if (remaining < -0.01) {
-//     effectiveStatus = "OVERPAID";
-//     statusColor = "text-blue-600 bg-blue-100";
-//   } else if (remaining <= 0.01) {
-//     effectiveStatus = "PAID";
-//     statusColor = "text-green-600 bg-green-100";
-//   } else if (paid > 0) {
-//     effectiveStatus = "PARTIAL";
-//     statusColor = "text-yellow-600 bg-yellow-100";
-//   } else {
-//     effectiveStatus = "UNPAID";
-//     statusColor = "text-red-600 bg-red-100";
-//   }
-
-//   // ✅ WhatsApp Message
-//   const sendWhatsApp = () => {
-//     const phone = client.phone.replace(/\D/g, "");
-
-//     const message = `
-// 📄 *Package Invoice*
-// INV #${client.id.slice(0, 6).toUpperCase()}
-// Date: ${formatDate(new Date())}
-
-// 👤 *Client Details*
-// Name: ${client.name}
-// Phone: ${client.phone}
-// Address: ${client.area}, ${client.city}
-
-// 📦 *Package Detail*
-// Package: ${client.package?.name}
-// Duration: 1 Month
-
-// 💰 *Payment Detail*
-// Package Charges: ${formatPKR(packagePrice)}
-// One-Time Charges: ${formatPKR(additionalTotal)}
-// Subtotal: ${formatPKR(total)}
-// Discount: ${formatPKR(0)}
-// Grand Total: ${formatPKR(total)}
-
-// 💳 *Payment Status*
-// Paid Amount: ${formatPKR(paid)}
-// Remaining Amount: ${formatPKR(remaining)}
-
-// Last Payment: ${client.latestPaymentDate ? formatDate(client.latestPaymentDate) : "N/A"}
-// Expiry Date: ${formatDate(client.expiryDate || new Date())}
-// Status: ${effectiveStatus === "PAID" ? "✅ PAID" : effectiveStatus === "PARTIAL" ? "⏳ PARTIAL" : "❌ UNPAID"}
-
-// Please clear your dues. Thank you!
-// `;
-
-//     window.open(
-//       `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-//       "_blank",
-//     );
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 gap-3">
-//       {/* Action Buttons */}
-//       <div className="flex gap-2">
-//         <button
-//           onClick={sendWhatsApp}
-//           className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm shadow"
-//         >
-//           📲 Send via WhatsApp
-//         </button>
-//         {additionalCharges.length > 0 && (
-//           <button
-//             onClick={() =>
-//               alert("One-time charges will be saved when you make a payment")
-//             }
-//             className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm shadow"
-//           >
-//             💾 Save One-Time Charges
-//           </button>
-//         )}
-//         {remaining > 0.01 && (
-//           <button
-//             onClick={() => setShowPaymentModal(true)}
-//             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm shadow flex items-center gap-2"
-//           >
-//             💳 Pay Now
-//           </button>
-//         )}
-//       </div>
-
-//       {/* Ticket UI */}
-//       <div className="w-full max-w-sm bg-white rounded-[30px] shadow-lg border relative overflow-hidden">
-//         {/* Top Cut */}
-//         <div className="absolute top-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-
-//         {/* Header */}
-//         <div className="text-center pt-8 pb-3 px-5">
-//           <h1 className="text-lg font-semibold text-indigo-600">
-//             Package Invoice
-//           </h1>
-//           <p className="text-xs text-slate-600 mt-1">
-//             INV #{client.id.slice(0, 6).toUpperCase()}
-//           </p>
-
-//           <div className="mt-2 inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-md border border-green-300">
-//             {formatDate(new Date())}
-//           </div>
-//         </div>
-
-//         {/* User + Logo */}
-//         <div className="flex justify-between items-center px-5 mt-3">
-//           <div>
-//             <h2 className="text-base font-semibold">{client.name}</h2>
-//             <p className="text-xs text-indigo-500">{client.phone}</p>
-//             <p className="text-[11px] text-slate-500">
-//               {client.area}, {client.city}
-//             </p>
-//           </div>
-
-//           <Image src="/logo.png" alt="Logo" width={50} height={50} />
-//         </div>
-
-//         {/* One-Time Charges Section */}
-//         <div className="px-2 mt-1">
-//           <div className="flex justify-between items-center mb-1">
-//             <p className="bg-orange-100 text-orange-700 font-semibold text-xs px-1.5 py-0.5 rounded-md">
-//               🔧 One-Time Charges
-//             </p>
-//             <button
-//               onClick={() => setShowAddCharges(!showAddCharges)}
-//               className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-//             >
-//               {showAddCharges ? "Cancel" : "+ Add Charge"}
-//             </button>
-//           </div>
-
-//           {showAddCharges && (
-//             <div className="bg-slate-50 rounded-lg p-1.5 mb-1 space-y-1">
-//               <div className="flex gap-1">
-//                 <input
-//                   type="text"
-//                   placeholder="Item (e.g., Router)"
-//                   value={newCharge.name}
-//                   onChange={(e) =>
-//                     setNewCharge({ ...newCharge, name: e.target.value })
-//                   }
-//                   className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 />
-//                 <input
-//                   type="number"
-//                   placeholder="Amount"
-//                   value={newCharge.amount}
-//                   onChange={(e) =>
-//                     setNewCharge({ ...newCharge, amount: e.target.value })
-//                   }
-//                   className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                 />
-//                 <button
-//                   onClick={handleAddCharge}
-//                   className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
-//                 >
-//                   Add
-//                 </button>
-//               </div>
-//             </div>
-//           )}
-
-//           {additionalCharges.length > 0 && (
-//             <div className="space-y-1.5">
-//               {additionalCharges.map((charge, index) => (
-//                 <div
-//                   key={index}
-//                   className="flex justify-between text-xs items-center bg-slate-50 px-2 py-1.5 rounded"
-//                 >
-//                   <span className="text-slate-700">{charge.name}</span>
-//                   <div className="flex items-center gap-1.5">
-//                     <span className="text-slate-800 font-medium">
-//                       {formatPKR(charge.amount)}
-//                     </span>
-//                     <button
-//                       onClick={() => handleRemoveCharge(index)}
-//                       className="text-red-500 hover:text-red-700 text-base font-bold"
-//                     >
-//                       ×
-//                     </button>
-//                   </div>
-//                 </div>
-//               ))}
-//             </div>
-//           )}
-//         </div>
-
-//         {/* Divider */}
-//         <div className="px-5 mt-3">
-//           <div className="h-px bg-slate-200" />
-//         </div>
-
-//         {/* Package Detail Section */}
-//         <div className="px-5 mt-3">
-//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
-//             📦 Package Detail
-//           </p>
-
-//           <div className="space-y-0.5">
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Package</span>
-//               <span className="text-slate-800 font-medium">
-//                 {client.package?.name}
-//               </span>
-//             </div>
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Duration</span>
-//               <span className="text-slate-800 font-medium">1 Month</span>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Divider */}
-//         <div className="px-5 mt-3">
-//           <div className="h-px bg-slate-200" />
-//         </div>
-
-//         {/* 💰 Payment Detail Section */}
-//         <div className="px-5 mt-3 space-y-0.5">
-//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
-//             💰 Payment Detail
-//           </p>
-
-//           <div className="space-y-0.5">
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Package Charges</span>
-//               <span className="text-slate-800 font-medium">
-//                 {formatPKR(packagePrice)}
-//               </span>
-//             </div>
-
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">One-Time Charges</span>
-//               <span className="text-slate-800 font-medium">
-//                 {formatPKR(additionalTotal)}
-//               </span>
-//             </div>
-
-//             <div className="h-px bg-slate-300 my-1.5" />
-
-//             <div className="flex justify-between text-xs font-semibold">
-//               <span className="text-slate-700">Subtotal</span>
-//               <span className="text-slate-800">{formatPKR(total)}</span>
-//             </div>
-
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Discount</span>
-//               <span className="text-slate-800 font-medium">{formatPKR(0)}</span>
-//             </div>
-
-//             <div className="h-px bg-slate-300 my-1.5" />
-
-//             <div className="flex justify-between text-sm font-bold bg-indigo-50 px-2 py-1.5 rounded mt-1.5">
-//               <span className="text-indigo-700">Grand Total</span>
-//               <span className="text-indigo-700">{formatPKR(total)}</span>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Divider */}
-//         <div className="px-5 mt-3">
-//           <div className="h-px bg-slate-200" />
-//         </div>
-
-//         {/* 💳 Payment Status Section */}
-//         <div className="px-5 mt-3 space-y-0.5">
-//           <p className="bg-indigo-100 text-indigo-700 font-semibold text-xs px-2 py-1 rounded-md inline-block mb-1.5">
-//             💳 Payment Status
-//           </p>
-
-//           <div className="space-y-0.5">
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Paid Amount</span>
-//               <span className="text-green-600 font-semibold">
-//                 {formatPKR(paid)}
-//               </span>
-//             </div>
-
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Remaining Amount</span>
-//               <span
-//                 className={`font-semibold ${remaining > 0.01 ? "text-red-600" : remaining < -0.01 ? "text-blue-600" : "text-green-600"}`}
-//               >
-//                 {formatPKR(remaining)}
-//               </span>
-//             </div>
-
-//             {client.latestPaymentDate && (
-//               <div className="flex justify-between text-xs">
-//                 <span className="text-slate-600">Last Payment</span>
-//                 <span className="text-slate-800 font-medium">
-//                   {formatDate(client.latestPaymentDate)}
-//                 </span>
-//               </div>
-//             )}
-
-//             <div className="flex justify-between text-xs">
-//               <span className="text-slate-600">Expiry Date</span>
-//               <span className="text-slate-800 font-medium">
-//                 {formatDate(client.expiryDate || new Date())}
-//               </span>
-//             </div>
-
-//             <div className="h-px bg-slate-300 my-1.5" />
-
-//             <div className="flex justify-between items-center pt-0.5">
-//               <span className="text-slate-600 text-xs">Status</span>
-//               <span
-//                 className={`px-2 py-1 rounded-md text-xs font-bold ${statusColor}`}
-//               >
-//                 {effectiveStatus === "PAID"
-//                   ? "✅ "
-//                   : effectiveStatus === "PARTIAL"
-//                     ? "⏳ "
-//                     : "❌ "}
-//                 {effectiveStatus}
-//               </span>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* TOTAL PAID BOX - Summary */}
-//         <div className="px-5 mt-4 mb-6">
-//           <div className="bg-linear-to-r from-indigo-500 to-blue-600 rounded-lg px-3 py-2 flex justify-between items-center shadow-md">
-//             <span className="text-white text-xs font-semibold">Total Paid</span>
-//             <span className="text-xl font-bold text-white">
-//               {formatPKR(paid)}
-//             </span>
-//           </div>
-//         </div>
-
-//         {/* Bottom Cut */}
-//         <div className="absolute bottom-0 left-0 right-0 h-6 bg-[radial-gradient(circle,white_6px,transparent_7px)] bg-size-[20px_20px]" />
-//       </div>
-
-//       {/* Payment Modal */}
-//       {client && remaining > 0 && showPaymentModal && (
-//         <PaymentModal
-//           isOpen={showPaymentModal}
-//           onClose={() => setShowPaymentModal(false)}
-//           amount={remaining}
-//           title={`Invoice #${client.id.slice(0, 6).toUpperCase()}`}
-//           description={`Payment for ${client.name}`}
-//           metadata={{
-//             referenceType: "invoice",
-//             referenceId: client.id,
-//             clientId: client.id,
-//             invoiceId: client.id,
-//           }}
-//           additionalCharges={
-//             additionalCharges.length > 0 ? additionalCharges : undefined
-//           }
-//         />
-//       )}
-
-//       {/* Print */}
-//       <style jsx global>{`
-//         @media print {
-//           button {
-//             display: none;
-//           }
-//         }
-//       `}</style>
-//     </div>
-//   );
-// }

@@ -143,8 +143,8 @@ export default function OtherIncomeCard({ startDate, endDate }: OtherIncomeCardP
       <p
         className={`text-2xl font-semibold bg-clip-text text-transparent ${
           isPositive
-            ? "bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300"
-            : "bg-linear-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300"
+            ? "bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300"
+            : "bg-gradient-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300"
         }`}
       >
         {isPositive ? "" : "-"}Rs {displayValue.toLocaleString()}

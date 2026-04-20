@@ -15,6 +15,18 @@ import { NextResponse } from 'next/server'
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
+      const showSpeedsOnly = new URL(request.url).searchParams.get('speedsOnly') === 'true';
+
+      if (showSpeedsOnly) {
+        const packages = await prisma.package.findMany({
+          where: { companyId: admin.companyId, isActive: true },
+          select: { id: true, speed: true, name: true, price: true },
+          distinct: ['speed'],
+          orderBy: { speed: 'asc' }
+        });
+        return NextResponse.json(packages);
+      }
+
       const packages = await prisma.package.findMany({
         where: {
           companyId: admin.companyId  // Only return packages from admin's company

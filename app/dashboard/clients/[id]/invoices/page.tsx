@@ -31,6 +31,7 @@ interface InvoiceItem {
 
 interface Invoice {
   id: string;
+  invoiceNumber?: string | null;
   amount: number;
   totalAmount: number | null;
   issuedDate: string;
@@ -240,7 +241,7 @@ export default function ClientInvoiceHistoryPage() {
           >
             <ArrowLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </Link>
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md">
+          <div className="h-10 w-10 rounded-lg bg-linear-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md">
             <Receipt className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -265,7 +266,7 @@ export default function ClientInvoiceHistoryPage() {
             <IndianRupee className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-50">{formatPKR(summary.totalBilled)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{invoices.filter(inv => inv.status === 'unpaid' || inv.status === 'partial').length} unpaid invoices</p>
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{invoices.filter(inv => inv.effectivePaymentStatus === 'unpaid' || inv.effectivePaymentStatus === 'partial').length} unpaid invoices</p>
         </div>
 
         <div className="bg-white dark:bg-gray-800 border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4">
@@ -344,7 +345,7 @@ export default function ClientInvoiceHistoryPage() {
                   <tr key={invoice.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors duration-200">
                     <td className="py-3 px-4">
                       <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
-                        {invoice.id.slice(-8).toUpperCase()}
+                        {invoice.invoiceNumber || invoice.id.slice(-8).toUpperCase()}
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -417,13 +418,13 @@ export default function ClientInvoiceHistoryPage() {
             {/* Modal Header */}
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200/60 dark:border-gray-700/60 p-4 flex items-center justify-between rounded-t-2xl">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-linear-to-br from-orange-500 to-orange-600 flex items-center justify-center">
                   <Receipt className="w-5 h-5 text-white" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Invoice Details</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{selectedInvoice.id.slice(-8).toUpperCase()}</p>
-                </div>
+                 <div>
+                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Invoice Details</h2>
+                   <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{selectedInvoice.invoiceNumber || selectedInvoice.id.slice(-8).toUpperCase()}</p>
+                 </div>
               </div>
               <button
                 onClick={() => setShowDetailsModal(false)}
@@ -520,14 +521,14 @@ export default function ClientInvoiceHistoryPage() {
                 )}
               </div>
 
-              {/* Previous Invoice Link */}
-              {selectedInvoice.previousInvoiceId && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/60 rounded-lg p-3">
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    This invoice includes <span className="font-semibold">{formatPKR(selectedInvoice.carryForwardAmount)}</span> from previous invoice #{selectedInvoice.previousInvoiceId.slice(-8).toUpperCase()}
-                  </p>
-                </div>
-              )}
+               {/* Previous Invoice Link */}
+               {selectedInvoice.previousInvoiceId && (
+                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/60 rounded-lg p-3">
+                   <p className="text-xs text-blue-700 dark:text-blue-300">
+                     This invoice includes <span className="font-semibold">{formatPKR(selectedInvoice.carryForwardAmount)}</span> from previous invoice #{selectedInvoice.previousInvoice?.invoiceNumber ?? selectedInvoice.previousInvoiceId.slice(-8).toUpperCase()}
+                   </p>
+                 </div>
+               )}
             </div>
           </div>
         </div>

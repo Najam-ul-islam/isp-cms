@@ -6,6 +6,7 @@ import { X, CreditCard, CheckCircle, XCircle } from "lucide-react";
 interface RecordPaymentModalProps {
   invoice: {
     id: string;
+    invoiceNumber?: string | null;
     amount: number;
     carryForwardAmount: number;
     remainingAmount: number;
@@ -96,9 +97,9 @@ export default function RecordPaymentModal({
                   <h2 className="text-xl font-bold text-white">
                     Record Payment
                   </h2>
-                  <p className="text-xs text-emerald-100 mt-1">
-                    Invoice #{invoice.id.slice(-8).toUpperCase()}
-                  </p>
+                   <p className="text-xs text-emerald-100 mt-1">
+                     Invoice #{invoice.invoiceNumber || invoice.id.slice(-8).toUpperCase()}
+                   </p>
                 </div>
               </div>
             </div>

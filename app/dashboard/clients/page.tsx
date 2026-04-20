@@ -31,6 +31,7 @@ export default function ClientsPage() {
   const [sortBy, setSortBy] = useState<'name' | 'phone' | 'city' | 'area' | 'price' | 'expiryDate'>('name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [areas, setAreas] = useState<{ id: string; name: string }[]>([])
+  const [packages, setPackages] = useState<{ id: string; name: string; speed: number }[]>([])
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
   const initialStatusFilter = urlParams?.get('status') || 'all'
@@ -47,6 +48,8 @@ export default function ClientsPage() {
   const [expiringFilter, setExpiringFilter] = useState<'none' | 'today' | '3days' | '7days'>(
     (initialExpiringFilter as 'none' | 'today' | '3days' | '7days') || 'none'
   )
+  const initialPackageFilter = urlParams?.get('package') || 'all'
+  const [filterPackage, setFilterPackage] = useState<string>(initialPackageFilter)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [suspendingId, setSuspendingId] = useState<string | null>(null)
@@ -152,7 +155,7 @@ export default function ClientsPage() {
     }
   }, [router, fetchClients])
 
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterArea, filterPayment, expiringFilter, itemsPerPage])
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterArea, filterPayment, expiringFilter, filterPackage, itemsPerPage])
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -160,12 +163,13 @@ export default function ClientsPage() {
     if (filterArea !== 'all') params.set('area', filterArea)
     if (filterPayment !== 'all') params.set('payment', filterPayment)
     if (expiringFilter !== 'none') params.set('expiring', expiringFilter)
+    if (filterPackage !== 'all') params.set('package', filterPackage)
     if (params.toString()) {
       window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`)
     } else {
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [filterStatus, filterArea, filterPayment, expiringFilter])
+  }, [filterStatus, filterArea, filterPayment, expiringFilter, filterPackage])
 
   // Fetch areas for filter dropdown
   useEffect(() => {
@@ -184,6 +188,25 @@ export default function ClientsPage() {
       }
     }
     fetchAreas()
+  }, [])
+
+  // Fetch packages for filter dropdown
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const res = await fetch('/api/packages?speedsOnly=true', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setPackages(data)
+        }
+      } catch (err) {
+        console.error('Error fetching packages:', err)
+      }
+    }
+    fetchPackages()
   }, [])
 
   const handleDelete = async (id: string) => {
@@ -267,6 +290,7 @@ export default function ClientsPage() {
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus
       const matchesArea = filterArea === 'all' || client.areaId === filterArea
       const matchesPayment = filterPayment === 'all' || (client.effectivePaymentStatus || client.paymentStatus) === filterPayment
+      const matchesPackage = filterPackage === 'all' || client.packageId === filterPackage
       const now = new Date(); now.setHours(0, 0, 0, 0)
       const next3Days = new Date(now); next3Days.setDate(now.getDate() + 3)
       const next7Days = new Date(now); next7Days.setDate(now.getDate() + 7)
@@ -281,7 +305,7 @@ export default function ClientsPage() {
         const clientExpiry = new Date(client.expiryDate); clientExpiry.setHours(0, 0, 0, 0)
         matchesExpiring = clientExpiry.getTime() > now.getTime() && clientExpiry.getTime() <= next7Days.getTime()
       }
-      return matchesSearch && matchesStatus && matchesArea && matchesPayment && matchesExpiring
+      return matchesSearch && matchesStatus && matchesArea && matchesPayment && matchesExpiring && matchesPackage
     })
     .sort((a, b) => {
       let comparison = 0
@@ -440,9 +464,14 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-500 dark:text-gray-400">{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''} found</p>
             </div>
           </div>
-          <Link href="/dashboard/clients/new" className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 text-sm">
-            <Plus className="w-4 h-4" /> Add Client
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/clients/import" className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 text-sm">
+              <FileText className="w-4 h-4" /> Import
+            </Link>
+            <Link href="/dashboard/clients/new" className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 text-sm">
+              <Plus className="w-4 h-4" /> Add Client
+            </Link>
+          </div>
         </div>
 
         {/* Bottom Row: Search + Filters */}
@@ -460,7 +489,7 @@ export default function ClientsPage() {
           </div>
 
           {/* Filters Grid: 2 columns on mobile, more on larger screens */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
             {/* Status Filter */}
             <div className="relative">
               <select
@@ -502,6 +531,21 @@ export default function ClientsPage() {
                 <option value="paid">Paid</option>
                 <option value="unpaid">Unpaid</option>
                 <option value="partial">Partial</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Package Filter */}
+            <div className="relative">
+              <select
+                value={filterPackage}
+                onChange={(e) => setFilterPackage(e.target.value)}
+                className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
+              >
+                <option value="all">All Packages</option>
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>{pkg.speed} Mbps</option>
+                ))}
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
@@ -639,8 +683,8 @@ export default function ClientsPage() {
             <div className="p-6 text-center">
               <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
                 <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full"><User className="w-10 h-10 opacity-50" /></div>
-                <div><p className="font-semibold">No clients found</p><p className="text-xs mt-0.5">{searchTerm || filterStatus !== 'all' || filterArea !== 'all' || filterPayment !== 'all' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>
-                {(!searchTerm && filterStatus === 'all' && filterPayment === 'all') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}
+                <div><p className="font-semibold">No clients found</p><p className="text-xs mt-0.5">{searchTerm || filterStatus !== 'all' || filterArea !== 'all' || filterPayment !== 'all' || filterPackage !== 'all' || expiringFilter !== 'none' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>
+                {(!searchTerm && filterStatus === 'all' && filterArea === 'all' && filterPayment === 'all' && filterPackage === 'all' && expiringFilter === 'none') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}
               </div>
             </div>
           )}
@@ -758,7 +802,7 @@ export default function ClientsPage() {
                   )
                 })
               ) : (
-                <tr><td colSpan={11} className="px-4 py-12 text-center"><div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500"><div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full"><User className="w-10 h-10 opacity-50" /></div><div><p className="font-semibold">No clients found</p><p className="text-xs mt-0.5">{searchTerm || filterStatus !== 'all' || filterArea !== 'all' || filterPayment !== 'all' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>{(!searchTerm && filterStatus === 'all' && filterArea === 'all' && filterPayment === 'all') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}</div></td></tr>
+                <tr><td colSpan={11} className="px-4 py-12 text-center"><div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500"><div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full"><User className="w-10 h-10 opacity-50" /></div><div><p className="font-semibold">No clients found</p><p className="text-xs mt-0.5">{searchTerm || filterStatus !== 'all' || filterArea !== 'all' || filterPayment !== 'all' || filterPackage !== 'all' || expiringFilter !== 'none' ? 'Try adjusting your filters' : 'Add your first client'}</p></div>{(!searchTerm && filterStatus === 'all' && filterArea === 'all' && filterPayment === 'all' && filterPackage === 'all' && expiringFilter === 'none') && (<Link href="/dashboard/clients/new" className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"><Plus className="w-3.5 h-3.5" /> Add Client</Link>)}</div></td></tr>
               )}
             </tbody>
           </table>

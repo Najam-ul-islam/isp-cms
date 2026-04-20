@@ -126,7 +126,7 @@ export default function PaymentStats({ companyId }: PaymentStatsProps) {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="p-4 bg-linear-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800/50">
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-800/50 rounded-lg">
               <IndianRupee className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -140,7 +140,7 @@ export default function PaymentStats({ companyId }: PaymentStatsProps) {
           </div>
         </div>
 
-        <div className="p-4 bg-linear-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800/50">
+        <div className="p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 dark:bg-green-800/50 rounded-lg">
               <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -154,7 +154,7 @@ export default function PaymentStats({ companyId }: PaymentStatsProps) {
           </div>
         </div>
 
-        <div className="p-4 bg-linear-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800/50">
+        <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-800/50 rounded-lg">
               <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />

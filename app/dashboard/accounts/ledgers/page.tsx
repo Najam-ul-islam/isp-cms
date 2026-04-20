@@ -76,9 +76,8 @@ export default async function LedgersPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Balance</span>
                   <span
-                    className={`text-lg font-bold ${
-                      balance >= 0 ? "text-green-600" : "text-red-600"
-                    }`}
+                    className={`text-lg font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"
+                      }`}
                   >
                     PKR {balance.toLocaleString()}
                   </span>
@@ -112,3 +111,11 @@ export default async function LedgersPage() {
     </div>
   );
 }
+
+
+// Sample component — add required props below
+// export const SampleDefault = () => (
+//   <dashboard\accounts\ledgers\page.tsx
+//     // TODO: Add required props here
+//   />
+// );

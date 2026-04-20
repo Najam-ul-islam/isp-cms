@@ -5,7 +5,7 @@ import RevenueTrend from "@/components/saas/RevenueTrend";
 import TopCompanies from "@/components/saas/TopCompanies";
 import FinancialReportsQuickAccess from "@/components/saas/FinancialReportsQuickAccess";
 import Link from "next/link";
-import { TrendingUp, DollarSign, ArrowRight, BarChart3 } from "lucide-react";
+import { DollarSign, ArrowRight, BarChart3 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +32,10 @@ export default async function SaaSDashboard() {
             <BarChart3 className="w-4 h-4" />
             Reports
           </Link>
-          <Link
-            href="/saas/financial-reports/profit-loss"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-linear-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
-          >
+           <Link
+             href="/saas/financial-reports/profit-loss"
+             className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md"
+           >
             <DollarSign className="w-4 h-4" />
             Financial Reports
             <ArrowRight className="w-4 h-4" />
@@ -60,3 +60,5 @@ export default async function SaaSDashboard() {
     </div>
   );
 }
+
+

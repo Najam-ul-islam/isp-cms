@@ -36,24 +36,26 @@ export async function getCompanies(): Promise<CompanyWithStats[]> {
     orderBy: { createdAt: "desc" },
   });
 
-  const companiesWithStats = await Promise.all(
-    companies.map(async (company) => {
-      const revenue = await prisma.payment.aggregate({
-        where: { companyId: company.id },
-        _sum: { amount: true },
-      });
+  // Batch aggregate payments for all companies (single query)
+  const companyIds = companies.map(c => c.id);
+  const paymentsByCompany = await prisma.payment.groupBy({
+    by: ['companyId'],
+    where: { companyId: { in: companyIds } },
+    _sum: { amount: true },
+  });
 
-      return {
-        id: company.id,
-        name: company.name,
-        isActive: company.isActive,
-        modulesEnabled: company.modulesEnabled,
-        createdAt: company.createdAt,
-        totalClients: company._count.clients,
-        totalRevenue: revenue._sum.amount || 0,
-      };
-    })
-  );
+  const revenueMap = new Map<string, number>();
+  paymentsByCompany.forEach(p => revenueMap.set(p.companyId, p._sum.amount || 0));
+
+  const companiesWithStats = companies.map(company => ({
+    id: company.id,
+    name: company.name,
+    isActive: company.isActive,
+    modulesEnabled: company.modulesEnabled,
+    createdAt: company.createdAt,
+    totalClients: company._count.clients,
+    totalRevenue: revenueMap.get(company.id) || 0,
+  }));
 
   return companiesWithStats;
 }

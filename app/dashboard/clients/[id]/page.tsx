@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Client, Package, ServiceProvider, Payment } from '@prisma/client';
+import type { InvoiceWithPayments } from '@/modules/invoices/services';
 import {
   User, Phone, MapPin, Calendar, CreditCard, IndianRupee,
   Building, Factory, Wifi, Clock, Mail, Hash, ArrowLeft, Edit2,
@@ -16,13 +17,13 @@ interface ClientWithPackage extends Client {
 }
 
 interface ExtendedClient extends ClientWithPackage {
-  email: any;
   _count?: { payments: number };
   payments?: Payment[];
   totalPaid?: number;
   remainingAmount?: number;
   totalAmount?: number;
   effectivePaymentStatus?: string;
+  invoices?: InvoiceWithPayments[];
 }
 
 export default function ClientDetailPage() {
@@ -33,52 +34,47 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
-  useEffect(() => {
-    const fetchClient = async () => {
-      try {
-        const res = await fetch(`/api/clients/${id}`, {
-          credentials: 'include',
-          cache: 'no-store'
-        });
+   useEffect(() => {
+     const fetchClient = async () => {
+       try {
+         setLoading(true);
+         // Parallel fetches
+         const [clientRes, paymentRes] = await Promise.all([
+           fetch(`/api/clients/${id}`, { credentials: 'include', cache: 'no-store' }),
+           fetch(`/api/payments?clientId=${id}`, { credentials: 'include', cache: 'no-store' }),
+         ]);
 
-        if (res.ok) {
-          const data: ExtendedClient = await res.json();
+         if (clientRes.ok) {
+           const data: ExtendedClient = await clientRes.json();
 
-          // Fetch payment history separately
-          const paymentRes = await fetch(`/api/payments?clientId=${id}`, {
-            credentials: 'include',
-            cache: 'no-store'
-          });
+           if (paymentRes.ok) {
+             const paymentData = await paymentRes.json();
+             const updatedData = {
+               ...data,
+               payments: paymentData
+             };
+             setClient(updatedData);
+           } else {
+             setClient(data);
+           }
+         } else if (clientRes.status === 401) {
+           router.push('/login');
+         } else {
+           setError('Failed to fetch client data');
+         }
+       } catch (err) {
+         console.error('Error fetching client:', err);
+         setError('An error occurred while fetching client data');
+         // Only redirect on 401, not on all errors
+       } finally {
+         setLoading(false);
+       }
+     };
 
-          if (paymentRes.ok) {
-            const paymentData = await paymentRes.json();
-            const updatedData = {
-              ...data,
-              payments: paymentData
-            };
-            setClient(updatedData);
-          } else {
-            // If payment fetch fails, still show client data without payments
-            setClient(data);
-          }
-        } else if (res.status === 401) {
-          router.push('/login');
-        } else {
-          setError('Failed to fetch client data');
-        }
-      } catch (err) {
-        console.error('Error fetching client:', err);
-        setError('An error occurred while fetching client data');
-        router.push('/login'); // Redirect to login on error as well
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) {
-      fetchClient();
-    }
-  }, [id, router]);
+     if (id) {
+       fetchClient();
+     }
+   }, [id, router]);
 
   if (loading) {
     return (
@@ -150,15 +146,29 @@ export default function ClientDetailPage() {
     }
   };
 
-  const clientExpired = isExpired(client.expiryDate);
+   const clientExpired = isExpired(client.expiryDate);
 
-  const InfoRow = ({ icon: Icon, label, value, valueClassName }: { icon: any; label: string; value: string; valueClassName?: string }) => (
-    <div className="flex items-center gap-2 min-w-0">
-      <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-      <span className="text-xs text-gray-500 dark:text-gray-300 flex-shrink-0">{label}:</span>
-      <span className={`text-xs font-medium truncate ${valueClassName || 'text-gray-900 dark:text-gray-50'}`}>{value}</span>
-    </div>
-  );
+   // Recalculate totals from outstanding invoices only (frontend guard)
+   let displayTotalAmount = client.totalAmount ?? client.price ?? 0;
+   let displayTotalPaid = client.totalPaid ?? 0;
+   let displayRemaining = client.remainingAmount ?? 0;
+
+    if (Array.isArray(client.invoices) && client.invoices.length > 0) {
+      const outstandingInvoices = client.invoices.filter(inv => inv.effectivePaymentStatus !== "paid");
+      if (outstandingInvoices.length > 0) {
+        displayTotalAmount = outstandingInvoices.reduce((sum, inv) => sum + ((inv.totalAmount ?? inv.amount ?? 0) || 0), 0);
+        displayTotalPaid   = outstandingInvoices.reduce((sum, inv) => sum + ((inv.totalPaid ?? 0) || 0), 0);
+        displayRemaining   = outstandingInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount ?? 0) || 0), 0);
+      }
+    }
+
+   const InfoRow = ({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType; label: string; value: string; valueClassName?: string }) => (
+     <div className="flex items-center gap-2 min-w-0">
+       <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0" />
+       <span className="text-xs text-gray-500 dark:text-gray-300 shrink-0">{label}:</span>
+       <span className={`text-xs font-medium truncate ${valueClassName || 'text-gray-900 dark:text-gray-50'}`}>{value}</span>
+     </div>
+   );
 
   return (
     <div className="h-full bg-gray-50/50 dark:bg-gray-900/50 p-3 lg:p-5 flex flex-col gap-3 lg:gap-4">
@@ -172,34 +182,34 @@ export default function ClientDetailPage() {
           >
             <ArrowLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </Link>
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
+          <div className="h-10 w-10 rounded-lg bg-linear-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
             <User className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base font-semibold text-gray-900 dark:text-gray-50 truncate">{client.name}</h1>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusStyles(client.status || 'unknown', clientExpired)}`}>
-                {clientExpired ? 'Expired' : client.status || 'unknown'}
-              </span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPaymentStyles(client.effectivePaymentStatus || client.paymentStatus || 'unknown')}`}>
-                {client.effectivePaymentStatus || client.paymentStatus || 'unknown'}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 dark:text-gray-300">
-              <span className="flex items-center gap-1 truncate">
-                <Phone className="w-3 h-3" />
-                {client.phone}
-              </span>
-              {client.email && (
-                <span className="flex items-center gap-1 truncate hidden sm:inline">
-                  <Mail className="w-3 h-3" />
-                  {client.email}
-                </span>
-              )}
-            </div>
+           <div className="flex items-center gap-2 flex-wrap">
+               <h1 className="text-base font-semibold text-gray-900 dark:text-gray-50 truncate">{client.name}</h1>
+               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusStyles(client.status ?? 'unknown', clientExpired)}`}>
+                 {clientExpired ? 'Expired' : (client.status ?? 'unknown')}
+               </span>
+               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPaymentStyles(client.effectivePaymentStatus ?? client.paymentStatus ?? 'unknown')}`}>
+                 {client.effectivePaymentStatus ?? client.paymentStatus ?? 'unknown'}
+               </span>
+             </div>
+             <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 dark:text-gray-300">
+               <span className="flex items-center gap-1 truncate">
+                 <Phone className="w-3 h-3" />
+                 {client.phone}
+               </span>
+               {client.email && (
+                 <span className="flex items-center gap-1 truncate sm:inline">
+                   <Mail className="w-3 h-3" />
+                   {client.email}
+                 </span>
+               )}
+             </div>
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 shrink-0">
           <Link
             href={`/dashboard/clients/${client.id}/edit`}
             className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-blue-500 dark:bg-blue-600 rounded-lg border border-transparent hover:border-blue-400/60 dark:hover:border-blue-300/60 hover:bg-blue-600 dark:hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/20 dark:hover:shadow-blue-400/20 transition-all duration-200 ease-out"
@@ -230,9 +240,9 @@ export default function ClientDetailPage() {
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Package</h2>
           </div>
           <div className="space-y-2">
-            <InfoRow icon={Building} label="Plan" value={client.package?.name || 'No Package'} />
+            <InfoRow icon={Building} label="Plan" value={client.package?.name ?? 'No Package'} />
             <InfoRow icon={Clock} label="Speed" value={client.package?.speed ? `${client.package.speed} Mbps` : 'N/A'} />
-            <InfoRow icon={IndianRupee} label="Monthly" value={formatPKR(client.price || 0)} />
+            <InfoRow icon={IndianRupee} label="Monthly" value={formatPKR(client.price ?? 0)} />
             {client.package?.serviceProvider && (
               <InfoRow icon={Factory} label="Provider" value={client.package.serviceProvider.name} />
             )}
@@ -248,10 +258,10 @@ export default function ClientDetailPage() {
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Location</h2>
           </div>
           <div className="space-y-2">
-            <InfoRow icon={MapPin} label="Address" value={client.area?.name || client.areaName || 'Not provided'} />
-            <InfoRow icon={Building} label="City" value={client.city} />
-            <InfoRow icon={Globe} label="Country" value={client.country || 'Not specified'} />
-            <InfoRow icon={Hash} label="CNIC" value={client.cnic} />
+            <InfoRow icon={MapPin} label="Address" value={(client.area?.name ?? client.areaName ?? 'Not provided')} />
+            <InfoRow icon={Building} label="City" value={client.city ?? 'Not provided'} />
+            <InfoRow icon={Globe} label="Country" value={client.country ?? 'Not specified'} />
+            <InfoRow icon={Hash} label="CNIC" value={client.cnic ?? 'Not provided'} />
           </div>
         </div>
 
@@ -266,29 +276,29 @@ export default function ClientDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500 dark:text-gray-300">Total Amount</span>
-              <span className="text-xs font-semibold text-gray-900 dark:text-gray-50">{formatPKR(client.totalAmount || client.price || 0)}</span>
+              <span className="text-xs font-semibold text-gray-900 dark:text-gray-50">{formatPKR(displayTotalAmount)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500 dark:text-gray-300">Total Paid</span>
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{formatPKR(client.totalPaid || 0)}</span>
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{formatPKR(displayTotalPaid)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500 dark:text-gray-300">Remaining</span>
-              <span className={`text-xs font-semibold ${(client.remainingAmount || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {formatPKR(client.remainingAmount || 0)}
+              <span className={`text-xs font-semibold ${displayRemaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {formatPKR(displayRemaining)}
               </span>
             </div>
             {/* Progress bar */}
             <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
-                  (client.totalPaid || 0) >= (client.totalAmount || client.price || 0)
+                  displayTotalPaid >= displayTotalAmount
                     ? 'bg-emerald-500 dark:bg-emerald-400'
-                    : (client.remainingAmount || 0) > 0
+                    : displayRemaining > 0
                     ? 'bg-amber-500 dark:bg-amber-400'
                     : 'bg-emerald-500 dark:bg-emerald-400'
                 }`}
-                style={{ width: `${Math.min(((client.totalPaid || 0) / (client.totalAmount || client.price || 1)) * 100, 100)}%` }}
+                style={{ width: `${displayTotalAmount > 0 ? Math.min((displayTotalPaid / displayTotalAmount) * 100, 100) : 0}%` }}
               />
             </div>
           </div>
@@ -316,7 +326,7 @@ export default function ClientDetailPage() {
           </div>
           {clientExpired && (
             <div className="mt-3 flex items-start gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200/60 dark:border-red-800/60">
-              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
               <p className="text-xs text-red-600 dark:text-red-400">Service expired. Consider renewing.</p>
             </div>
           )}
@@ -334,11 +344,11 @@ export default function ClientDetailPage() {
             <InfoRow
               icon={AtSign}
               label="Username"
-              value={client.username || 'Not set'}
+              value={client.username ?? 'Not set'}
               valueClassName={!client.username ? 'text-gray-400 dark:text-gray-500 italic' : 'text-gray-900 dark:text-gray-50'}
             />
             <InfoRow icon={Phone} label="Phone" value={client.phone} />
-            <InfoRow icon={Mail} label="Email" value={client.email || 'Not provided'} />
+            <InfoRow icon={Mail} label="Email" value={client.email ?? 'Not provided'} />
           </div>
         </div>
 
@@ -405,21 +415,21 @@ export default function ClientDetailPage() {
                     <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Method</th>
                     <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-300">Notes</th>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                  {client.payments.map((payment, index) => (
-                    <tr key={index} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors duration-200">
-                      <td className="py-2 px-2 text-gray-900 dark:text-gray-50">{formatDate(payment.paymentDate)}</td>
-                      <td className="py-2 px-2 text-emerald-600 dark:text-emerald-400 font-medium">{formatPKR(payment.amount)}</td>
-                      <td className="py-2 px-2">
-                        <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs">
-                          {payment.method}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-gray-600 dark:text-gray-400">{payment.notes || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                 </thead>
+                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                   {client.payments && client.payments.map((payment) => (
+                     <tr key={payment.id ?? Math.random()} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors duration-200">
+                       <td className="py-2 px-2 text-gray-900 dark:text-gray-50">{formatDate(payment.paymentDate)}</td>
+                       <td className="py-2 px-2 text-emerald-600 dark:text-emerald-400 font-medium">{formatPKR(payment.amount)}</td>
+                       <td className="py-2 px-2">
+                         <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs">
+                           {payment.method}
+                         </span>
+                       </td>
+                       <td className="py-2 px-2 text-gray-600 dark:text-gray-400">{payment.notes || '-'}</td>
+                     </tr>
+                   ))}
+                 </tbody>
               </table>
             </div>
           ) : (
