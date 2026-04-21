@@ -131,7 +131,8 @@ export default function PaymentsPage() {
         return;
       }
       
-      // Fetch payment summary for each client
+// Use existing client data - no need for separate API calls
+      // The /api/clients endpoint already returns totalPaid and remainingAmount
       const pendingClients: Array<{
         id: string;
         name: string;
@@ -143,38 +144,18 @@ export default function PaymentsPage() {
 
       let totalPending = 0;
 
-      // Fetch payment summaries in parallel for better performance
-      const paymentSummaries = await Promise.all(
-        clientList.map(async (client: any) => {
-          try {
-            const response = await fetch(`/api/clients/${client.id}`, {
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-            });
-            
-            if (response.ok) {
-              const clientData = await response.json();
-              return {
-                id: clientData.id,
-                name: clientData.name,
-                phone: clientData.phone,
-                totalAmount: clientData.totalAmount || 0,
-                totalPaid: clientData.totalPaid || 0,
-                remaining: clientData.remainingAmount || 0,
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching payment summary for client ${client.id}:`, error);
-          }
-          return null;
-        })
-      );
-
-      // Filter and calculate pending amounts
-      for (const clientData of paymentSummaries) {
-        if (clientData && clientData.remaining > 0) {
-          totalPending += clientData.remaining;
-          pendingClients.push(clientData);
+      for (const client of clientList) {
+        const remaining = client.remainingAmount ?? 0;
+        if (remaining > 0) {
+          pendingClients.push({
+            id: client.id,
+            name: client.name,
+            phone: client.phone,
+            totalAmount: client.price || 0,
+            totalPaid: client.totalPaid || 0,
+            remaining: remaining,
+          });
+totalPending += remaining;
         }
       }
 

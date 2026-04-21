@@ -94,6 +94,9 @@ interface StatsData {
     yearMonth: string;
     count: number;
   }>;
+  monthlyTarget?: number;
+  monthlyRecovered?: number;
+  monthlyRemaining?: number;
   [key: string]: unknown;
 }
 
@@ -149,7 +152,7 @@ export default function DashboardPage() {
   // ─────────────────────────────────────────────────────────
   const fetchDashboardData = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [overviewRes, expiringRes, financialRes, monthlyRes] = await Promise.all([
+      const [overviewRes, expiringRes, financialRes, monthlyRes, monthlyRecoveryRes] = await Promise.all([
         fetch("/api/dashboard/overview", {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -174,6 +177,12 @@ export default function DashboardPage() {
           cache: "no-store",
           signal,
         }),
+        fetch("/api/dashboard/monthly-recovery", {
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }),
       ]);
 
       if (overviewRes.status === 401 || overviewRes.status === 403) {
@@ -187,6 +196,7 @@ export default function DashboardPage() {
       const expiringData = await expiringRes.json().catch(() => []);
       const financialData = await financialRes.json().catch(() => ({}));
       const monthlyData = await monthlyRes.json().catch(() => ({ currentMonthCount: 0, history: [] }));
+      const monthlyRecoveryData = await monthlyRecoveryRes.json().catch(() => ({ monthlyTarget: 0, monthlyRecovered: 0, remaining: 0 }));
 
       // Merge financial data into stats
       const mergedStats = {
@@ -198,6 +208,9 @@ export default function DashboardPage() {
         financialTodaysExpense: financialData.todaysExpense || 0,
         newClients: monthlyData.currentMonthCount || 0,
         monthlyHistory: monthlyData.history || [],
+        monthlyTarget: monthlyRecoveryData.monthlyTarget || 0,
+        monthlyRecovered: monthlyRecoveryData.monthlyRecovered || 0,
+        monthlyRemaining: monthlyRecoveryData.remaining || 0,
       };
 
       return {
@@ -718,20 +731,57 @@ export default function DashboardPage() {
           >
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4">
               <button
+  onClick={() => router.push("/dashboard/payments")}
+  className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+  aria-label={`Monthly Recovery: Target Rs ${(stats.monthlyTarget ?? 0).toLocaleString()}, Paid Rs ${(stats.monthlyPaid ?? 0).toLocaleString()}, Remaining Rs ${(stats.monthlyRemaining ?? 0).toLocaleString()}`}
+>
+  <div className="flex items-start justify-between mb-3">
+    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Monthly Recovery</p>
+    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 transition-transform duration-200 group-hover:scale-110">
+      <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+    </div>
+  </div>
+
+  {/* Formula Layout */}
+  <div className="flex flex-wrap items-center gap-1.5 text-lg sm:text-xl font-semibold">
+    {/* <span className="bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
+      Rs {(stats.monthlyTarget ?? 0).toLocaleString()}
+    </span>
+    <span className="text-gray-400 dark:text-gray-500 font-normal">−</span>
+    <span className="bg-linear-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent">
+      Rs {(stats.monthlyPaid ?? 0).toLocaleString()}
+    </span>
+    <span className="text-gray-400 dark:text-gray-500 font-normal">=</span> */}
+    <span className="bg-linear-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+      Rs {(stats.monthlyRemaining ?? 0).toLocaleString()}
+    </span>
+  </div>
+
+  {/* <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+    Total Packages − Collected = Pending
+  </p> */}
+</button>
+
+
+
+              {/* <button
                 onClick={() => router.push("/dashboard/payments")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-                aria-label={`Today's Recovery: Rs ${(stats.financialTodaysRecovery ?? 0).toLocaleString()}`}
+                aria-label={`Monthly Recovery: Rs ${(stats.monthlyTarget ?? 0).toLocaleString()} total, Rs ${(stats.monthlyRemaining ?? 0).toLocaleString()} remaining`}
               >
                 <div className="flex items-start justify-between mb-3">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today&apos;s Recovery</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Monthly Recovery</p>
                   <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 transition-transform duration-200 group-hover:scale-110">
-                    <ArrowUpRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                 </div>
                 <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
-                  Rs {(stats.financialTodaysRecovery ?? 0).toLocaleString()}
+                  Rs {(stats.monthlyTarget ?? 0).toLocaleString()}
                 </p>
-              </button>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Remaining: Rs {(stats.monthlyRemaining ?? 0).toLocaleString()}
+                </p>
+              </button> */}
               <button
                 onClick={() => router.push("/dashboard/expenses")}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm text-left border border-rose-200/60 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50/80 dark:hover:bg-rose-500/5 hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"

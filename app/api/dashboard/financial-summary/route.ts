@@ -47,100 +47,90 @@ export async function GET(request: Request) {
     }
 
     const companyId = admin.companyId;
-
-    // Calculate today's date range (local timezone)
     const todayStart = startOfDay();
     const todayEnd = endOfDay();
 
-    // 1. TOTAL REVENUE - Sum of all SUCCESSFUL payments (actual money received)
-    const totalRevenueResult = await prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: {
-        companyId,
-        status: 'success',
-      },
-    });
+    // Execute all independent queries in parallel for maximum performance
+    const [
+      totalRevenueResult,
+      totalPayableResult,
+      arrearsClients,
+      todaysRecoveryResult,
+      todaysExpenseResult,
+      pendingRecoveryResult,
+      paymentsForPending,
+    ] = await Promise.all([
+      // 1. TOTAL REVENUE - Sum of all SUCCESSFUL payments (actual money received)
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { companyId, status: 'success' },
+      }),
 
-    // 2. TOTAL PAYABLE - Sum of all expenses
-    const totalPayableResult = await prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: {
-        companyId,
-      },
-    });
+      // 2. TOTAL PAYABLE - Sum of all expenses
+      prisma.expense.aggregate({
+        _sum: { amount: true },
+        where: { companyId },
+      }),
 
-    // 3. TOTAL ARREARS - Sum of client prices where paymentStatus is 'unpaid' or 'partial'
-    const arrearsClients = await prisma.client.aggregate({
-      _sum: { price: true },
-      where: {
-        companyId,
-        paymentStatus: {
-          in: ['unpaid', 'partial'],
+      // 3. TOTAL ARREARS - Sum of client prices where paymentStatus is 'unpaid' or 'partial'
+      prisma.client.aggregate({
+        _sum: { price: true },
+        where: {
+          companyId,
+          paymentStatus: { in: ['unpaid', 'partial'] },
         },
-      },
-    });
+      }),
 
-    const totalArrears = arrearsClients._sum.price || 0;
-
-    // 4. PENDING RECOVERY - Sum of remaining amounts from unpaid/partial invoices
-    // Optimized: single aggregate query instead of fetching all invoices
-    const pendingRecoveryResult = await prisma.invoice.aggregate({
-      where: {
-        companyId,
-        status: {
-          in: ['unpaid', 'partial'],
+      // 4. TODAY'S RECOVERY - Payments received today
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          companyId,
+          status: 'success',
+          paymentDate: { gte: todayStart, lte: todayEnd },
         },
-      },
-      _sum: {
-        totalAmount: true,
-        amount: true,
-        carryForwardAmount: true,
-      },
-    });
+      }),
 
-    // Get total payments for unpaid/partial invoices
-    const paymentsForPending = await prisma.payment.aggregate({
-      where: {
-        invoice: {
+      // 5. TODAY'S EXPENSE - Expenses recorded today
+      prisma.expense.aggregate({
+        _sum: { amount: true },
+        where: {
+          companyId,
+          date: { gte: todayStart, lte: todayEnd },
+        },
+      }),
+
+      // 6. PENDING RECOVERY - Aggregate invoice totals
+      prisma.invoice.aggregate({
+        where: {
           companyId,
           status: { in: ['unpaid', 'partial'] },
         },
-        status: 'success',
-      },
-      _sum: {
-        amount: true,
-      },
-    });
+        _sum: {
+          totalAmount: true,
+          amount: true,
+          carryForwardAmount: true,
+        },
+      }),
 
+      // 7. PAYMENTS for pending invoices - single optimized query
+      prisma.payment.aggregate({
+        where: {
+          companyId,
+          status: 'success',
+          invoice: {
+            status: { in: ['unpaid', 'partial'] },
+          },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    // Compute derived values from parallel results
+    const totalArrears = arrearsClients._sum.price || 0;
     const invoiceTotalSum = (pendingRecoveryResult._sum.totalAmount || pendingRecoveryResult._sum.amount || 0) + (pendingRecoveryResult._sum.carryForwardAmount || 0);
     const paymentsSum = paymentsForPending._sum.amount || 0;
     const pendingRecovery = Math.max(invoiceTotalSum - paymentsSum, 0);
-
-    // 5. TODAY'S RECOVERY - Sum of successful payments where paymentDate is today
-    // Uses paymentDate (NOT createdAt) to support backdated payments
-    const todaysRecoveryResult = await prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: {
-        companyId,
-        status: 'success',
-        paymentDate: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    });
-
-    // 5. TODAY'S EXPENSE - Sum of expenses where date is today
-    const todaysExpenseResult = await prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: {
-        companyId,
-        date: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    });
 
     return NextResponse.json({
       totalRevenue: totalRevenueResult._sum.amount || 0,

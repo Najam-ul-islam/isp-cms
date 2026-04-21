@@ -261,7 +261,7 @@ model Payment {
   transactionId String? // Gateway transaction ID
   status        String   @default("pending") // pending, success, failed, refunded
   referenceType String? // subscription, invoice
-  referenceId   String? // subscriptionId or invoiceId
+  referenceId   String? // referenceId
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   companyId     String
@@ -280,6 +280,7 @@ model Payment {
    @@index([status])
    @@index([companyId, status, paymentDate])
    @@index([transactionId])
+   @@index([invoiceId, status])
    @@map("payments")
 }
 
@@ -299,8 +300,6 @@ model Expense {
    @@index([companyId])
    @@index([date])
    @@index([companyId, date])
-   @@index([category])
-   @@index([companyId, category])
    @@map("expenses")
 }
 

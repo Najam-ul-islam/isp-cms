@@ -17,11 +17,21 @@ export interface AdminWithPackages {
 
 function parseCookie(cookieHeader: string | null): Record<string, string> {
   if (!cookieHeader) return {};
-  return cookieHeader.split(';').reduce((acc, cookie) => {
+  const cookies: Record<string, string> = {};
+  
+  for (const cookie of cookieHeader.split(';')) {
     const [name, ...rest] = cookie.trim().split('=');
-    if (name && rest.length) acc[name] = rest.join('=');
-    return acc;
-  }, {} as Record<string, string>);
+    if (name && rest.length > 0) {
+      // Decode URI components in cookie values
+      try {
+        cookies[name] = decodeURIComponent(rest.join('='));
+      } catch {
+        cookies[name] = rest.join('=');
+      }
+    }
+  }
+  
+  return cookies;
 }
 
 export const getAdminFromToken = async (request: Request): Promise<AdminWithPackages | null> => {

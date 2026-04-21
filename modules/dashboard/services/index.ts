@@ -386,41 +386,30 @@ const getPaymentStatsByCompany = async (companyId: string, startDate?: Date, end
   });
 };
 
-// Get pending recovery (all unpaid and partial clients)
-// Optimized: fetches only unpaid/partial invoices + payments in 1 query instead of N+1
+// Get pending recovery (all unpaid and partial invoices)
+// Optimized: single SQL query using subquery to compute remaining in database
 const getPendingRecovery = async (companyId: string) => {
-  // Fetch all UNPAID/PARTIAL invoices for the company with their payments in ONE query
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      companyId,
-      status: {
-        in: ['unpaid', 'partial']
-      }
-    },
-    include: {
-      items: { select: { id: true, name: true, amount: true, quantity: true, type: true } },
-      payments: {
-        select: { amount: true }
-      }
-    }
-  });
+  // Table names are unquoted lowercase (PostgreSQL folds to lowercase)
+  // Column names must be quoted camelCase to match actual DB column names
+  const result = await prisma.$queryRaw<
+    { pendingPrice: number }[]
+  >`
+    SELECT COALESCE(SUM(
+      (COALESCE(i."totalAmount", i."amount", 0) + COALESCE(i."carryForwardAmount", 0))
+      - COALESCE(
+        (SELECT SUM(p."amount") 
+         FROM payments p 
+         WHERE p."invoiceId" = i.id AND p."status" = 'success'
+        ), 0
+      )
+    ), 0) as "pendingPrice"
+    FROM invoices i
+    WHERE i."companyId" = ${companyId}
+      AND i."status" IN ('unpaid', 'partial')
+  `;
 
-  // Calculate total remaining amount across all invoices (using items as primary source)
-  let totalPending = 0;
-  
-  for (const invoice of invoices) {
-    // Calculate from items (SINGLE SOURCE OF TRUTH)
-    const itemsTotal = invoice.items.reduce(
-      (sum, item) => sum + (item.amount * (item.quantity || 1)),
-      0
-    );
-    const invoiceTotal = itemsTotal > 0 ? itemsTotal : (invoice.amount + (invoice.carryForwardAmount || 0));
-    const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remaining = Math.max(invoiceTotal - paid, 0);
-    totalPending += remaining;
-  }
-
-  return { _sum: { price: totalPending } };
+  const pendingPrice = result[0]?.pendingPrice || 0;
+  return { _sum: { price: pendingPrice } };
 };
 
 const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, endDate?: Date) => {
@@ -455,6 +444,7 @@ const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, end
 };
 
 export { getMonthlyClientStats, type MonthlyClientStats, type YearMonthCount } from './monthly-stats';
+export { getMonthlyRecoveryStats, type MonthlyRecoveryStats } from './monthly-recovery';
 
 export const getExpiringClients = async (admin: AdminWithPackages) => {
   const today = new Date();

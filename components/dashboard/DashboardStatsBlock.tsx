@@ -9,12 +9,20 @@ export interface YearMonthCount {
   count: number;
 }
 
+export interface MonthlyRecoveryStats {
+  monthlyTarget: number;
+  monthlyRecovered: number;
+  remaining: number;
+  lastUpdated?: string;
+}
+
 export interface DashboardStatsBlockProps {
   rechargeTarget?: string;
   totalClients?: number;
   activeClients?: number;
   newClients?: number;
   monthlyHistory?: YearMonthCount[];
+  monthlyRecovery?: MonthlyRecoveryStats;
   disabledClients?: number;
   expiredClients?: number;
   suspendedClients?: number;
@@ -117,12 +125,97 @@ function NewClientsCard({
   );
 }
 
+function MonthlyRecoveryCard({
+  monthlyRecovery,
+}: {
+  monthlyRecovery?: MonthlyRecoveryStats;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const router = useRouter();
+
+  const target = monthlyRecovery?.monthlyTarget ?? 0;
+  const recovered = monthlyRecovery?.monthlyRecovered ?? 0;
+  const remaining = monthlyRecovery?.remaining ?? 0;
+  const progress = target > 0 ? Math.min((recovered / target) * 100, 100) : 0;
+
+  const showTooltip = isHovered || isFocused;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => router.push('/dashboard/payments')}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        className="group w-full bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+        aria-label={`Monthly Recovery: Rs ${recovered.toLocaleString()} of Rs ${target.toLocaleString()}`}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              Monthly Recovery
+            </p>
+          </div>
+          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 transition-transform duration-200 group-hover:scale-110">
+            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+        </div>
+        <div>
+          <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
+            Rs {recovered.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            of Rs {target.toLocaleString()} target
+          </p>
+        </div>
+        <div className="mt-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+          <div
+            className="bg-emerald-500 dark:bg-emerald-400 h-full rounded-full transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </button>
+
+      {showTooltip && (
+        <div className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 dark:bg-gray-100 rounded-xl shadow-xl p-3 min-w-[180px] border border-gray-200 dark:border-gray-700">
+          <p className="text-xs font-medium text-gray-400 dark:text-gray-600 mb-2 uppercase tracking-wide">
+            Recovery Breakdown
+          </p>
+          <ul className="space-y-1.5" role="list">
+            <li className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-300 dark:text-gray-700">Target</span>
+              <span className="text-sm font-semibold text-emerald-400 dark:text-emerald-600">
+                Rs {target.toLocaleString()}
+              </span>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-300 dark:text-gray-700">Recovered</span>
+              <span className="text-sm font-semibold text-emerald-400 dark:text-emerald-600">
+                Rs {recovered.toLocaleString()}
+              </span>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-300 dark:text-gray-700">Remaining</span>
+              <span className="text-sm font-semibold text-amber-400 dark:text-amber-600">
+                Rs {remaining.toLocaleString()}
+              </span>
+            </li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardStatsBlock({
   rechargeTarget = '',
   totalClients = 0,
   activeClients = 0,
   newClients = 0,
   monthlyHistory = [],
+  monthlyRecovery,
   disabledClients = 0,
   expiredClients = 0,
   suspendedClients = 0,
