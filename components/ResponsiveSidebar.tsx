@@ -160,7 +160,7 @@ export default function ResponsiveSidebar() {
     },
     {
       href: '/dashboard/quotations',
-      label: 'Quotations',
+      label: 'Invoice',
       icon: FileText
     },
     {

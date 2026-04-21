@@ -89,6 +89,11 @@ interface StatsData {
     timestamp: string;
     status?: string;
   }>;
+  newClients?: number;
+  monthlyHistory?: Array<{
+    yearMonth: string;
+    count: number;
+  }>;
   [key: string]: unknown;
 }
 
@@ -144,7 +149,7 @@ export default function DashboardPage() {
   // ─────────────────────────────────────────────────────────
   const fetchDashboardData = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [overviewRes, expiringRes, financialRes] = await Promise.all([
+      const [overviewRes, expiringRes, financialRes, monthlyRes] = await Promise.all([
         fetch("/api/dashboard/overview", {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -163,6 +168,12 @@ export default function DashboardPage() {
           cache: "no-store",
           signal,
         }),
+        fetch("/api/dashboard/monthly-clients?history=6", {
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }),
       ]);
 
       if (overviewRes.status === 401 || overviewRes.status === 403) {
@@ -175,6 +186,7 @@ export default function DashboardPage() {
       const overviewData = await overviewRes.json().catch(() => ({}));
       const expiringData = await expiringRes.json().catch(() => []);
       const financialData = await financialRes.json().catch(() => ({}));
+      const monthlyData = await monthlyRes.json().catch(() => ({ currentMonthCount: 0, history: [] }));
 
       // Merge financial data into stats
       const mergedStats = {
@@ -184,6 +196,8 @@ export default function DashboardPage() {
         financialArrears: financialData.totalArrears || 0,
         financialTodaysRecovery: financialData.todaysRecovery || 0,
         financialTodaysExpense: financialData.todaysExpense || 0,
+        newClients: monthlyData.currentMonthCount || 0,
+        monthlyHistory: monthlyData.history || [],
       };
 
       return {
@@ -599,12 +613,12 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 -m-4 sm:-m-6 lg:-m-8">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 -m-4 sm:-m-6 lg:-m-8">
       {/* Top Header Bar - UPDATED with Quick Action Buttons */}
       <header className="sticky top-0 z-20 backdrop-blur-xl bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/60 dark:border-gray-700/60 px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3 sm:gap-0">
           <div className="lg:pl-0 pl-12">
-            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-50 dark:to-gray-300 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold bg-linear-to-r from-gray-900 to-gray-600 dark:from-gray-50 dark:to-gray-300 bg-clip-text text-transparent">
               Dashboard
             </h1>
             {/* <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
@@ -670,7 +684,7 @@ export default function DashboardPage() {
                   }`}
                 />
               </button>
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-semibold shadow-lg shadow-indigo-500/25">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-linear-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-semibold shadow-lg shadow-indigo-500/25">
                 A
               </div>
             </div>
@@ -682,46 +696,13 @@ export default function DashboardPage() {
         {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
                 {/* ✅ TWO-COLUMN LAYOUT: User Overview + Real-Time Stats */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* User Overview Section - HIDDEN, replaced by DashboardStatsBlock */}
-          {/* <Section title="User Overview" icon={<Users className="w-5 h-5" />} className="border-2 border-[#28354a50] bg-[#f7f7f7] p-2 rounded-xl">
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-              <StatCard
-                title="Total Users"
-                value={stats.totalUsers ?? stats.totalClients ?? 0}
-                icon={<Users className="w-6 h-6" />}
-                color="blue"
-                onClick={() => router.push("/dashboard/clients")}
-              />
-              <StatCard
-                title="Active Users"
-                value={stats.activeUsers ?? stats.activeClients ?? 0}
-                icon={<UserCheck className="w-6 h-6" />}
-                color="emerald"p
-                onClick={() => router.push("/dashboard/clients?status=active")}
-              />
-              <StatCard
-                title="Expired Users"
-                value={stats.expiredUsers ?? stats.expiredClients ?? 0}
-                icon={<UserX className="w-6 h-6" />}
-                color="rose"
-                onClick={() => router.push("/dashboard/clients?status=expired")}
-              />
-              <StatCard
-                title="New Users Today"
-                value={stats.newUsersToday ?? 0}
-                icon={<Plus className="w-6 h-6" />}
-                color="purple"
-                onClick={() => router.push("/dashboard/clients")}
-              />
-            </div>
-          </Section> */}
-
           {/* Dashboard Stats Block - Replaces User Overview */}
           <DashboardStatsBlock
             rechargeTarget={`Rs ${(stats.rechargeTarget ?? stats.totalPayable ?? 0).toLocaleString()}`}
             totalClients={stats.totalClients ?? stats.totalUsers ?? 0}
             activeClients={stats.activeClients ?? stats.activeUsers ?? 0}
-            newClients={stats.newUsersToday ?? 0}
+            newClients={stats.newClients ?? 0}
+            monthlyHistory={stats.monthlyHistory ?? []}
             disabledClients={stats.expiredClients ?? stats.expiredUsers ?? 0}
             expiredClients={stats.expiredClients ?? stats.expiredUsers ?? 0}
             suspendedClients={stats.suspendedClients ?? stats.suspendedUsers ?? 0}
@@ -747,7 +728,7 @@ export default function DashboardPage() {
                     <ArrowUpRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                 </div>
-                <p className="text-2xl font-semibold bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
+                <p className="text-2xl font-semibold bg-linear-to-r from-emerald-600 to-emerald-500 dark:from-emerald-400 dark:to-emerald-300 bg-clip-text text-transparent">
                   Rs {(stats.financialTodaysRecovery ?? 0).toLocaleString()}
                 </p>
               </button>
@@ -762,7 +743,7 @@ export default function DashboardPage() {
                     <ArrowDownRight className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                   </div>
                 </div>
-                <p className="text-2xl font-semibold bg-gradient-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
+                <p className="text-2xl font-semibold bg-linear-to-r from-rose-600 to-rose-500 dark:from-rose-400 dark:to-rose-300 bg-clip-text text-transparent">
                   Rs {(stats.financialTodaysExpense ?? 0).toLocaleString()}
                 </p>
               </button>
@@ -778,7 +759,7 @@ export default function DashboardPage() {
                     <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                   </div>
                 </div>
-                <p className="text-2xl font-semibold bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+                <p className="text-2xl font-semibold bg-linear-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
                   Rs {(stats.pendingRecovery ?? 0).toLocaleString()}
                 </p>
               </button>
@@ -946,7 +927,7 @@ export default function DashboardPage() {
 
         {/* EXPIRING CLIENTS TABLE */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
-          <div className="px-4 sm:px-5 py-3.5 border-b border-gray-200/60 dark:border-gray-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 bg-gradient-to-r from-violet-50/50 to-transparent dark:from-violet-500/5 dark:to-transparent">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-gray-200/60 dark:border-gray-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 bg-linear-to-r from-violet-50/50 to-transparent dark:from-violet-500/5 dark:to-transparent">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 bg-violet-100 dark:bg-violet-500/10 rounded-lg">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600 dark:text-violet-400" />
@@ -969,7 +950,7 @@ export default function DashboardPage() {
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-700/50 border-b border-gray-200/60 dark:border-gray-700/60 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <tr className="bg-linear-to-r from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-700/50 border-b border-gray-200/60 dark:border-gray-700/60 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <th className="px-4 py-3">Username</th>
                   <th className="px-4 py-3">Client</th>
                   <th className="px-4 py-3">Contact</th>
@@ -996,7 +977,7 @@ export default function DashboardPage() {
                       {/* Client */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 ring-1 ring-gray-200/60 dark:ring-gray-600/60">
+                          <div className="w-8 h-8 rounded-full bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 ring-1 ring-gray-200/60 dark:ring-gray-600/60">
                             {client.name.charAt(0).toUpperCase()}
                           </div>
                           <span className="font-medium text-gray-900 dark:text-gray-50 text-sm">
@@ -1082,7 +1063,7 @@ export default function DashboardPage() {
               expiringClients.map((client) => (
                 <div key={client.id} className="p-4 space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-sm font-semibold text-gray-600 dark:text-gray-300 ring-1 ring-gray-200/60 dark:ring-gray-600/60 shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-sm font-semibold text-gray-600 dark:text-gray-300 ring-1 ring-gray-200/60 dark:ring-gray-600/60 shrink-0">
                       {client.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1156,7 +1137,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-rose-50/50 to-transparent dark:from-rose-900/10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-linear-to-r from-rose-50/50 to-transparent dark:from-rose-900/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl">
                   <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
@@ -1244,7 +1225,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 w-full max-w-4xl max-h-[80vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-linear-to-r from-amber-50/50 to-transparent dark:from-amber-900/10">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
                   <DollarSign className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -1351,7 +1332,7 @@ function Section({
     <section className={`space-y-4 ${className}`}>
       <div className="flex items-center gap-3">
         <div
-          className={`p-2 rounded-lg bg-gradient-to-br ${variants[variant]} shadow-md transition-transform duration-200 hover:scale-105`}
+          className={`p-2 rounded-lg bg-linear-to-br ${variants[variant]} shadow-md transition-transform duration-200 hover:scale-105`}
         >
           <div className="text-white">{icon}</div>
         </div>
@@ -1455,12 +1436,12 @@ function StatCard({
       onClick={onClick}
     >
       <div
-        className={`absolute -top-10 -right-10 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+        className={`absolute -top-10 -right-10 w-24 h-24 sm:w-32 sm:h-32 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
       />
       <div className="relative flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
-          <p className={`text-2xl sm:text-3xl font-bold bg-gradient-to-r ${c.valueGradient} bg-clip-text text-transparent tracking-tight`}>
+          <p className={`text-2xl sm:text-3xl font-bold bg-linear-to-r ${c.valueGradient} bg-clip-text text-transparent tracking-tight`}>
             {value.toLocaleString()}
           </p>
         </div>
@@ -1535,7 +1516,7 @@ function FinCard({
         <TrendingUp className={`w-4 h-4 ${t.color} opacity-60`} />
       </div>
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{title}</p>
-      <p className={`text-lg font-bold bg-gradient-to-r ${t.valueGradient} bg-clip-text text-transparent`}>
+      <p className={`text-lg font-bold bg-linear-to-r ${t.valueGradient} bg-clip-text text-transparent`}>
         Rs {amount.toLocaleString("en-PK")}
       </p>
       <div className={`mt-2 pt-2 border-t ${t.border}`}>
@@ -1551,66 +1532,6 @@ function FinCard({
     </div>
   );
 }
-// function ChartPlaceholder({ title }: { title: string }) {
-//   return (
-//     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 sm:p-6">
-//       <h3 className="font-semibold text-slate-800 mb-4">{title}</h3>
-//       <div className="h-64 flex items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-//         <p className="text-slate-400 text-sm">Chart component loading...</p>
-//       </div>
-//     </div>
-//   );
-// }
-
-// function AreaInsightsPlaceholder({
-//   areaInsights,
-// }: {
-//   areaInsights: Array<{
-//     areaName: string;
-//     totalClients: number;
-//     activeClients: number;
-//     expiredClients: number;
-//   }>;
-// }) {
-//   return (
-//     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 sm:p-6">
-//       <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-//         <Users className="w-5 h-5 text-blue-600" />
-//         Area Insights
-//       </h3>
-//       {areaInsights.length > 0 ? (
-//         <div className="space-y-3">
-//           {areaInsights.slice(0, 5).map((area) => (
-//             <div
-//               key={area.areaName}
-//               className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
-//             >
-//               <span className="font-medium text-slate-700">
-//                 {area.areaName}
-//               </span>
-//               <div className="flex items-center gap-4 text-sm">
-//                 <span className="text-slate-500">
-//                   Total: {area.totalClients}
-//                 </span>
-//                 <span className="text-emerald-600">
-//                   Active: {area.activeClients}
-//                 </span>
-//                 <span className="text-rose-600">
-//                   Expired: {area.expiredClients}
-//                 </span>
-//               </div>
-//             </div>
-//           ))}
-//         </div>
-//       ) : (
-//         <p className="text-slate-400 text-center py-8">
-//           No area data available
-//         </p>
-//       )}
-//     </div>
-//   );
-// }
-
 function ActivityFeedPlaceholder({
   activities,
 }: {
@@ -1744,12 +1665,12 @@ function InventoryCard({
       onClick={onClick}
     >
       <div
-        className={`absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
+        className={`absolute -top-8 -right-8 w-24 h-24 bg-linear-to-br ${c.bg} rounded-full blur-2xl opacity-60 group-hover:opacity-80 transition-opacity`}
       />
       <div className="relative flex items-start justify-between">
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{title}</p>
-          <p className={`text-xl font-bold bg-gradient-to-r ${c.valueGradient} bg-clip-text text-transparent tracking-tight`}>
+          <p className={`text-xl font-bold bg-linear-to-r ${c.valueGradient} bg-clip-text text-transparent tracking-tight`}>
             {value.toLocaleString()}
           </p>
           {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500">{subtitle}</p>}
@@ -1845,7 +1766,7 @@ function AlertCard({
       onClick={onClick}
     >
       <div
-        className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${u.bg}`}
+        className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${u.bg}`}
       />
       <div className="flex items-start justify-between mb-2">
         <div className={`p-1.5 rounded-lg ring-2 ${u.ring}`}>
@@ -1860,12 +1781,12 @@ function AlertCard({
         )}
       </div>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-50 mb-0.5">{title}</h3>
-      <p className={`text-xl font-bold bg-gradient-to-r ${u.valueGradient} bg-clip-text text-transparent mb-1`}>{value}</p>
+      <p className={`text-xl font-bold bg-linear-to-r ${u.valueGradient} bg-clip-text text-transparent mb-1`}>{value}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400">{message}</p>
       {value > 0 && (
         <div className="mt-3 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
-            className={`h-full bg-gradient-to-r ${u.bg} transition-all duration-500`}
+            className={`h-full bg-linear-to-r ${u.bg} transition-all duration-500`}
             style={{ width: `${Math.min(value * 15, 100)}%` }}
           />
         </div>
@@ -1906,7 +1827,7 @@ function StatusBadge({ daysLeft }: { daysLeft: number }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 animate-pulse">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 animate-pulse">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-gray-800/80 border-b border-gray-200/60 dark:border-gray-700/60 px-8 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="space-y-2">

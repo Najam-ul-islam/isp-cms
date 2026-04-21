@@ -454,6 +454,8 @@ const getExpenseStatsByCompany = async (companyId: string, startDate?: Date, end
   });
 };
 
+export { getMonthlyClientStats, type MonthlyClientStats, type YearMonthCount } from './monthly-stats';
+
 export const getExpiringClients = async (admin: AdminWithPackages) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
