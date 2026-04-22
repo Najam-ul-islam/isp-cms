@@ -12,9 +12,10 @@ interface OtherIncomeData {
 interface OtherIncomeCardProps {
   startDate?: string;
   endDate?: string;
+  refreshKey?: number;
 }
 
-export default function OtherIncomeCard({ startDate, endDate }: OtherIncomeCardProps) {
+export default function OtherIncomeCard({ startDate, endDate, refreshKey }: OtherIncomeCardProps) {
   const router = useRouter();
   const [data, setData] = useState<OtherIncomeData>({ totalOtherIncome: 0, count: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +55,10 @@ export default function OtherIncomeCard({ startDate, endDate }: OtherIncomeCardP
     abortControllerRef.current = new AbortController();
     const { signal } = abortControllerRef.current;
 
-    setIsLoading(true);
+    // Only show loading skeleton on initial load, not on refreshes
+    if (!data.totalOtherIncome && !error) {
+      setIsLoading(true);
+    }
     fetchOtherIncome(signal)
       .then((result) => {
         if (!isMounted.current) return;
@@ -72,7 +76,8 @@ export default function OtherIncomeCard({ startDate, endDate }: OtherIncomeCardP
       isMounted.current = false;
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [fetchOtherIncome]);
+  // Re-fetch when refreshKey changes (SSE events bump this from parent)
+  }, [fetchOtherIncome, refreshKey]);
 
   const isPositive = data.totalOtherIncome >= 0;
   const displayValue = Math.abs(data.totalOtherIncome);

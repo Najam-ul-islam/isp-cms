@@ -29,11 +29,12 @@ export async function GET(request: NextRequest) {
     // Create send function
     const sendFn = createSSESender(writer);
 
-    // Add client to SSE service
-    addSSEClient(clientId, sendFn);
+    // Add client to SSE service with companyId for targeted broadcasts
+    addSSEClient(clientId, admin.companyId, sendFn);
 
     // Send initial connection message
-    const welcomeMsg = `id: welcome\ndata: ${JSON.stringify({
+    // Use "event: connected" so the client's addEventListener('connected', ...) fires
+    const welcomeMsg = `id: welcome\nevent: connected\ndata: ${JSON.stringify({
       type: 'connected',
       clientId,
       message: 'Connected to real-time updates',

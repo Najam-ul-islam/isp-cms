@@ -63,41 +63,32 @@ export const getClientsWithFilters = async (admin: AdminWithPackages, filters?: 
     take: filters?.limit
   });
 
-  // Fetch all payment data in a single query to avoid N+1 problem
-  if (clients.length > 0) {
-    const clientIds = clients.map(client => client.id);
+   // Fetch all payment data in a single aggregated query to avoid N+1 problem
+   if (clients.length > 0) {
+     const clientIds = clients.map(client => client.id);
 
-    // Get all payments for the clients in a single query
-    const allPayments = await prisma.payment.findMany({
-      where: {
-        clientId: { in: clientIds }
-      }
-    });
+     // Use groupBy to get totalPaid and count per client in one efficient query
+     const paymentGroups = await prisma.payment.groupBy({
+       by: ['clientId'],
+       where: { clientId: { in: clientIds } },
+       _sum: { amount: true },
+       _count: { id: true }
+     });
 
-    // Group payments by client ID
-    const paymentGroups = allPayments.reduce((acc, payment) => {
-      if (!payment.clientId) return acc; // Skip payments without clientId
-      if (!acc[payment.clientId]) {
-        acc[payment.clientId] = [];
-      }
-      acc[payment.clientId].push(payment);
-      return acc;
-    }, {} as Record<string, typeof allPayments>);
+     // Create a map of client ID to their payment data
+     const paymentMap = new Map(
+       paymentGroups.map(group => [
+         group.clientId,
+         {
+           totalPaid: group._sum.amount || 0,
+           paymentCount: group._count.id
+         }
+       ])
+     );
 
-    // Create a map of client ID to their payment data
-    const paymentMap = new Map(
-      Object.entries(paymentGroups).map(([clientId, payments]) => [
-        clientId,
-        {
-          totalPaid: payments.reduce((sum, payment) => sum + payment.amount, 0),
-          paymentCount: payments.length
-        }
-      ])
-    );
-
-    // Calculate payment data for each client
-    const clientsWithPaymentData = clients.map(client => {
-      const paymentData = paymentMap.get(client.id) || { totalPaid: 0, paymentCount: 0 };
+     // Calculate payment data for each client
+     const clientsWithPaymentData = clients.map(client => {
+       const paymentData = paymentMap.get(client.id) || { totalPaid: 0, paymentCount: 0 };
 
       // Calculate remaining amount
       const totalDue = client.price;

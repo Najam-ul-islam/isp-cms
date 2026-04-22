@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       amount: expense.amount,
       category: expense.category,
       createdAt: expense.createdAt,
-    });
+    }, admin.companyId);
 
     return NextResponse.json(expense);
   } catch (error: any) {

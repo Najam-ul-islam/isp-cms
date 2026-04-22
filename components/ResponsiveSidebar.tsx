@@ -26,7 +26,8 @@ import {
   User,
   Shield,
   MapPin,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -195,6 +196,11 @@ export default function ResponsiveSidebar() {
       href: '/dashboard/expenses',
       label: 'Expenses',
       icon: DollarSign
+    },
+    {
+      href: '/dashboard/arrears',
+      label: 'Arrears',
+      icon: Clock
     },
     {
       href: '/dashboard/product-sales',

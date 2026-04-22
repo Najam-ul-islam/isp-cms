@@ -35,6 +35,8 @@ model Company {
   saasInvoices          SaaSInvoice[] // SaaS-specific invoices (isolated from client invoices)
   quotations            Quotation[]
   sequenceCounters      SequenceCounter[]
+  monthlyArrears       MonthlyArrears[]
+  arrearsHistories    ArrearsHistory[]
 
   @@map("companies")
 }
@@ -757,4 +759,49 @@ model SequenceCounter {
   @@unique([companyId, type])
   @@index([companyId, type])
   @@map("sequence_counters")
+}
+
+model MonthlyArrears {
+  id           String   @id @default(cuid())
+  companyId    String
+  year         Int
+  month       Int // 1-12
+  pendingRecovery Float @default(0) // Unpaid amount tracked for the current month
+  totalArrears Float   @default(0) // Cumulative arrears after rollover
+  previousArrears Float @default(0) // Arrears from previous month carried forward
+  rolloverAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+  @@index([companyId, year, month])
+  @@map("monthly_arrears")
+}
+
+model ArrearsHistory {
+  id               String   @id @default(cuid())
+  companyId        String
+  year             Int
+  month            Int // 1-12
+  pendingRecoveryAmount Float // Amount that was pending recovery at month end
+  amountRolledOver Float   // Amount moved from pending recovery to total arrears
+  cumulativeArrears Float // Total arrears after adding rollover amount
+  cumulativePrev   Float  @default(0) // Previous cumulative arrears before adding
+  rolloverType     ArrearsRolloverType @default(manual)
+  createdAt        DateTime @default(now())
+
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+  @@index([companyId, year, month])
+  @@map("arrears_history")
+}
+
+enum ArrearsRolloverType {
+  automatic
+  manual
 }

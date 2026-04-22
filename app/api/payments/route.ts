@@ -130,39 +130,84 @@ export async function GET(request: Request) {
         paymentDate: "desc",
       },
      });
-    
-    // OPTIMIZED: Batch fetch client summaries instead of N+1 queries
-    // Collect unique client IDs
-    const uniqueClientIds = Array.from(new Set(payments.map(p => p.clientId)));
-    
-    // Fetch all invoices for these clients in one query
-    const allInvoices = await prisma.invoice.findMany({
-      where: {
-        clientId: { in: uniqueClientIds },
-        companyId: admin.companyId
-      },
-      include: {
-        items: { select: { id: true, name: true, amount: true, quantity: true, type: true } },
-        payments: {
-          select: { amount: true }
-        }
-      }
-    });
-    
-    // Group invoices by clientId
-    const invoicesByClient = new Map<string, any[]>();
-    for (const invoice of allInvoices) {
-      if (!invoicesByClient.has(invoice.clientId)) {
-        invoicesByClient.set(invoice.clientId, []);
-      }
-      invoicesByClient.get(invoice.clientId)!.push(invoice);
-    }
-    
-    // Compute client summaries from their invoices
-    const clientSummaries = new Map<string, any>();
-    for (const [clientId, invoices] of invoicesByClient) {
-      clientSummaries.set(clientId, calculateClientSummaryFromInvoices(invoices));
-    }
+     
+     // OPTIMIZED: Batch fetch client summaries using two lightweight queries (instead of one heavy include)
+     // This is much faster than fetching all invoices with includes(items, payments)
+     const uniqueClientIds = Array.from(new Set(payments.map(p => p.clientId)));
+     
+      // Initialize clientSummaries map (will be populated if there are clients)
+      let clientSummaries: Map<string, { total: number; totalPaid: number; remainingAmount: number; overpaidAmount: number; effectivePaymentStatus: 'unpaid' | 'partial' | 'paid' }> = new Map();
+     
+     if (uniqueClientIds.length > 0) {
+       // Fetch only needed invoice fields (no includes) for these clients
+       const allInvoices = await prisma.invoice.findMany({
+         where: {
+           clientId: { in: uniqueClientIds }
+         },
+         select: {
+           id: true,
+           clientId: true,
+           amount: true,
+           totalAmount: true,
+           carryForwardAmount: true,
+           additionalCharges: true
+         }
+       });
+       
+       // Fetch aggregated payments per invoice in a single query
+       const invoiceIds = allInvoices.map(inv => inv.id);
+       const paymentAggregates = await prisma.payment.groupBy({
+         by: ['invoiceId'],
+         where: {
+           invoiceId: { in: invoiceIds },
+           status: 'success'
+         },
+         _sum: {
+           amount: true
+         }
+       });
+       
+       // Build invoiceId -> paidAmount map
+       const paidByInvoice = new Map<string, number>();
+       for (const agg of paymentAggregates) {
+         paidByInvoice.set(agg.invoiceId, agg._sum.amount || 0);
+       }
+       
+       // Compute client summaries
+       const clientSummaryMap = new Map<string, { total: number; totalPaid: number; remainingAmount: number; overpaidAmount: number; effectivePaymentStatus: 'unpaid' | 'partial' | 'paid' }>();
+       
+       // Initialize all clients
+       for (const clientId of uniqueClientIds) {
+         clientSummaryMap.set(clientId, { total: 0, totalPaid: 0, remainingAmount: 0, overpaidAmount: 0, effectivePaymentStatus: 'unpaid' });
+       }
+       
+       // Accumulate totals per client
+       for (const invoice of allInvoices) {
+         const charges = calculateAdditionalChargesTotal(invoice);
+         const carryForward = invoice.carryForwardAmount || 0;
+         const invoiceTotal = (invoice.totalAmount ?? invoice.amount) + charges + carryForward;
+         const paid = paidByInvoice.get(invoice.id) || 0;
+         
+         const existing = clientSummaryMap.get(invoice.clientId)!;
+         existing.total += invoiceTotal;
+         existing.totalPaid += paid;
+       }
+       
+       // Finalize remaining, overpaid, and status
+       for (const [clientId, summary] of clientSummaryMap.entries()) {
+         summary.remainingAmount = Math.max(summary.total - summary.totalPaid, 0);
+         summary.overpaidAmount = Math.max(summary.totalPaid - summary.total, 0);
+         if (summary.totalPaid === 0) {
+           summary.effectivePaymentStatus = 'unpaid';
+         } else if (summary.remainingAmount > 0) {
+           summary.effectivePaymentStatus = 'partial';
+         } else {
+           summary.effectivePaymentStatus = 'paid';
+         }
+       }
+       
+       clientSummaries = clientSummaryMap;
+     }
     
     // Enhance payments with computed summaries (no additional DB queries)
     const paymentsWithSummary = payments.map((payment) => {
@@ -550,7 +595,7 @@ export async function POST(request: Request) {
         method: method || "CASH",
         clientName: paymentWithSummary.client?.name,
         totalPaidToday: clientSummary.totalPaid,
-      });
+      }, admin.companyId);
     } catch (sseError) {
       // Don't fail payment if SSE fails
       console.error("SSE event emission failed:", sseError);

@@ -1,28 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromToken } from '@/lib/jwt';
 import { prisma } from '@/lib/prisma';
+import { getCurrentMonthARrears } from '@/modules/dashboard/services/arrears';
+import { calculateAdditionalChargesTotal } from '@/lib/payment-calculator';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0; // Disable caching
 
-/**
- * Helper: Get start of day in local timezone
- */
-const startOfDay = (date: Date = new Date()): Date => {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  return start;
-};
-
-/**
- * Helper: Get end of day in local timezone
- */
-const endOfDay = (date: Date = new Date()): Date => {
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return end;
-};
+const PAKISTAN_TIMEZONE = 'Asia/Karachi';
 
 /**
  * GET /api/dashboard/financial-summary
@@ -47,18 +39,20 @@ export async function GET(request: Request) {
     }
 
     const companyId = admin.companyId;
-    const todayStart = startOfDay();
-    const todayEnd = endOfDay();
+    const todayStart = dayjs().tz(PAKISTAN_TIMEZONE).startOf('day').toDate();
+    const todayEnd = dayjs().tz(PAKISTAN_TIMEZONE).endOf('day').toDate();
+
+    const arrearsData = await getCurrentMonthARrears(companyId);
 
     // Execute all independent queries in parallel for maximum performance
     const [
       totalRevenueResult,
       totalPayableResult,
       arrearsClients,
-      todaysRecoveryResult,
+      todaysPackageRecoveryResult,
+      todaysOtherIncomeResult,
       todaysExpenseResult,
-      pendingRecoveryResult,
-      paymentsForPending,
+      pendingInvoices,
     ] = await Promise.all([
       // 1. TOTAL REVENUE - Sum of all SUCCESSFUL payments (actual money received)
       prisma.payment.aggregate({
@@ -81,63 +75,91 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 4. TODAY'S RECOVERY - Payments received today
+      // 4a. TODAY'S PACKAGE RECOVERY - Internet package payments only (via invoice.source = package)
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
           companyId,
           status: 'success',
           paymentDate: { gte: todayStart, lte: todayEnd },
+          invoice: {
+            source: 'package',
+          },
         },
       }),
 
-      // 5. TODAY'S EXPENSE - Expenses recorded today
+      // 4b. TODAY'S OTHER INCOME - Non-package payments (product_sale, manual, etc.)
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          companyId,
+          status: 'success',
+          paymentDate: { gte: todayStart, lte: todayEnd },
+          invoice: {
+            source: { not: 'package' },
+          },
+        },
+      }),
+
+      // 5. TODAY'S EXPENSE - Expenses recorded today (use createdAt, not user-selected date)
       prisma.expense.aggregate({
         _sum: { amount: true },
         where: {
           companyId,
-          date: { gte: todayStart, lte: todayEnd },
+          createdAt: { gte: todayStart, lte: todayEnd },
         },
       }),
 
-      // 6. PENDING RECOVERY - Aggregate invoice totals
-      prisma.invoice.aggregate({
+      // 6. PENDING RECOVERY - Fetch unpaid/partial invoices with their payments
+      //    so we can correctly include JSON additionalCharges in the total
+      prisma.invoice.findMany({
         where: {
           companyId,
           status: { in: ['unpaid', 'partial'] },
         },
-        _sum: {
-          totalAmount: true,
+        select: {
           amount: true,
+          totalAmount: true,
           carryForwardAmount: true,
-        },
-      }),
-
-      // 7. PAYMENTS for pending invoices - single optimized query
-      prisma.payment.aggregate({
-        where: {
-          companyId,
-          status: 'success',
-          invoice: {
-            status: { in: ['unpaid', 'partial'] },
+          additionalCharges: true,
+          payments: {
+            where: { status: 'success' },
+            select: { amount: true },
           },
         },
-        _sum: { amount: true },
       }),
     ]);
 
+    // Compute pending recovery from individual invoices (includes additionalCharges)
+    let pendingRecovery = 0;
+    for (const inv of pendingInvoices) {
+      const charges = calculateAdditionalChargesTotal(inv);
+      const invoiceTotal = (inv.totalAmount ?? inv.amount) + (inv.carryForwardAmount || 0) + charges;
+      const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
+      pendingRecovery += Math.max(invoiceTotal - paid, 0);
+    }
+
     // Compute derived values from parallel results
     const totalArrears = arrearsClients._sum.price || 0;
-    const invoiceTotalSum = (pendingRecoveryResult._sum.totalAmount || pendingRecoveryResult._sum.amount || 0) + (pendingRecoveryResult._sum.carryForwardAmount || 0);
-    const paymentsSum = paymentsForPending._sum.amount || 0;
-    const pendingRecovery = Math.max(invoiceTotalSum - paymentsSum, 0);
+
+    // Use cumulative totalArrears from MonthlyArrears (includes historical arrears)
+    const cumulativeTotalArrears = arrearsData.totalArrears > 0 ? arrearsData.totalArrears : totalArrears;
+
+    // Today's package recovery = internet package payments only
+    // Today's other income = non-package payments (product sales, manual, etc.)
+    const todaysPackageRecovery = todaysPackageRecoveryResult._sum.amount || 0;
+    const todaysOtherIncome = todaysOtherIncomeResult._sum.amount || 0;
+    // Total recovery = all successful payments today (package + other income)
+    const todaysRecovery = todaysPackageRecovery + todaysOtherIncome;
 
     return NextResponse.json({
       totalRevenue: totalRevenueResult._sum.amount || 0,
       totalPayable: totalPayableResult._sum.amount || 0,
-      totalArrears,
+      totalArrears: cumulativeTotalArrears,
       pendingRecovery,
-      todaysRecovery: todaysRecoveryResult._sum.amount || 0,
+      todaysPackageRecovery,
+      todaysOtherIncome,
+      todaysRecovery,
       todaysExpense: todaysExpenseResult._sum.amount || 0,
       timestamp: new Date().toISOString(),
     }, {

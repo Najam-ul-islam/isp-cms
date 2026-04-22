@@ -283,7 +283,7 @@ export async function POST(request: Request) {
         areaId: client.areaId,
         packageId: client.packageId,
         price: client.price,
-      });
+      }, admin.companyId);
     } catch (sseError) {
       console.error('SSE event emission failed:', sseError);
     }
