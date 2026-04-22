@@ -179,7 +179,7 @@ function MonthlyRecoveryCard({
       </button>
 
       {showTooltip && (
-        <div className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 dark:bg-gray-100 rounded-xl shadow-xl p-3 min-w-[180px] border border-gray-200 dark:border-gray-700">
+        <div className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 bg-gray-900 dark:bg-gray-100 rounded-xl shadow-xl p-3 min-w-45 border border-gray-200 dark:border-gray-700">
           <p className="text-xs font-medium text-gray-400 dark:text-gray-600 mb-2 uppercase tracking-wide">
             Recovery Breakdown
           </p>

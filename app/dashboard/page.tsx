@@ -775,11 +775,11 @@ export default function DashboardPage() {
 
 {/* FINANCIAL SUMMARY - Uses accurate financial data from new endpoint */}
 <FinancialSummary
-  totalRevenue={`Rs ${(stats.financialRevenue ?? 0).toLocaleString()}`}
-  totalExpenses={`Rs ${(stats.totalExpenses ?? 0).toLocaleString()}`}
-  totalArrears={`Rs ${(stats.financialArrears ?? 0).toLocaleString()}`}
-  totalPayable={`Rs ${(stats.financialPayable ?? 0).toLocaleString()}`}
-  totalReceivable={`Rs ${(stats.totalReceivable ?? 0).toLocaleString()}`}
+  totalRevenue={stats.financialRevenue ?? 0}
+  totalExpenses={stats.totalExpenses ?? 0}
+  totalArrears={stats.financialArrears ?? 0}
+  totalPayable={stats.financialPayable ?? 0}
+  totalReceivable={stats.totalReceivable ?? 0}
 />
 
         {/* {/* CHARTS SECTION */}

@@ -2,6 +2,12 @@
 import "server-only";
 import { prisma } from '@/lib/prisma';
 import { emitEvent } from '@/lib/sse-service';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const PAKISTAN_TIMEZONE = 'Asia/Karachi';
 
@@ -53,30 +59,24 @@ export interface PendingClientBreakdown {
   lastPaymentDate: string | null;
 }
 
-function getPakistanNow(): Date {
-  return new Date(
-    new Date().toLocaleString('en-US', { timeZone: PAKISTAN_TIMEZONE })
-  );
+function getPakistanNow(): dayjs.Dayjs {
+  return dayjs().tz(PAKISTAN_TIMEZONE);
 }
 
 function getPakistanYear(date: Date): number {
-  return new Date(
-    date.toLocaleString('en-US', { timeZone: PAKISTAN_TIMEZONE })
-  ).getFullYear();
+  return dayjs(date).tz(PAKISTAN_TIMEZONE).year();
 }
 
 function getPakistanMonth(date: Date): number {
-  return new Date(
-    date.toLocaleString('en-US', { timeZone: PAKISTAN_TIMEZONE })
-  ).getMonth() + 1;
+  return dayjs(date).tz(PAKISTAN_TIMEZONE).month() + 1;
 }
 
 export const getMonthDateRange = (
   year: number,
   month: number
 ): [Date, Date] => {
-  const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const end = new Date(year, month, 0, 23, 59, 59, 999);
+  const start = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-01`, PAKISTAN_TIMEZONE).startOf('month').toDate();
+  const end = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-01`, PAKISTAN_TIMEZONE).endOf('month').toDate();
   return [start, end];
 };
 
@@ -88,8 +88,8 @@ export const getBillingMonthKey = (date: Date = new Date()): string => {
 
 export const getCurrentBillingMonth = (): { year: number; month: number; key: string } => {
   const now = getPakistanNow();
-  const year = getPakistanYear(now);
-  const month = getPakistanMonth(now);
+  const year = now.year();
+  const month = now.month() + 1;
   return {
     year,
     month,

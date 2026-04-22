@@ -195,7 +195,7 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+          <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
             Expenses
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mt-1">
@@ -204,7 +204,7 @@ export default function ExpensesPage() {
         </div>
         <button
           onClick={handleAddExpense}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 dark:focus:ring-offset-gray-900"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 dark:focus:ring-offset-gray-900"
         >
           <Plus className="w-4 h-4" />
           Add Expense
@@ -289,7 +289,7 @@ export default function ExpensesPage() {
 
       {/* Expenses Table */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200/60 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-purple-50/50 to-transparent dark:from-purple-900/10 dark:to-transparent">
+        <div className="px-6 py-4 border-b border-slate-200/60 dark:border-gray-700 flex items-center justify-between bg-linear-to-r from-purple-50/50 to-transparent dark:from-purple-900/10 dark:to-transparent">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
               <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -305,7 +305,7 @@ export default function ExpensesPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-gray-900/50 dark:to-gray-800/30">
+            <thead className="bg-linear-to-r from-slate-50 to-slate-100/50 dark:from-gray-900/50 dark:to-gray-800/30">
               <tr className="text-left text-xs font-semibold text-slate-600 dark:text-gray-300 uppercase tracking-wider">
                 <th className="px-6 py-3.5">Title</th>
                 <th className="px-6 py-3.5">Category</th>
@@ -320,7 +320,7 @@ export default function ExpensesPage() {
                 paginatedExpenses.map((expense) => (
                   <tr
                     key={expense.id}
-                    className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-transparent dark:hover:from-purple-900/20 dark:hover:to-transparent transition-all duration-200"
+                    className="hover:bg-linear-to-r hover:from-purple-50/50 hover:to-transparent dark:hover:from-purple-900/20 dark:hover:to-transparent transition-all duration-200"
                   >
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-800 dark:text-white text-sm">{expense.title}</div>
@@ -369,7 +369,7 @@ export default function ExpensesPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-4 text-slate-400 dark:text-gray-500">
-                      <div className="p-4 bg-gradient-to-br from-slate-100 to-slate-200/70 dark:from-gray-700 dark:to-gray-600/50 rounded-2xl">
+                      <div className="p-4 bg-linear-to-br from-slate-100 to-slate-200/70 dark:from-gray-700 dark:to-gray-600/50 rounded-2xl">
                         <DollarSign className="w-10 h-10 opacity-50" />
                       </div>
                       <div>
@@ -397,7 +397,7 @@ export default function ExpensesPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200/60 dark:border-gray-700 bg-gradient-to-r from-slate-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent flex items-center justify-between">
+          <div className="px-6 py-4 border-t border-slate-200/60 dark:border-gray-700 bg-linear-to-r from-slate-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent flex items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-gray-300">
               Page {currentPage} of {totalPages}
             </div>
@@ -507,7 +507,7 @@ function ExpenseFormModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200/80 dark:border-gray-700/80">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/80 dark:border-gray-700/80 bg-linear-to-r from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/50 rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             {expense ? 'Edit Expense' : 'Add New Expense'}
           </h2>

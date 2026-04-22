@@ -170,7 +170,7 @@ export default function ArrearsManagement() {
       <button
         onClick={handleRollover}
         disabled={rollingOver || (data?.pendingRecovery || 0) === 0}
-        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl shadow-lg shadow-amber-500/20 disabled:shadow-none transition-all duration-300 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-linear-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl shadow-lg shadow-amber-500/20 disabled:shadow-none transition-all duration-300 disabled:cursor-not-allowed"
       >
         {rollingOver ? (
           <RefreshCw className="w-5 h-5 animate-spin" />

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { getAdminFromToken } from '@/lib/jwt';
 import { prisma } from '@/lib/prisma';
 import { getCurrentMonthARrears } from '@/modules/dashboard/services/arrears';
-import { calculateAdditionalChargesTotal } from '@/lib/payment-calculator';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -41,6 +40,8 @@ export async function GET(request: Request) {
     const companyId = admin.companyId;
     const todayStart = dayjs().tz(PAKISTAN_TIMEZONE).startOf('day').toDate();
     const todayEnd = dayjs().tz(PAKISTAN_TIMEZONE).endOf('day').toDate();
+    const monthStart = dayjs().tz(PAKISTAN_TIMEZONE).startOf('month').toDate();
+    const monthEnd = dayjs().tz(PAKISTAN_TIMEZONE).endOf('month').toDate();
 
     const arrearsData = await getCurrentMonthARrears(companyId);
 
@@ -48,11 +49,11 @@ export async function GET(request: Request) {
     const [
       totalRevenueResult,
       totalPayableResult,
-      arrearsClients,
       todaysPackageRecoveryResult,
       todaysOtherIncomeResult,
       todaysExpenseResult,
-      pendingInvoices,
+      totalPackageValue,
+      totalPaidForPackages,
     ] = await Promise.all([
       // 1. TOTAL REVENUE - Sum of all SUCCESSFUL payments (actual money received)
       prisma.payment.aggregate({
@@ -66,16 +67,7 @@ export async function GET(request: Request) {
         where: { companyId },
       }),
 
-      // 3. TOTAL ARREARS - Sum of client prices where paymentStatus is 'unpaid' or 'partial'
-      prisma.client.aggregate({
-        _sum: { price: true },
-        where: {
-          companyId,
-          paymentStatus: { in: ['unpaid', 'partial'] },
-        },
-      }),
-
-      // 4a. TODAY'S PACKAGE RECOVERY - Internet package payments only (via invoice.source = package)
+      // 3. TODAY'S PACKAGE RECOVERY - Internet package payments only (via invoice.source = package)
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
@@ -110,40 +102,39 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 6. PENDING RECOVERY - Fetch unpaid/partial invoices with their payments
-      //    so we can correctly include JSON additionalCharges in the total
-      prisma.invoice.findMany({
+      // 6. PENDING RECOVERY - Total package value from all active/expired clients
+      prisma.client.aggregate({
+        _sum: { price: true },
         where: {
           companyId,
-          status: { in: ['unpaid', 'partial'] },
+          status: { in: ['active', 'expired'] },
         },
-        select: {
-          amount: true,
-          totalAmount: true,
-          carryForwardAmount: true,
-          additionalCharges: true,
-          payments: {
-            where: { status: 'success' },
-            select: { amount: true },
+      }),
+
+      // 7. PENDING RECOVERY - Total paid for packages THIS MONTH only
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          companyId,
+          status: 'success',
+          paymentDate: { gte: monthStart, lte: monthEnd },
+          invoice: {
+            source: 'package',
           },
         },
       }),
     ]);
 
-    // Compute pending recovery from individual invoices (includes additionalCharges)
-    let pendingRecovery = 0;
-    for (const inv of pendingInvoices) {
-      const charges = calculateAdditionalChargesTotal(inv);
-      const invoiceTotal = (inv.totalAmount ?? inv.amount) + (inv.carryForwardAmount || 0) + charges;
-      const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
-      pendingRecovery += Math.max(invoiceTotal - paid, 0);
-    }
+    // Pending Recovery = total owed for packages - total paid for packages
+    const pendingRecovery = Math.max(
+      (totalPackageValue._sum.price || 0) - (totalPaidForPackages._sum.amount || 0),
+      0
+    );
 
-    // Compute derived values from parallel results
-    const totalArrears = arrearsClients._sum.price || 0;
-
-    // Use cumulative totalArrears from MonthlyArrears (includes historical arrears)
-    const cumulativeTotalArrears = arrearsData.totalArrears > 0 ? arrearsData.totalArrears : totalArrears;
+    // Total Arrears = only from MonthlyArrears rollover history.
+    // First month has no previous arrears, so it starts at 0.
+    // Arrears accumulate only after a month-end rollover adds pending recovery.
+    const cumulativeTotalArrears = arrearsData.totalArrears ?? 0;
 
     // Today's package recovery = internet package payments only
     // Today's other income = non-package payments (product sales, manual, etc.)
