@@ -33,7 +33,9 @@ export type DashboardEventType =
   | 'invoice_created'
   | 'expense_created'
   | 'arrears_roled_over'
-  | 'arrears_update';
+  | 'arrears_update'
+  | 'revenue_rolled_over'
+  | 'revenue_update';
 
 export interface DashboardEvent {
   id: string;

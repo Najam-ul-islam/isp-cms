@@ -19,7 +19,7 @@ const PAKISTAN_TIMEZONE = 'Asia/Karachi';
  * GET /api/dashboard/financial-summary
  *
  * Returns accurate financial calculations:
- * - Total Revenue: (Package Sale Price - Package Purchase Price) + Product Sale Profits
+ * - Total Revenue: Sum of successful payments this month (actual money received)
  * - Total Payable: Sum of all expenses
  * - Total Arrears: Cumulative from monthly rollover history
  * - Pending Recovery: Client package prices - package payments this month
@@ -48,22 +48,31 @@ export async function GET(request: Request) {
 
     // Execute all independent queries in parallel for maximum performance
     const [
+      totalRevenueResult,
       totalPayableResult,
       todaysPackageRecoveryResult,
       todaysOtherIncomeResult,
       todaysExpenseResult,
       totalPackageValue,
       totalPaidForPackages,
-      clientsWithPackages,
-      productSaleProfitResult,
     ] = await Promise.all([
-      // 1. TOTAL PAYABLE - Sum of all expenses
+      // 1. TOTAL REVENUE - Sum of successful payments this month (actual money received)
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          companyId,
+          status: 'success',
+          paymentDate: { gte: monthStart, lte: monthEnd },
+        },
+      }),
+
+      // 2. TOTAL PAYABLE - Sum of all expenses
       prisma.expense.aggregate({
         _sum: { amount: true },
         where: { companyId },
       }),
 
-      // 2. TODAY'S PACKAGE RECOVERY - Internet package payments only (via invoice.source = package)
+      // 3. TODAY'S PACKAGE RECOVERY - Internet package payments only (via invoice.source = package)
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
@@ -76,7 +85,7 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 3. TODAY'S OTHER INCOME - Non-package payments (product_sale, manual, etc.)
+      // 4. TODAY'S OTHER INCOME - Non-package payments (product_sale, manual, etc.)
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
@@ -89,7 +98,7 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 4. TODAY'S EXPENSE - Expenses recorded today (use createdAt, not user-selected date)
+      // 5. TODAY'S EXPENSE - Expenses recorded today (use createdAt, not user-selected date)
       prisma.expense.aggregate({
         _sum: { amount: true },
         where: {
@@ -98,7 +107,7 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 5. PENDING RECOVERY - Total package value from all active/expired clients
+      // 6. PENDING RECOVERY - Total package value from all active/expired clients
       prisma.client.aggregate({
         _sum: { price: true },
         where: {
@@ -107,7 +116,7 @@ export async function GET(request: Request) {
         },
       }),
 
-      // 6. PENDING RECOVERY - Total paid for packages THIS MONTH only
+      // 7. PENDING RECOVERY - Total paid for packages THIS MONTH only
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
@@ -119,28 +128,6 @@ export async function GET(request: Request) {
           },
         },
       }),
-
-      // 7. TOTAL REVENUE (Package Margin) - All active/expired clients with their package prices
-      prisma.client.findMany({
-        where: {
-          companyId,
-          status: { in: ['active', 'expired'] },
-        },
-        select: {
-          price: true,
-          package: {
-            select: {
-              purchasePrice: true,
-            },
-          },
-        },
-      }),
-
-      // 8. TOTAL REVENUE (Other Income) - Sum of product sale profits
-      prisma.productSale.aggregate({
-        _sum: { totalOtherIncome: true },
-        where: { companyId },
-      }),
     ]);
 
     // Pending Recovery = total owed for packages - total paid for packages
@@ -149,15 +136,8 @@ export async function GET(request: Request) {
       0
     );
 
-    // Total Revenue = Package Margin + Other Income (Product Sale Profits)
-    // Package Margin = SUM(client.price - package.purchasePrice) for all active/expired clients
-    const packageMargin = clientsWithPackages.reduce((sum, client) => {
-      const salePrice = client.price || 0;
-      const purchasePrice = client.package?.purchasePrice || 0;
-      return sum + (salePrice - purchasePrice);
-    }, 0);
-    const otherIncomeTotal = productSaleProfitResult._sum.totalOtherIncome || 0;
-    const totalRevenue = packageMargin + otherIncomeTotal;
+    // Total Revenue = actual money received this month (sum of successful payments)
+    const totalRevenue = totalRevenueResult._sum.amount || 0;
 
     // Total Arrears = only from MonthlyArrears rollover history.
     // First month has no previous arrears, so it starts at 0.

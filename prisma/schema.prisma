@@ -37,6 +37,8 @@ model Company {
   sequenceCounters      SequenceCounter[]
   monthlyArrears       MonthlyArrears[]
   arrearsHistories    ArrearsHistory[]
+  monthlyRevenue      MonthlyRevenue[]
+  revenueHistories    RevenueHistory[]
 
   @@map("companies")
 }
@@ -802,6 +804,49 @@ model ArrearsHistory {
 }
 
 enum ArrearsRolloverType {
+  automatic
+  manual
+}
+
+model MonthlyRevenue {
+  id              String   @id @default(cuid())
+  companyId       String
+  year            Int
+  month           Int
+  totalRevenue    Float    @default(0)
+  previousRevenue Float    @default(0)
+  rolloverAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+  @@index([companyId, year, month])
+  @@map("monthly_revenue")
+}
+
+model RevenueHistory {
+  id                String              @id @default(cuid())
+  companyId         String
+  year              Int
+  month             Int
+  revenueAmount     Float
+  cumulativeRevenue Float
+  cumulativePrev    Float               @default(0)
+  rolloverType      RevenueRolloverType @default(manual)
+  createdAt         DateTime            @default(now())
+
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+  @@index([companyId, year, month])
+  @@map("revenue_history")
+}
+
+enum RevenueRolloverType {
   automatic
   manual
 }
