@@ -54,7 +54,8 @@ function parseExcel(buffer: ArrayBuffer): ParseResult {
         fullName: getColumnValue(row as RawCSVRow, "name", "fullname", "full_name", "full name", "clientname", "client_name", "Full Name"),
         area: getColumnValue(row as RawCSVRow, "area", "areaName", "area_name", "area name", "Area") || null,
         package: getColumnValue(row as RawCSVRow, "package", "packagename", "package_name", "package name", "plan", "service", "speed", "Package"),
-        monthlyFee: getColumnValue(row as RawCSVRow, "salesprice", "sales_price", "sales price", "monthlyfee", "monthly fee", "Monthly Fee", "price", "amount", "fee", "charges", "purchaseprice", "purchase_price") || null,
+        monthlyFee: getColumnValue(row as RawCSVRow, "salesprice", "sales_price", "sales price", "monthlyfee", "monthly fee", "Monthly Fee", "price", "amount", "fee", "charges") || null,
+        purchasePrice: getColumnValue(row as RawCSVRow, "purchaseprice", "purchase_price", "purchase price", "cost", "costprice", "cost_price") || null,
         serviceProvider: getColumnValue(row as RawCSVRow, "serviceprovider", "service_provider", "service provider", "provider", "isp", "Service Provider") || null,
       }));
     
@@ -94,7 +95,8 @@ function parseCSVData(text: string): ParseResult {
       fullName: getColumnValue(row, "name", "fullname", "full_name", "full name", "clientname", "client_name", "Full Name"),
       area: getColumnValue(row, "area", "areaName", "area_name", "area name", "Area") || null,
       package: getColumnValue(row, "package", "packagename", "package_name", "package name", "plan", "service", "speed", "Package"),
-      monthlyFee: getColumnValue(row, "salesprice", "sales_price", "sales price", "monthlyfee", "monthly fee", "Monthly Fee", "price", "amount", "fee", "charges", "purchaseprice", "purchase_price") || null,
+      monthlyFee: getColumnValue(row, "salesprice", "sales_price", "sales price", "monthlyfee", "monthly fee", "Monthly Fee", "price", "amount", "fee", "charges") || null,
+      purchasePrice: getColumnValue(row, "purchaseprice", "purchase_price", "purchase price", "cost", "costprice", "cost_price") || null,
       serviceProvider: getColumnValue(row, "serviceprovider", "service_provider", "service provider", "provider", "isp", "Service Provider") || null,
     }));
 

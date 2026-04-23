@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAdminFromToken } from "@/lib/jwt";
 import { parseFile } from "@/lib/client-import/parser";
 import { validateAllRows } from "@/lib/client-import/validator";
-import { buildCaches, transformAllRows, ensurePackagesExist, ensureAreasExist, ensureProvidersExist } from "@/lib/client-import/transformer";
+import { buildCaches, transformAllRows, ensurePackagesExist, ensureAreasExist, ensureProvidersExist, PackageImportMeta } from "@/lib/client-import/transformer";
 import { insertClientsBatch, getImportedClientsWithoutPhone, updateClientPhoneCnic } from "@/lib/client-import/uploader";
 import { generateErrorCSV } from "@/lib/client-import/error-csv";
 import { ValidationError, ParsedCSVRow } from "@/lib/client-import/types";
@@ -82,13 +82,49 @@ export async function POST(req: NextRequest) {
      const uniqueAreas = [...new Set(validRowsWithErrors.map(r => r.area).filter((a): a is string => a != null))];
      const uniqueProviders = [...new Set(validRowsWithErrors.map(r => r.serviceProvider).filter((p): p is string => p != null))];
 
-    // Auto-create missing packages, areas, and providers
+    // Auto-create missing packages, areas, and providers (providers first — we need their IDs for packages)
     console.log(`[IMPORT] Auto-creating ${uniquePackages.length} packages, ${uniqueAreas.length} areas, ${uniqueProviders.length} providers`);
-    await Promise.all([
-      ensurePackagesExist(companyId, adminId, uniquePackages),
+    const [_, areaMap, providerMap] = await Promise.all([
+      Promise.resolve(), // placeholder — packages created after providers
       ensureAreasExist(companyId, uniqueAreas),
       ensureProvidersExist(companyId, uniqueProviders),
     ]);
+
+    // Build package metadata from parsed rows (sale price, purchase price, provider)
+    const normalizeForKey = (name: string) => {
+      const trimmed = name.trim().toLowerCase();
+      const match = trimmed.match(/(\d+)\s*(mbps|gbps|kbps)?/i);
+      if (!match) return trimmed;
+      const speed = parseInt(match[1], 10);
+      const unit = match[2]?.toLowerCase() || 'mbps';
+      if (unit === 'gbps') return `${speed * 1000} Mbps`;
+      if (unit === 'kbps') return `${Math.round(speed / 1000)} Mbps`;
+      return `${speed} Mbps`;
+    };
+
+    const packageMetaMap = new Map<string, PackageImportMeta>();
+    for (const row of validRowsWithErrors) {
+      const normalizedPkg = normalizeForKey(row.package);
+      if (packageMetaMap.has(normalizedPkg)) continue;
+
+      let serviceProviderId: string | null = null;
+      if (row.serviceProvider) {
+        const normalizedProvider = row.serviceProvider.toLowerCase().trim().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+        const provider = providerMap.get(normalizedProvider);
+        if (provider) serviceProviderId = provider.id;
+      }
+
+      const salePrice = row.monthlyFee ? parseFloat(row.monthlyFee) : null;
+      const purchasePrice = row.purchasePrice ? parseFloat(row.purchasePrice) : null;
+
+      packageMetaMap.set(normalizedPkg, {
+        salePrice: salePrice !== null && !isNaN(salePrice) ? salePrice : null,
+        purchasePrice: purchasePrice !== null && !isNaN(purchasePrice) ? purchasePrice : null,
+        serviceProviderId,
+      });
+    }
+
+    await ensurePackagesExist(companyId, adminId, uniquePackages, packageMetaMap);
 
     const caches = await buildCaches(companyId, adminId);
     const { valid: transformedData, errors: transformErrors } = transformAllRows(

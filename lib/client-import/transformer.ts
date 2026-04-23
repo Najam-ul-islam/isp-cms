@@ -102,19 +102,28 @@ export async function buildCaches(companyId: string, adminId: string): Promise<C
   return { packageMap, areaMap, packageBySpeed, providerMap };
 }
 
+export interface PackageImportMeta {
+  salePrice: number | null;
+  purchasePrice: number | null;
+  serviceProviderId: string | null;
+}
+
 export async function ensurePackagesExist(
   companyId: string,
   adminId: string,
-  packageNames: string[]
+  packageNames: string[],
+  packageMeta?: Map<string, PackageImportMeta>
 ): Promise<Map<string, PackageData>> {
   const normalizedNames = [...new Set(packageNames.map(normalizePackageName))];
-  
+
   const existingPackages = await prisma.package.findMany({
     where: { companyId, name: { in: normalizedNames } },
-    select: { id: true, name: true, price: true, durationDays: true, speed: true },
+    select: { id: true, name: true, price: true, durationDays: true, speed: true, purchasePrice: true, serviceProviderId: true },
   });
 
   const packageMap = new Map<string, PackageData>();
+  const packagesToUpdate: { id: string; data: Record<string, unknown> }[] = [];
+
   existingPackages.forEach(pkg => {
     const normalized = normalizePackageName(pkg.name);
     packageMap.set(normalized, {
@@ -124,21 +133,54 @@ export async function ensurePackagesExist(
       durationDays: pkg.durationDays,
       speed: pkg.speed,
     });
+
+    if (packageMeta) {
+      const meta = packageMeta.get(normalized);
+      if (meta) {
+        const updates: Record<string, unknown> = {};
+        if (meta.salePrice !== null && pkg.price === 0) {
+          updates.price = meta.salePrice;
+        }
+        if (meta.purchasePrice !== null && pkg.purchasePrice == null) {
+          updates.purchasePrice = meta.purchasePrice;
+        }
+        if (meta.serviceProviderId && !pkg.serviceProviderId) {
+          updates.serviceProviderId = meta.serviceProviderId;
+        }
+        if (Object.keys(updates).length > 0) {
+          packagesToUpdate.push({ id: pkg.id, data: updates });
+        }
+      }
+    }
   });
+
+  if (packagesToUpdate.length > 0) {
+    await Promise.all(
+      packagesToUpdate.map(({ id, data }) =>
+        prisma.package.update({ where: { id }, data })
+      )
+    );
+    console.log(`[IMPORT] Updated ${packagesToUpdate.length} existing packages with missing price/provider data`);
+  }
 
   const missingPackages = normalizedNames.filter(name => !packageMap.has(name));
 
   if (missingPackages.length > 0) {
-    const packagesToCreate = missingPackages.map(name => ({
-      name,
-      speed: extractSpeed(name),
-      price: 0,
-      durationDays: 30,
-      description: `Auto-created during import: ${name}`,
-      createdBy: adminId,
-      isActive: true,
-      companyId,
-    }));
+    const packagesToCreate = missingPackages.map(name => {
+      const meta = packageMeta?.get(name);
+      return {
+        name,
+        speed: extractSpeed(name),
+        price: meta?.salePrice ?? 0,
+        purchasePrice: meta?.purchasePrice ?? undefined,
+        serviceProviderId: meta?.serviceProviderId ?? undefined,
+        durationDays: 30,
+        description: `Auto-created during import: ${name}`,
+        createdBy: adminId,
+        isActive: true,
+        companyId,
+      };
+    });
 
     await prisma.package.createMany({
       data: packagesToCreate,

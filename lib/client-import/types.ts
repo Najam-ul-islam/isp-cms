@@ -8,6 +8,7 @@ export interface ParsedCSVRow {
   area: string | null;
   package: string;
   monthlyFee: string | null;
+  purchasePrice: string | null;
   serviceProvider: string | null;
 }
 
