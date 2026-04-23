@@ -1338,7 +1338,6 @@ function PaymentFormModal({
   const [invoices, setInvoices] = useState<Array<{ id: string; invoiceNumber?: string | null; amount: number; status: string; totalAmount: number; totalPaid: number; remainingAmount: number; billingMonth: string | null; effectivePaymentStatus?: 'unpaid' | 'partial' | 'paid'; items?: Array<{ id: string; name: string; amount: number; quantity?: number; type?: string }> }>>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
-  const [submitting, setSubmitting] = useState(externalSubmitting);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -1632,6 +1631,7 @@ function PaymentFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <fieldset disabled={externalSubmitting} className="space-y-5 disabled:opacity-60">
           {/* Client Selection */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
@@ -1853,21 +1853,24 @@ function PaymentFormModal({
             </select>
           </div>
 
+          </fieldset>
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all font-semibold border-2 border-gray-200 dark:border-gray-600"
+              disabled={externalSubmitting}
+              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all font-semibold border-2 border-gray-200 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center justify-center gap-2"
+              disabled={externalSubmitting}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg disabled:hover:from-green-600 disabled:hover:to-emerald-600 flex items-center justify-center gap-2"
             >
-              {submitting ? (
+              {externalSubmitting ? (
                 <>
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

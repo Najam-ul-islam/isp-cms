@@ -582,11 +582,11 @@ export default function ClientsPage() {
                 onChange={(e) => setItemsPerPage(Number(e.target.value))}
                 className="appearance-none pl-3 pr-8 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-gray-900 dark:text-white cursor-pointer whitespace-nowrap w-full"
               >
-                <option value={10}>10 / pg</option>
-                <option value={50}>50 / pg</option>
-                <option value={100}>100 / pg</option>
-                <option value={500}>500 / pg</option>
-                <option value={1000}>1000 / pg</option>
+                <option value={10}>10 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+                <option value={500}>500 / page</option>
+                <option value={1000}>1000 / page</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
