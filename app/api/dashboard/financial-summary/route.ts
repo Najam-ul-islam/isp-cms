@@ -57,11 +57,14 @@ export async function GET(request: Request) {
       totalPackageValue,
       totalPaidForPackages,
     ] = await Promise.all([
-      // 1a. TOTAL REVENUE (margin) - All active/expired clients with their package purchasePrice
+      // 1a. TOTAL REVENUE (margin) - All active/expired/paid clients with their package purchasePrice
       prisma.client.findMany({
         where: {
           companyId,
-          status: { in: ['active', 'expired'] },
+          OR: [
+            { status: { in: ['active', 'expired'] } },
+            { paymentStatus: 'paid' },
+          ],
         },
         select: {
           price: true,
