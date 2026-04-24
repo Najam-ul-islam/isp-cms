@@ -92,16 +92,11 @@ export const calculateMonthlyRevenueAmount = async (
   const targetMonth = month ?? billingMonth.month;
   const [monthStart, monthEnd] = getMonthDateRange(targetYear, targetMonth);
 
-  const result = await prisma.payment.aggregate({
-    _sum: { amount: true },
-    where: {
-      companyId,
-      status: 'success',
-      paymentDate: { gte: monthStart, lte: monthEnd },
-    },
-  });
-
-  return result._sum.amount || 0;
+  // Use Invoice-based revenue calculation (profit-based, not cash-based)
+  const { FinancialService } = await import('@/lib/financial-service');
+  const revenueData = await FinancialService.calculateTotalRevenue(companyId, monthStart, monthEnd);
+  
+  return revenueData.totalRevenue;
 };
 
 export const getCurrentMonthRevenue = async (

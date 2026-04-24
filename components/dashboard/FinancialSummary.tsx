@@ -45,7 +45,7 @@ export default function FinancialSummary({
             onClick={() => router.push('/dashboard/payments')}
             className="group bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between text-left border border-emerald-200/60 dark:border-emerald-500/20 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:bg-emerald-50/80 dark:hover:bg-emerald-500/5 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
             aria-label={`Total Revenue: ${formatCurrency(totalRevenue)}`}
-            title="Total money received from successful payments"
+            title="Paid clients margin + product sales profit (current month)"
           >
             <div className="flex items-start justify-between mb-3">
               <div>
@@ -53,7 +53,7 @@ export default function FinancialSummary({
                   Total Revenue
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                  Money received
+                  Paid Clients Margin + Product Profit
                 </p>
               </div>
               <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 transition-transform duration-200 group-hover:scale-110">

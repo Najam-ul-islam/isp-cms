@@ -7,6 +7,7 @@ import { getInventoryStats } from '../../inventory/services';
 import { getEmployeeStats } from '../../employees/services';
 import { AdminWithPackages } from '@/lib/jwt';
 import { calculateAdditionalChargesTotal } from '@/lib/payment-calculator';
+import { FinancialService } from '@/lib/financial-service';
 
 /**
  * Helper: Get start of day (local timezone)
@@ -107,6 +108,9 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     otherIncome,
     pendingRecovery,
     totalReceivableFromClients,
+
+    // Revenue: invoice-verified paid clients margin + product profit
+    revenueData,
 
     // Other service calls
     accountSummary,
@@ -291,6 +295,13 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
       }
     }),
 
+    // Revenue: invoice-verified paid clients margin + product profit this month
+    FinancialService.calculateTotalRevenue(
+      admin.companyId,
+      new Date(today.getFullYear(), today.getMonth(), 1),
+      endOfDay
+    ),
+
     // Other service calls
     getAccountSummary(admin.companyId),
     getAreaInsights(admin.companyId),
@@ -312,10 +323,10 @@ export const getDashboardStats = async (admin: AdminWithPackages) => {
     dueToday: dueToday._sum.price || 0,
     dueNext7Days: dueNext7Days._sum.price || 0,
 
-    // Extended metrics
-    totalRevenue: paymentStats._sum.amount || 0,
+    // Profit-based revenue — invoice-verified paid clients only
+    totalRevenue: revenueData.totalRevenue,
     totalExpenses: expenseStats._sum.amount || 0,
-    netProfit: (paymentStats._sum.amount || 0) - (expenseStats._sum.amount || 0),
+    netProfit: revenueData.totalRevenue - (expenseStats._sum.amount || 0),
     todayRecovery: todayRecovery._sum.amount || 0,
     todayExpenses: todayExpenses._sum.amount || 0,
     otherIncome: otherIncome._sum.amount || 0,

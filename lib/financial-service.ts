@@ -432,6 +432,177 @@ export class FinancialService {
       trend: change > 0 ? 'up' : change < 0 ? 'down' : 'stable' as const,
     };
   }
+
+   /**
+    * Get DISTINCT client IDs from PAID invoices (any source).
+    *
+    * Source of truth: Invoice (NOT Payment).
+    *   Invoice.status = 'paid' → billing cycle is complete
+    *
+    * Why NOT Payment? Payment has no `type` field, its `status` is a free-form
+    * string that may not match, and filtering through payment→invoice is fragile.
+    * Invoice.status is an enum with exact values: unpaid | partial | paid.
+    *
+    * NOTE: We intentionally do NOT filter by source (package/manual) because
+    * the source field may be inconsistent for historical data. A paid invoice
+    * of any source indicates the client has made a payment.
+    */
+   static async getPaidClientIds(
+     companyId: string,
+     monthStart: Date,
+     monthEnd: Date
+   ): Promise<string[]> {
+     const paidInvoices = await prisma.invoice.findMany({
+       where: {
+         companyId,
+         status: 'paid',
+         issuedDate: { gte: monthStart, lte: monthEnd },
+       },
+       select: { clientId: true },
+       distinct: ['clientId'],
+     });
+
+     const ids = paidInvoices.map(inv => inv.clientId);
+
+     console.log('[Revenue] getPaidClientIds — paid invoices this month:', paidInvoices.length);
+     console.log('[Revenue] getPaidClientIds — distinct client IDs:', ids.length, ids.slice(0, 10));
+
+     return ids;
+   }
+
+  /**
+   * Calculate total revenue (profit-based, NOT cash-based):
+   *
+   *   totalRevenue = packageMargin + otherIncome
+   *
+   *   packageMargin = SUM(client.price - package.purchasePrice)
+   *                   for clients with a PAID package invoice this month
+   *
+   *   otherIncome   = SUM((sellingPrice - actualPrice) * quantity)
+   *                   for product sales with status='paid' this month
+   *
+   * Diagnostic logs at every step so 0-revenue is instantly debuggable.
+   */
+  static async calculateTotalRevenue(
+    companyId: string,
+    monthStart: Date,
+    monthEnd: Date
+  ): Promise<{ totalRevenue: number; packageMargin: number; otherIncome: number; paidClientCount: number }> {
+
+     // ── Step 1: Diagnostics — what does the DB actually contain? ──
+     const [
+       invoiceStatusCounts, 
+       totalInvoices, 
+       invoicesBySource, 
+       totalPayments, 
+       paymentStatusSample,
+       samplePaidInvoices
+     ] = await Promise.all([
+       prisma.invoice.groupBy({
+         by: ['status'],
+         where: { companyId, issuedDate: { gte: monthStart, lte: monthEnd } },
+         _count: { id: true },
+       }),
+       prisma.invoice.count({
+         where: { companyId, issuedDate: { gte: monthStart, lte: monthEnd } },
+       }),
+       prisma.invoice.groupBy({
+         by: ['source'],
+         where: { companyId, issuedDate: { gte: monthStart, lte: monthEnd } },
+         _count: { id: true },
+       }),
+       prisma.payment.count({
+         where: { companyId, paymentDate: { gte: monthStart, lte: monthEnd } },
+       }),
+       prisma.payment.groupBy({
+         by: ['status'],
+         where: { companyId, paymentDate: { gte: monthStart, lte: monthEnd } },
+         _count: { id: true },
+       }),
+       // Sample paid invoices for debugging
+       prisma.invoice.findMany({
+         where: { companyId, status: 'paid', issuedDate: { gte: monthStart, lte: monthEnd } },
+         take: 5,
+         select: { 
+           id: true, 
+           invoiceNumber: true, 
+           status: true, 
+           source: true, 
+           totalAmount: true,
+           items: { select: { type: true, name: true, amount: true } }
+         },
+       }),
+     ]);
+
+     console.log('[Revenue] ── DIAGNOSTICS ──');
+     console.log('[Revenue] Month range:', monthStart.toISOString(), '→', monthEnd.toISOString());
+     console.log('[Revenue] Invoices this month (total):', totalInvoices);
+     console.log('[Revenue] Invoice status breakdown:', JSON.stringify(invoiceStatusCounts));
+     console.log('[Revenue] Invoice source breakdown:', JSON.stringify(invoicesBySource));
+     console.log('[Revenue] Payments this month (total):', totalPayments);
+     console.log('[Revenue] Payment status breakdown:', JSON.stringify(paymentStatusSample));
+     if (samplePaidInvoices.length > 0) {
+       console.log('[Revenue] Sample paid invoices:');
+       samplePaidInvoices.forEach(inv => {
+         const itemInfo = inv.items.map(i => `${i.type}:${i.name}`).join(', ');
+         console.log(`  #${inv.invoiceNumber || inv.id.slice(0,8)} status=${inv.status} source=${inv.source} total=${inv.totalAmount} items=[${itemInfo}]`);
+       });
+     } else {
+       console.log('[Revenue] No paid invoices found in this month.');
+     }
+
+    // ── Step 2: Get paid client IDs from Invoice (source of truth) ──
+    const paidClientIds = await this.getPaidClientIds(companyId, monthStart, monthEnd);
+
+    // ── Step 3: Fetch client+package data and product sales in parallel ──
+    const [paidClients, productSales] = await Promise.all([
+      paidClientIds.length > 0
+        ? prisma.client.findMany({
+            where: { id: { in: paidClientIds }, companyId },
+            select: {
+              id: true,
+              price: true,
+              package: { select: { purchasePrice: true } },
+            },
+          })
+        : Promise.resolve([]),
+
+      prisma.productSale.findMany({
+        where: {
+          companyId,
+          status: 'paid',
+          createdAt: { gte: monthStart, lte: monthEnd },
+        },
+        select: { sellingPrice: true, actualPrice: true, quantity: true },
+      }),
+    ]);
+
+    console.log('[Revenue] Paid clients fetched:', paidClients.length);
+    if (paidClients.length > 0 && paidClients.length <= 20) {
+      console.log('[Revenue] Paid clients detail:', JSON.stringify(paidClients));
+    }
+    console.log('[Revenue] Paid product sales this month:', productSales.length);
+
+    // ── Step 4: Calculate package margin ──
+    const packageMargin = paidClients.reduce((sum, client) => {
+      const purchasePrice = client.package?.purchasePrice ?? 0;
+      return sum + (client.price - purchasePrice);
+    }, 0);
+
+    // ── Step 5: Calculate product sales profit ──
+    const otherIncome = productSales.reduce((sum, sale) => {
+      return sum + (sale.sellingPrice - sale.actualPrice) * sale.quantity;
+    }, 0);
+
+    const totalRevenue = packageMargin + otherIncome;
+
+    console.log('[Revenue] ── RESULT ──');
+    console.log('[Revenue] Package Margin:', packageMargin);
+    console.log('[Revenue] Other Income (product profit):', otherIncome);
+    console.log('[Revenue] Total Revenue:', totalRevenue);
+
+    return { totalRevenue, packageMargin, otherIncome, paidClientCount: paidClients.length };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
