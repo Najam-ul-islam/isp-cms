@@ -14,6 +14,8 @@ import {
   Filter,
   IndianRupee,
   TrendingUp,
+  MapPin,
+  CheckCircle,
 } from "lucide-react";
 
 // ✅ Type definition for payment records
@@ -43,6 +45,9 @@ export default function PaymentsPage() {
   const [savingPayment, setSavingPayment] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("all");
+  const [selectedArea, setSelectedArea] = useState("all");
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<"all" | "paid" | "unpaid" | "partial">("all");
+  const [areas, setAreas] = useState<{ id: string; name: string }[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: "",
     end: "",
@@ -95,6 +100,25 @@ export default function PaymentsPage() {
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
     setNotification({ type, message });
   };
+
+  // Fetch areas for filter dropdown
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const res = await fetch('/api/areas', {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAreas(data);
+        }
+      } catch (err) {
+        console.error('Error fetching areas:', err);
+      }
+    };
+    fetchAreas();
+  }, []);
 
   // Calculate pending recovery by fetching actual client data with payment summaries
   const calculatePendingRecovery = useCallback(async () => {
@@ -313,6 +337,22 @@ totalPending += remaining;
     const matchesMethod =
       selectedMethod === "all" || payment.method === selectedMethod;
 
+    const matchesArea =
+      selectedArea === "all" || payment.area === selectedArea;
+
+    let matchesPaymentStatus = true;
+    if (selectedPaymentStatus !== "all") {
+      const remaining = payment.remainingAmount ?? 0;
+      const paid = payment.totalPaid ?? 0;
+      if (selectedPaymentStatus === "paid") {
+        matchesPaymentStatus = remaining === 0 && paid > 0;
+      } else if (selectedPaymentStatus === "partial") {
+        matchesPaymentStatus = remaining > 0 && paid > 0;
+      } else if (selectedPaymentStatus === "unpaid") {
+        matchesPaymentStatus = paid === 0;
+      }
+    }
+
     // Apply date range filter if dates are selected
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {
@@ -330,7 +370,7 @@ totalPending += remaining;
       matchesDate = paymentDate <= endDate;
     }
 
-    return matchesSearch && matchesMethod && matchesDate;
+    return matchesSearch && matchesMethod && matchesArea && matchesPaymentStatus && matchesDate;
   });
 
   const totalPayments = filteredPayments.reduce(
@@ -642,7 +682,7 @@ totalPending += remaining;
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-gray-700 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-4">
           {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -669,6 +709,38 @@ totalPending += remaining;
                   {method}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Area Filter */}
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <select
+              value={selectedArea}
+              onChange={(e) => setSelectedArea(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white appearance-none cursor-pointer"
+            >
+              <option value="all">All Areas</option>
+              {areas.map((area) => (
+                <option key={area.id} value={area.name}>
+                  {area.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payment Status Filter */}
+          <div className="relative">
+            <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <select
+              value={selectedPaymentStatus}
+              onChange={(e) => setSelectedPaymentStatus(e.target.value as "all" | "paid" | "unpaid" | "partial")}
+              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white appearance-none cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
             </select>
           </div>
 
